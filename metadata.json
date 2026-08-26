@@ -1,0 +1,6 @@
+{
+  "name": "जय हिंद मंडळ अर्जुनवाड",
+  "description": "जय हिंद कला क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड - अधिकृत सभासद, सोशल फीड, चॅट, गॅलरी, कार्यक्रम व सूचना ॲप",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,144 @@
+package com.example.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.DynamicFeed
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.components.*
+import com.example.ui.theme.*
+import com.example.ui.viewmodel.MandalViewModel
+
+@Composable
+fun PostsScreen(
+    viewModel: MandalViewModel,
+    onOpenCreatePost: () -> Unit
+) {
+    val posts by viewModel.posts.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val activeCommentPost by viewModel.activeCommentPost.collectAsStateWithLifecycle()
+    val activePostComments by viewModel.activePostComments.collectAsStateWithLifecycle()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundWarm)
+            .testTag("posts_screen_root")
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 90.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // "काय विचार करत आहात?" Top Input Trigger Box
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenCreatePost() }
+                        .testTag("feed_create_post_trigger"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MemberAvatar(
+                            photoUrl = currentUser?.profilePhotoUrl ?: "",
+                            name = currentUser?.fullName ?: "सभासद",
+                            size = 42
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = SurfaceVariantWarm,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "काय नवीन आहे? येथे पोस्ट करा...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(onClick = onOpenCreatePost) {
+                            Icon(
+                                imageVector = Icons.Default.AddPhotoAlternate,
+                                contentDescription = "फोटो जोडा",
+                                tint = SaffronPrimary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Posts List
+            if (posts.isEmpty()) {
+                item {
+                    EmptyStateView(
+                        icon = Icons.Default.DynamicFeed,
+                        title = "कोणतीही पोस्ट उपलब्ध नाही",
+                        subtitle = "मंडळातील पहिली पोस्ट तयार करण्यासाठी वरील पर्यायावर क्लिक करा!"
+                    )
+                }
+            } else {
+                items(posts, key = { it.id }) { post ->
+                    PostItemCard(
+                        post = post,
+                        currentUser = currentUser,
+                        onLikeClick = { viewModel.toggleLike(post.id) },
+                        onCommentClick = { viewModel.openComments(post) },
+                        onDeleteClick = { viewModel.deletePost(post.id) },
+                        onImageClick = { viewModel.openFullscreenPhoto(it) }
+                    )
+                }
+            }
+        }
+
+        // Floating Action Button
+        FloatingActionButton(
+            onClick = onOpenCreatePost,
+            containerColor = SaffronPrimary,
+            contentColor = Color.White,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 80.dp, end = 16.dp)
+                .testTag("feed_fab_create_post")
+        ) {
+            Icon(imageVector = Icons.Default.Add, contentDescription = "नवीन पोस्ट")
+        }
+
+        // Comments Bottom Sheet
+        if (activeCommentPost != null) {
+            CommentsBottomSheet(
+                post = activeCommentPost,
+                comments = activePostComments,
+                currentUser = currentUser,
+                onDismiss = { viewModel.closeComments() },
+                onAddComment = { viewModel.addComment(it) }
+            )
+        }
+    }
+}

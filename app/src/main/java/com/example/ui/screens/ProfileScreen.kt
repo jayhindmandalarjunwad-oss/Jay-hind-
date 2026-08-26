@@ -1,0 +1,435 @@
+package com.example.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.model.User
+import com.example.ui.components.*
+import com.example.ui.theme.*
+import com.example.ui.viewmodel.AppScreen
+import com.example.ui.viewmodel.MandalViewModel
+
+@Composable
+fun ProfileScreen(viewModel: MandalViewModel) {
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
+
+    if (currentUser == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("कृपया प्रथम लॉगिन करा.")
+        }
+        return
+    }
+
+    val user = currentUser!!
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundWarm)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp)
+            .testTag("profile_screen_root"),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // OFFICIAL DIGITAL MEMBERSHIP CARD
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("membership_id_card"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Top Header of ID Card
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(SaffronPrimary, GoldenTertiary)
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "जय हिंद मंडळ अर्जुनवाड",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 15.sp
+                                ),
+                                color = Color.White
+                            )
+                            Text(
+                                text = "अधिकृत डिजिटल सभासद ओळखपत्र",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 10.sp
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color.White.copy(alpha = 0.25f)
+                        ) {
+                            Text(
+                                text = "ID: #${user.id.takeLast(6).uppercase()}",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Body of ID Card
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MemberAvatar(
+                        photoUrl = user.profilePhotoUrl,
+                        name = user.fullName,
+                        size = 76
+                    )
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = user.fullName,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            ),
+                            color = TextPrimary
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            BloodGroupBadge(bloodGroup = user.bloodGroup)
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "मोबाईल: ${user.mobileNumber}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+
+                        Text(
+                            text = "पत्ता: ${user.address}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                // Card Footer
+                Surface(
+                    color = SurfaceVariantWarm,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "नोंदणी तारीख: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(user.createdAt))}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 10.sp
+                        )
+                        StatusBadge(status = user.status)
+                    }
+                }
+            }
+        }
+
+        // ADMIN PANEL BUTTON IF USER IS ADMIN
+        if (user.isAdmin) {
+            Button(
+                onClick = { viewModel.navigateTo(AppScreen.ADMIN_PANEL) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("admin_panel_button"),
+                colors = ButtonDefaults.buttonColors(containerColor = NavySecondary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(imageVector = Icons.Default.AdminPanelSettings, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "मंडळ ॲडमिन पॅनेल (Admin Panel)",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+            }
+        }
+
+        // PROFILE ACTIONS (Strictly Personal Profile Edit & Password Change)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column {
+                ProfileOptionRow(
+                    icon = Icons.Default.Edit,
+                    title = "प्रोफाइल माहिती व फोटो बदला",
+                    subtitle = "नाव, फोटो, रक्तगट, जन्म तारीख, पत्ता",
+                    onClick = { showEditProfileDialog = true }
+                )
+                HorizontalDivider(color = DividerColor)
+                ProfileOptionRow(
+                    icon = Icons.Default.Lock,
+                    title = "पासवर्ड बदला",
+                    subtitle = "आपला लॉगिन पासवर्ड अद्ययावत करा",
+                    onClick = { showChangePasswordDialog = true }
+                )
+            }
+        }
+
+        // LOGOUT BUTTON
+        OutlinedButton(
+            onClick = { viewModel.logout() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("logout_button"),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = BloodRed),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed),
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Icon(imageVector = Icons.Default.Logout, contentDescription = null, tint = BloodRed)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("लॉगआउट करा (Logout)", fontWeight = FontWeight.Bold, color = BloodRed)
+        }
+
+        Spacer(modifier = Modifier.height(90.dp))
+    }
+
+    // Edit Profile Dialog
+    if (showEditProfileDialog) {
+        EditProfileDialog(
+            user = user,
+            onDismiss = { showEditProfileDialog = false },
+            onSave = { name, gender, bg, dob, addr, photo ->
+                viewModel.updateProfile(name, gender, bg, dob, addr, photo)
+                showEditProfileDialog = false
+            }
+        )
+    }
+
+    // Change Password Dialog
+    if (showChangePasswordDialog) {
+        ChangePasswordDialog(
+            onDismiss = { showChangePasswordDialog = false },
+            onSave = { oldP, newP ->
+                viewModel.changePassword(oldP, newP)
+                showChangePasswordDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun ProfileOptionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = SaffronPrimary.copy(alpha = 0.12f),
+            contentColor = SaffronPrimary,
+            modifier = Modifier.size(38.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
+            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary, fontSize = 11.sp)
+        }
+        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary)
+    }
+}
+
+@Composable
+fun EditProfileDialog(
+    user: User,
+    onDismiss: () -> Unit,
+    onSave: (fullName: String, gender: String, bloodGroup: String, dob: String, address: String, photo: String) -> Unit
+) {
+    var name by remember { mutableStateOf(user.fullName) }
+    var gender by remember { mutableStateOf(user.gender) }
+    var bloodGroup by remember { mutableStateOf(user.bloodGroup) }
+    var dob by remember { mutableStateOf(user.dateOfBirth) }
+    var address by remember { mutableStateOf(user.address) }
+    var photoUrl by remember { mutableStateOf(user.profilePhotoUrl) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("प्रोफाइल माहिती व फोटो बदला", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "प्रोफाइल फोटो (गॅलरीतून निवडा):",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
+                )
+                GalleryImagePicker(
+                    selectedImageUrl = photoUrl,
+                    onImageSelected = { photoUrl = it },
+                    label = "गॅलरीतून नवीन फोटो निवडा",
+                    helperText = "मोबाईल गॅलरीतून स्वतःचा फोटो अपलोड करा",
+                    height = 120.dp
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("पूर्ण नाव") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = bloodGroup,
+                    onValueChange = { bloodGroup = it },
+                    label = { Text("रक्तगट (उदा. O+, A+)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = dob,
+                    onValueChange = { dob = it },
+                    label = { Text("जन्म तारीख (YYYY-MM-DD)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = { Text("पत्ता") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(name, gender, bloodGroup, dob, address, photoUrl) },
+                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
+            ) {
+                Text("जतन करा")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("रद्द करा") }
+        }
+    )
+}
+
+@Composable
+fun ChangePasswordDialog(
+    onDismiss: () -> Unit,
+    onSave: (oldPass: String, newPass: String) -> Unit
+) {
+    var oldPass by remember { mutableStateOf("") }
+    var newPass by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("पासवर्ड बदला", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = oldPass,
+                    onValueChange = { oldPass = it },
+                    label = { Text("सध्याचा पासवर्ड") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = newPass,
+                    onValueChange = { newPass = it },
+                    label = { Text("नवीन पासवर्ड (किमान ४ अक्षरे)") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(oldPass, newPass) },
+                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
+            ) {
+                Text("बदला")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("रद्द करा") }
+        }
+    )
+}
