@@ -59,9 +59,11 @@ class MandalRepository(context: Context) {
         } catch (e: Exception) {
             Log.e("FirebaseSync", "FirebaseApp init error: ${e.message}")
         }
+        // Start real-time Firestore synchronization immediately
+        startFirestoreSync()
+
         repositoryScope.launch {
             seedDatabaseIfEmpty()
-            startFirestoreSync()
             forceSyncFromFirebase()
             // Check if user previously logged in on this device
             val savedUserId = prefs.getString("logged_user_id", null)
@@ -455,7 +457,7 @@ class MandalRepository(context: Context) {
 
         // If not found in local Room or status is still PENDING_APPROVAL locally, fetch latest from Firestore
         try {
-            val queryTask = firestore.collection("users").whereEqualTo("mobileNumber", cleanMobile).get()
+            val queryTask = firestore.collection("users").whereEqualTo("mobileNumber", cleanMobile).get(com.google.firebase.firestore.Source.DEFAULT)
             val snapshot = Tasks.await(queryTask)
             val doc = snapshot.documents.firstOrNull()
             if (doc != null) {
@@ -466,7 +468,7 @@ class MandalRepository(context: Context) {
                 }
             }
         } catch (e: Exception) {
-            // Fall back to local DB
+            Log.e("FirebaseSync", "Login firestore fetch error: ${e.message}")
         }
 
         if (user == null) {
