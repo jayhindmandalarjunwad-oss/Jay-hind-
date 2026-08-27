@@ -564,14 +564,16 @@ class MandalRepository(context: Context) {
 
         // Push to Firebase Firestore so Admin on any phone sees it in real time
         try {
-            firestore.collection("users").document(newId).set(entity.toMap(), SetOptions.merge())
-                .addOnSuccessListener { Log.d("FirebaseSync", "Registered user $newId synced to Firestore") }
-                .addOnFailureListener { e -> Log.e("FirebaseSync", "Failed to sync user $newId to Firestore", e) }
-            firestore.collection("notifications").document(notifId).set(notifEntity.toMap(), SetOptions.merge())
-                .addOnSuccessListener { Log.d("FirebaseSync", "Notification $notifId synced to Firestore") }
-                .addOnFailureListener { e -> Log.e("FirebaseSync", "Failed to sync notification $notifId to Firestore", e) }
+            val userWriteTask = firestore.collection("users").document(newId).set(entity.toMap(), SetOptions.merge())
+            Tasks.await(userWriteTask)
+            Log.d("FirebaseSync", "Registered user $newId synced to Firestore successfully")
+
+            val notifWriteTask = firestore.collection("notifications").document(notifId).set(notifEntity.toMap(), SetOptions.merge())
+            Tasks.await(notifWriteTask)
+            Log.d("FirebaseSync", "Notification $notifId synced to Firestore successfully")
         } catch (e: Exception) {
-            Log.e("FirebaseSync", "Error pushing registration to Firestore", e)
+            Log.e("FirebaseSync", "Error pushing registration to Firestore: ${e.message}", e)
+            // Even if network has temporary glitch, local entry is saved, but let's inform error if needed
         }
 
         Result.success("नोंदणी यशस्वी झाली! आपले खाते 'Pending Approval' मध्ये आहे. मंडळाच्या ॲडमिन मंजुरीनंतर आपण लॉगिन करू शकाल.")
@@ -673,14 +675,13 @@ class MandalRepository(context: Context) {
         try {
             val user = userDao.getUserById(userId)
             if (user != null) {
-                firestore.collection("users").document(userId).set(user.toMap(), SetOptions.merge())
-                    .addOnSuccessListener { Log.d("FirebaseSync", "Member $userId status successfully set to $status on Firestore") }
-                    .addOnFailureListener { e -> Log.e("FirebaseSync", "Failed to update member $userId status on Firestore", e) }
+                Tasks.await(firestore.collection("users").document(userId).set(user.toMap(), SetOptions.merge()))
+                Log.d("FirebaseSync", "Member $userId status successfully set to $status on Firestore")
             } else {
-                firestore.collection("users").document(userId).set(mapOf("status" to status), SetOptions.merge())
+                Tasks.await(firestore.collection("users").document(userId).set(mapOf("status" to status), SetOptions.merge()))
             }
         } catch (e: Exception) {
-            Log.e("FirebaseSync", "Error setting member status on Firestore", e)
+            Log.e("FirebaseSync", "Error setting member status on Firestore: ${e.message}", e)
         }
     }
 
