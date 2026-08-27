@@ -302,7 +302,7 @@ fun AuthScreen(
                     OutlinedTextField(
                         value = regFullName,
                         onValueChange = { regFullName = it },
-                        label = { Text("संपूर्ण नाव (उदा. सचिन आनंदराव पाटील)") },
+                        label = { Text("संपूर्ण नाव (उदा. वैभव चौगुले)") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = SaffronPrimary) },
                         modifier = Modifier
                             .fillMaxWidth()

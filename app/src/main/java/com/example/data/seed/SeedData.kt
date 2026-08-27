@@ -26,13 +26,13 @@ object SeedData {
 
     val defaultAdmin = UserEntity(
         id = "admin_1",
-        fullName = "सचिन आनंदराव पाटील",
+        fullName = "वैभव चौगुले",
         mobileNumber = "9545791089",
         password = "ADMIN",
         profilePhotoUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
         gender = "पुरुष",
         bloodGroup = "O+",
-        dateOfBirth = "1988-04-15",
+        dateOfBirth = "1990-01-01",
         address = "गावभाग, अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर",
         role = "ADMIN",
         designation = "",
@@ -41,182 +41,25 @@ object SeedData {
     )
 
     val seedUsers = listOf(
-        defaultAdmin,
-        UserEntity(
-            id = "user_2",
-            fullName = "अमोल दिनकर शिंदे",
-            mobileNumber = "9876543211",
-            password = "password",
-            profilePhotoUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
-            gender = "पुरुष",
-            bloodGroup = "B+",
-            dateOfBirth = "1994-08-23", // Actual birthday only
-            address = "शिवाजी चौक, अर्जुनवाड, ता. शिरोळ",
-            role = "ADMIN",
-            designation = "",
-            status = "APPROVED",
-            isOnline = true
-        ),
-        UserEntity(
-            id = "user_3",
-            fullName = "रोहित शिवाजी अर्जुनवाडकर",
-            mobileNumber = "9876543212",
-            password = "password",
-            profilePhotoUrl = "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=300&auto=format&fit=crop&q=80",
-            gender = "पुरुष",
-            bloodGroup = "AB+",
-            dateOfBirth = "1994-11-20",
-            address = "महालक्ष्मी मंदिर परिसर, अर्जुनवाड",
-            role = "ADMIN",
-            designation = "",
-            status = "APPROVED",
-            isOnline = false
-        ),
-        UserEntity(
-            id = "user_4",
-            fullName = "प्रसाद मारुती कांबळे",
-            mobileNumber = "9876543213",
-            password = "password",
-            profilePhotoUrl = "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80",
-            gender = "पुरुष",
-            bloodGroup = "A+",
-            dateOfBirth = "1996-05-18",
-            address = "आंबेडकर नगर, अर्जुनवाड, ता. शिरोळ",
-            role = "MEMBER",
-            designation = "",
-            status = "APPROVED",
-            isOnline = true
-        ),
-        UserEntity(
-            id = "user_5",
-            fullName = "ओंकार विलास देसाई",
-            mobileNumber = "9876543214",
-            password = "password",
-            profilePhotoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
-            gender = "पुरुष",
-            bloodGroup = "O-",
-            dateOfBirth = "1997-03-10",
-            address = "कुस्ती मैदान जवळ, अर्जुनवाड",
-            role = "MEMBER",
-            designation = "",
-            status = "APPROVED",
-            isOnline = true
-        ),
-        UserEntity(
-            id = "user_6",
-            fullName = "सुनील संभाजी गायकवाड",
-            mobileNumber = "9876543215",
-            password = "password",
-            profilePhotoUrl = "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=300&auto=format&fit=crop&q=80",
-            gender = "पुरुष",
-            bloodGroup = "A-",
-            dateOfBirth = "1999-07-28",
-            address = "बस स्टँड जवळ, अर्जुनवाड",
-            role = "MEMBER",
-            designation = "",
-            status = "APPROVED",
-            isOnline = false
-        ),
-        UserEntity(
-            id = "user_7",
-            fullName = "गणेश बापूराव मोरे",
-            mobileNumber = "9876543216",
-            password = "password",
-            profilePhotoUrl = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&auto=format&fit=crop&q=80",
-            gender = "पुरुष",
-            bloodGroup = "B-",
-            dateOfBirth = "1995-12-05",
-            address = "हनुमान मंदिर रोड, अर्जुनवाड",
-            role = "MEMBER",
-            designation = "",
-            status = "PENDING_APPROVAL", // For admin approval demo
-            isOnline = false
-        ),
-        UserEntity(
-            id = "user_8",
-            fullName = "मयूर प्रकाश चौगुले",
-            mobileNumber = "9876543217",
-            password = "password",
-            profilePhotoUrl = "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80",
-            gender = "पुरुष",
-            bloodGroup = "AB-",
-            dateOfBirth = "2000-01-18",
-            address = "कृष्णा नदी काठ परिसर, अर्जुनवाड",
-            role = "MEMBER",
-            designation = "",
-            status = "PENDING_APPROVAL", // For admin approval demo
-            isOnline = false
-        )
+        defaultAdmin
     )
 
     val seedPosts = listOf(
         PostEntity(
             id = "post_1",
             authorId = "admin_1",
-            authorName = "सचिन आनंदराव पाटील",
+            authorName = "वैभव चौगुले",
             authorPhotoUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
-            authorRole = "",
-            content = "🚩 जय हिंद मंडळ अर्जुनवाड तर्फे यावर्षीचा गणेशोत्सव भव्य स्वरूपात साजरा करण्याचे ठरले आहे. सर्व सभासदांनी देखावा तयारी व मूर्ती स्वागतासाठी एकत्र यावे! जय हिंद! गणपती बाप्पा मोरया! 🚩",
+            authorRole = "ADMIN",
+            content = "🚩 जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड च्या अधिकृत ॲपमध्ये सर्व ग्रामस्थ व सभासदांचे सहर्ष स्वागत! मंडळाच्या सर्व उपक्रम, कार्यक्रम व सूचना या ॲपद्वारे मिळतील. जय हिंद! 🚩",
             imageUrlsJson = "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=800&auto=format&fit=crop&q=80",
-            likedUserIdsJson = "admin_1,user_2,user_3,user_4,user_5",
-            commentsCount = 3,
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 30) // 30 mins ago
-        ),
-        PostEntity(
-            id = "post_2",
-            authorId = "user_4",
-            authorName = "प्रसाद कांबळे",
-            authorPhotoUrl = "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80",
-            authorRole = "",
-            content = "🏆 'अर्जुनवाड प्रीमियर लीग २०२६' क्रिकेट स्पर्धेत जय हिंद संघाने प्रथम क्रमांक पटकावून अजिंक्यपद पटकावले! सर्व खेळाडूंचे व पाठीराख्यांचे मनःपूर्वक अभिनंदन! 🏏🎉",
-            imageUrlsJson = "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=800&auto=format&fit=crop&q=80",
-            likedUserIdsJson = "admin_1,user_2,user_5,user_6",
-            commentsCount = 2,
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 60 * 4) // 4 hours ago
-        ),
-        PostEntity(
-            id = "post_3",
-            authorId = "user_2",
-            authorName = "अमोल शिंदे",
-            authorPhotoUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
-            authorRole = "",
-            content = "🩸 'रक्तदान हेच जीवनदान!' मंडळातर्फे आयोजित भव्य रक्तदान शिबिरामध्ये अर्जुनवाड गावातील तब्बल १०८ रक्तदात्यांनी सहभाग घेतला. सर्व रक्तदात्यांचे मनःपूर्वक आभार!",
-            imageUrlsJson = "https://images.unsplash.com/photo-1615461066841-6116e61058f4?w=800&auto=format&fit=crop&q=80",
-            likedUserIdsJson = "admin_1,user_3,user_4",
-            commentsCount = 1,
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 60 * 24) // 1 day ago
+            likedUserIdsJson = "admin_1",
+            commentsCount = 0,
+            timestamp = System.currentTimeMillis()
         )
     )
 
-    val seedComments = listOf(
-        CommentEntity(
-            id = "comm_1",
-            postId = "post_1",
-            authorId = "user_2",
-            authorName = "अमोल शिंदे",
-            authorPhotoUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
-            text = "गणपती बाप्पा मोरया! संपूर्ण मंडळ तयारीसाठी सज्ज आहे! 🚩",
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 20)
-        ),
-        CommentEntity(
-            id = "comm_2",
-            postId = "post_1",
-            authorId = "user_4",
-            authorName = "प्रसाद कांबळे",
-            authorPhotoUrl = "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=300&auto=format&fit=crop&q=80",
-            text = "सर्व तरुण मित्र एकत्र येऊन देखावा साकारणार आहोत!",
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 15)
-        ),
-        CommentEntity(
-            id = "comm_3",
-            postId = "post_2",
-            authorId = "admin_1",
-            authorName = "सचिन पाटील",
-            authorPhotoUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
-            text = "अभिनंदन जय हिंद संघ! अर्जुनवाड गावाचे नाव उज्ज्वल केले!",
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 60 * 2)
-        )
-    )
+    val seedComments = emptyList<CommentEntity>()
 
     val seedAlbums = listOf(
         AlbumEntity(
@@ -358,101 +201,17 @@ object SeedData {
     val seedAnnouncements = listOf(
         AnnouncementEntity(
             id = "ann_1",
-            title = "सर्व सभासदांची तातडीची बैठक!",
-            content = "गणेशोत्सव २०२६ च्या नियोजनासाठी उद्या रात्री ८:०० वाजता मंडळ कार्यालयात महत्वाची बैठक आयोजित केली आहे. सर्व सभासदांनी वेळेवर उपस्थित राहावे.",
-            priority = "URGENT",
-            date = "२२ ऑगस्ट २०२६",
-            author = "सचिन पाटील"
-        ),
-        AnnouncementEntity(
-            id = "ann_2",
-            title = "गणेशोत्सव वर्गणी व देणगी संकलन सुरू",
-            content = "यावर्षीच्या उत्सवासाठी अधिकृत पावती पुस्तकांद्वारे वर्गणी गोळा करण्याचे काम सुरू झाले आहे. सर्व सहकार्य करावे.",
+            title = "जय हिंद मंडळ अधिकृत ॲप सुरू!",
+            content = "मंडळाचे सर्व सभासद व ग्रामस्थांसाठी हे अधिकृत डिजिटल ॲप सुरू करण्यात आले आहे. सर्व सभासदांनी नवीन नोंदणी करावी.",
             priority = "HIGH",
-            date = "२० ऑगस्ट २०२६",
-            author = "रोहित अर्जुनवाडकर"
-        ),
-        AnnouncementEntity(
-            id = "ann_3",
-            title = "अर्जुनवाड क्रीडा संकुल सराव वेळ बदल",
-            content = "क्रिकेट व कबड्डी सरावाची वेळ दररोज सायंकाळी ५:३० ते ७:३० राहील याची खेळाडूंनी नोंद घ्यावी.",
-            priority = "NORMAL",
-            date = "१८ ऑगस्ट २०२६",
-            author = "प्रसाद कांबळे"
+            date = "२५ ऑगस्ट २०२६",
+            author = "वैभव चौगुले"
         )
     )
 
-    val seedNotifications = listOf(
-        NotificationEntity(
-            id = "notif_1",
-            title = "आज वाढदिवस आहे! 🎉",
-            message = "आज आपले सहकारी सभासद अमोल शिंदे व प्रसाद कांबळे यांचा वाढदिवस आहे. त्यांना शुभेच्छा द्या!",
-            type = "BIRTHDAY",
-            targetRoute = "BIRTHDAYS",
-            targetId = "user_2"
-        ),
-        NotificationEntity(
-            id = "notif_2",
-            title = "नवीन सूचना: तातडीची बैठक",
-            message = "अध्यक्षांनी उद्या रात्री ८:०० वाजता गणेशोत्सव नियोजनाची बैठक बोलावली आहे.",
-            type = "ANNOUNCEMENT",
-            targetRoute = "ANNOUNCEMENTS",
-            targetId = "ann_1"
-        ),
-        NotificationEntity(
-            id = "notif_3",
-            title = "नवीन पोस्ट प्रसिद्ध झाली",
-            message = "प्रसाद कांबळे यांनी 'अर्जुनवाड प्रीमियर लीग ट्रॉफी' फोटो पोस्ट केले आहेत.",
-            type = "POST",
-            targetRoute = "POST_COMMENTS",
-            targetId = "post_3"
-        ),
-        NotificationEntity(
-            id = "notif_4",
-            title = "नवीन सभासद नोंदणी (Admin Approval)",
-            message = "गणेश मोरे व मयूर चौगुले यांनी नोंदणी केली आहे. Admin Panel मधून मंजुरी द्या.",
-            type = "ADMIN",
-            targetUserId = "ADMIN",
-            targetRoute = "ADMIN_PENDING",
-            targetId = "user_7"
-        )
-    )
+    val seedNotifications = emptyList<NotificationEntity>()
 
-    val seedChatMessages = listOf(
-        ChatMessageEntity(
-            id = "msg_1",
-            conversationId = "conv_admin_1_user_2",
-            senderId = "user_2",
-            receiverId = "admin_1",
-            senderName = "अमोल शिंदे",
-            senderPhotoUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
-            messageText = "जय हिंद अध्यक्ष महोदय! रक्तदान शिबिराची सर्व तयारी पूर्ण झाली आहे.",
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 45),
-            isRead = true
-        ),
-        ChatMessageEntity(
-            id = "msg_2",
-            conversationId = "conv_admin_1_user_2",
-            senderId = "admin_1",
-            receiverId = "user_2",
-            senderName = "सचिन पाटील",
-            senderPhotoUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
-            messageText = "खूप छान अमोल! बॅनर आणि मंडप व्यवस्था पूर्ण झाली का?",
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 30),
-            isRead = true
-        ),
-        ChatMessageEntity(
-            id = "msg_3",
-            conversationId = "conv_admin_1_user_2",
-            senderId = "user_2",
-            receiverId = "admin_1",
-            senderName = "अमोल शिंदे",
-            senderPhotoUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80",
-            messageText = "होय, सर्व बॅनर लावले आहेत आणि डॉक्टरांची टीम सकाळी ९ वाजता पोहोचेल.",
-            timestamp = System.currentTimeMillis() - (1000 * 60 * 10),
-            isRead = true
-        )
-    )
+    val seedChatMessages = emptyList<ChatMessageEntity>()
 
     val seedBanners = listOf(
         BannerEntity(

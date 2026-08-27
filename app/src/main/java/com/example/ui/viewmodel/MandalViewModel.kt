@@ -88,8 +88,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             val matchesQuery = query.isBlank() ||
                     member.fullName.contains(query, ignoreCase = true) ||
                     member.mobileNumber.contains(query) ||
-                    member.address.contains(query, ignoreCase = true) ||
-                    member.designation.contains(query, ignoreCase = true)
+                    member.address.contains(query, ignoreCase = true)
 
             val matchesBloodGroup = bloodGroup == "सर्व" || member.bloodGroup.equals(bloodGroup, ignoreCase = true)
             matchesQuery && matchesBloodGroup

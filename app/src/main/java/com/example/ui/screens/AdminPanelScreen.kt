@@ -749,7 +749,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "हक्क हस्तांतरण (Rights Transfer): या सभासदाची सर्व जबाबदारी, पोस्ट्स व अधिकार मुख्य ॲडमिन (सचिन पाटील - 9545791089) यांच्याकडे सुरक्षितपणे वर्ग (Transfer) केले जातील.",
+                            text = "हक्क हस्तांतरण (Rights Transfer): या सभासदाची सर्व जबाबदारी, पोस्ट्स व अधिकार मुख्य ॲडमिन (वैभव चौगुले - 9545791089) यांच्याकडे सुरक्षितपणे वर्ग (Transfer) केले जातील.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF5A3E00),
                             modifier = Modifier.padding(10.dp)

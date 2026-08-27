@@ -4,6 +4,11 @@ import android.content.Context
 import com.example.data.local.*
 import com.example.data.model.*
 import com.example.data.seed.SeedData
+import com.google.android.gms.tasks.Tasks
+import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -37,9 +42,19 @@ class MandalRepository(context: Context) {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
+    // Firebase Firestore with offline cache enabled
+    private val firestore: FirebaseFirestore by lazy {
+        FirebaseFirestore.getInstance().apply {
+            firestoreSettings = FirebaseFirestoreSettings.Builder()
+                .setPersistenceEnabled(true)
+                .build()
+        }
+    }
+
     init {
         repositoryScope.launch {
             seedDatabaseIfEmpty()
+            startFirestoreSync()
             // Check if user previously logged in on this device
             val savedUserId = prefs.getString("logged_user_id", null)
             if (!savedUserId.isNullOrBlank()) {
@@ -53,7 +68,7 @@ class MandalRepository(context: Context) {
 
     private suspend fun seedDatabaseIfEmpty() {
         withContext(Dispatchers.IO) {
-            val existingAdmin = userDao.getUserById(SeedData.defaultAdmin.id)
+            val existingAdmin = userDao.getUserById(SeedData.defaultAdmin.id) ?: userDao.getUserByMobile("9545791089")
             if (existingAdmin == null) {
                 userDao.insertUsers(SeedData.seedUsers)
                 postDao.insertPosts(SeedData.seedPosts)
@@ -68,29 +83,252 @@ class MandalRepository(context: Context) {
                 bannerDao.insertBanners(SeedData.seedBanners)
                 mandalInfoDao.saveMandalInfo(SeedData.defaultMandalInfo)
             } else {
-                // Ensure admin mobile number and password match the specified credentials
+                // Ensure admin mobile number, name, and password match credentials
                 userDao.updateUser(
                     existingAdmin.copy(
+                        fullName = "वैभव चौगुले",
                         mobileNumber = "9545791089",
                         password = "ADMIN",
                         role = "ADMIN",
-                        status = "APPROVED"
+                        status = "APPROVED",
+                        designation = ""
                     )
                 )
                 if (mandalInfoDao.getMandalInfoDirect() == null) {
                     mandalInfoDao.saveMandalInfo(SeedData.defaultMandalInfo)
                 }
             }
+
+            // Sync default Admin and initial content to Firebase Firestore if not present
+            try {
+                val adminDoc = Tasks.await(firestore.collection("users").document("admin_1").get())
+                if (!adminDoc.exists()) {
+                    Tasks.await(firestore.collection("users").document("admin_1").set(SeedData.defaultAdmin.toMap()))
+                    for (post in SeedData.seedPosts) {
+                        firestore.collection("posts").document(post.id).set(post.toMap())
+                    }
+                    for (banner in SeedData.seedBanners) {
+                        firestore.collection("banners").document(banner.id).set(banner.toMap())
+                    }
+                    for (album in SeedData.seedAlbums) {
+                        firestore.collection("albums").document(album.id).set(album.toMap())
+                    }
+                    for (photo in SeedData.seedPhotos) {
+                        firestore.collection("photos").document(photo.id).set(photo.toMap())
+                    }
+                    for (video in SeedData.seedVideos) {
+                        firestore.collection("videos").document(video.id).set(video.toMap())
+                    }
+                    for (event in SeedData.seedEvents) {
+                        firestore.collection("events").document(event.id).set(event.toMap())
+                    }
+                    for (ann in SeedData.seedAnnouncements) {
+                        firestore.collection("announcements").document(ann.id).set(ann.toMap())
+                    }
+                    firestore.collection("mandal_info").document("mandal_default").set(SeedData.defaultMandalInfo.toMap())
+                }
+            } catch (e: Exception) {
+                // Ignore if offline
+            }
+        }
+    }
+
+    // REAL-TIME FIRESTORE SYNCHRONIZATION
+    private fun startFirestoreSync() {
+        try {
+            // Real-time Users Sync (Members, Registrations, Approvals)
+            firestore.collection("users").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val users = snapshots.documents.mapNotNull { it.toUserEntity() }
+                    if (users.isNotEmpty()) {
+                        userDao.insertUsers(users)
+                    }
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            userDao.deleteUser(change.document.id)
+                        }
+                    }
+                    val currentId = _currentUser.value?.id
+                    if (currentId != null) {
+                        val updated = userDao.getUserById(currentId)
+                        if (updated != null) {
+                            _currentUser.value = updated.toDomain()
+                        }
+                    }
+                }
+            }
+
+            // Real-time Posts Sync
+            firestore.collection("posts").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val posts = snapshots.documents.mapNotNull { it.toPostEntity() }
+                    if (posts.isNotEmpty()) {
+                        postDao.insertPosts(posts)
+                    }
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            postDao.deletePost(change.document.id)
+                        }
+                    }
+                }
+            }
+
+            // Real-time Comments Sync
+            firestore.collection("comments").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val comments = snapshots.documents.mapNotNull { it.toCommentEntity() }
+                    if (comments.isNotEmpty()) {
+                        commentDao.insertComments(comments)
+                    }
+                }
+            }
+
+            // Real-time Chat Messages Sync
+            firestore.collection("chat_messages").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val messages = snapshots.documents.mapNotNull { it.toChatMessageEntity() }
+                    if (messages.isNotEmpty()) {
+                        chatDao.insertMessages(messages)
+                    }
+                }
+            }
+
+            // Real-time Announcements Sync
+            firestore.collection("announcements").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val list = snapshots.documents.mapNotNull { it.toAnnouncementEntity() }
+                    if (list.isNotEmpty()) {
+                        announcementDao.insertAnnouncements(list)
+                    }
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            announcementDao.deleteAnnouncement(change.document.id)
+                        }
+                    }
+                }
+            }
+
+            // Real-time Events Sync
+            firestore.collection("events").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val list = snapshots.documents.mapNotNull { it.toEventEntity() }
+                    if (list.isNotEmpty()) {
+                        eventDao.insertEvents(list)
+                    }
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            eventDao.deleteEvent(change.document.id)
+                        }
+                    }
+                }
+            }
+
+            // Real-time Gallery Albums, Photos, Videos
+            firestore.collection("albums").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val list = snapshots.documents.mapNotNull { it.toAlbumEntity() }
+                    if (list.isNotEmpty()) galleryDao.insertAlbums(list)
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) galleryDao.deleteAlbum(change.document.id)
+                    }
+                }
+            }
+
+            firestore.collection("photos").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val list = snapshots.documents.mapNotNull { it.toPhotoEntity() }
+                    if (list.isNotEmpty()) galleryDao.insertPhotos(list)
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) galleryDao.deletePhoto(change.document.id)
+                    }
+                }
+            }
+
+            firestore.collection("videos").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val list = snapshots.documents.mapNotNull { it.toVideoEntity() }
+                    if (list.isNotEmpty()) galleryDao.insertVideos(list)
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) galleryDao.deleteVideo(change.document.id)
+                    }
+                }
+            }
+
+            // Real-time Banners Sync
+            firestore.collection("banners").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val list = snapshots.documents.mapNotNull { it.toBannerEntity() }
+                    if (list.isNotEmpty()) bannerDao.insertBanners(list)
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) bannerDao.deleteBanner(change.document.id)
+                    }
+                }
+            }
+
+            // Real-time Mandal Info Sync
+            firestore.collection("mandal_info").document("mandal_default").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+                repositoryScope.launch {
+                    val info = snapshot.toMandalInfoEntity()
+                    if (info != null) {
+                        mandalInfoDao.saveMandalInfo(info)
+                        if (!info.logoUrl.isNullOrBlank()) {
+                            _mandalLogoUrl.value = info.logoUrl
+                        }
+                    }
+                }
+            }
+
+            // Real-time Notifications Sync
+            firestore.collection("notifications").addSnapshotListener { snapshots, e ->
+                if (e != null || snapshots == null) return@addSnapshotListener
+                repositoryScope.launch {
+                    val list = snapshots.documents.mapNotNull { it.toNotificationEntity() }
+                    if (list.isNotEmpty()) notificationDao.insertNotifications(list)
+                }
+            }
+        } catch (e: Exception) {
+            // Graceful fallback to local Room SQLite
         }
     }
 
     // AUTH & USERS
     suspend fun login(mobile: String, pass: String): Result<User> = withContext(Dispatchers.IO) {
-        val user = userDao.getUserByMobile(mobile.trim())
+        val cleanMobile = mobile.trim()
+        val cleanPass = pass.trim()
+
+        var user = userDao.getUserByMobile(cleanMobile)
+
+        // If not found in local Room or status is still PENDING_APPROVAL locally, fetch latest from Firestore
+        try {
+            val queryTask = firestore.collection("users").whereEqualTo("mobileNumber", cleanMobile).get()
+            val snapshot = Tasks.await(queryTask)
+            val doc = snapshot.documents.firstOrNull()
+            if (doc != null) {
+                val remoteUser = doc.toUserEntity()
+                if (remoteUser != null) {
+                    userDao.insertUser(remoteUser)
+                    user = remoteUser
+                }
+            }
+        } catch (e: Exception) {
+            // Fall back to local DB
+        }
+
         if (user == null) {
             return@withContext Result.failure(Exception("हा मोबाईल नंबर नोंदणीकृत नाही. कृपया नोंदणी करा."))
         }
-        if (user.password != pass.trim()) {
+        if (user.password != cleanPass) {
             return@withContext Result.failure(Exception("पासवर्ड चुकीचा आहे. कृपया पुन्हा तपासा."))
         }
         if (user.status == "PENDING_APPROVAL") {
@@ -121,16 +359,30 @@ class MandalRepository(context: Context) {
         dateOfBirth: String,
         address: String
     ): Result<String> = withContext(Dispatchers.IO) {
-        val existing = userDao.getUserByMobile(mobileNumber.trim())
+        val cleanMobile = mobileNumber.trim()
+
+        // Check local Room DB
+        val existing = userDao.getUserByMobile(cleanMobile)
         if (existing != null) {
             return@withContext Result.failure(Exception("हा मोबाईल नंबर आधीच नोंदणीकृत आहे."))
+        }
+
+        // Check Firestore
+        try {
+            val queryTask = firestore.collection("users").whereEqualTo("mobileNumber", cleanMobile).get()
+            val snapshot = Tasks.await(queryTask)
+            if (!snapshot.isEmpty) {
+                return@withContext Result.failure(Exception("हा मोबाईल नंबर आधीच नोंदणीकृत आहे."))
+            }
+        } catch (e: Exception) {
+            // Offline fallback
         }
 
         val newId = "user_" + UUID.randomUUID().toString().take(8)
         val entity = UserEntity(
             id = newId,
             fullName = fullName.trim(),
-            mobileNumber = mobileNumber.trim(),
+            mobileNumber = cleanMobile,
             password = password.trim(),
             profilePhotoUrl = profilePhotoUrl.ifEmpty {
                 "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80"
@@ -140,21 +392,33 @@ class MandalRepository(context: Context) {
             dateOfBirth = dateOfBirth,
             address = address.trim(),
             role = "MEMBER",
-            designation = "सभासद",
+            designation = "",
             status = "PENDING_APPROVAL", // Goes to admin approval!
             createdAt = System.currentTimeMillis()
         )
         userDao.insertUser(entity)
 
         // Add admin notification
-        notificationDao.insertNotification(
-            NotificationEntity(
-                id = "notif_" + UUID.randomUUID().toString().take(8),
-                title = "नवीन सभासद नोंदणी",
-                message = "${fullName} यांनी नवीन सभासदत्व नोंदणी केली आहे. कृपया Admin Panel मधून मंजुरी द्या.",
-                type = "ADMIN"
-            )
+        val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        val notifEntity = NotificationEntity(
+            id = notifId,
+            title = "नवीन सभासद नोंदणी (मंजुरी प्रतीक्षा)",
+            message = "${fullName.trim()} यांनी नवीन सभासदत्व नोंदणी केली आहे. कृपया Admin Panel मधून मंजुरी द्या.",
+            type = "ADMIN",
+            targetUserId = "ADMIN",
+            targetRoute = "ADMIN_PENDING",
+            targetId = newId,
+            timestamp = System.currentTimeMillis()
         )
+        notificationDao.insertNotification(notifEntity)
+
+        // Push to Firebase Firestore so Admin on any phone sees it in real time
+        try {
+            Tasks.await(firestore.collection("users").document(newId).set(entity.toMap()))
+            Tasks.await(firestore.collection("notifications").document(notifId).set(notifEntity.toMap()))
+        } catch (e: Exception) {
+            // Local copy will sync via Firestore offline persistence
+        }
 
         Result.success("नोंदणी यशस्वी झाली! आपले खाते 'Pending Approval' मध्ये आहे. मंडळाच्या ॲडमिन मंजुरीनंतर आपण लॉगिन करू शकाल.")
     }
@@ -181,6 +445,11 @@ class MandalRepository(context: Context) {
         if (_currentUser.value?.id == userId) {
             _currentUser.value = updated.toDomain()
         }
+        try {
+            Tasks.await(firestore.collection("users").document(userId).set(updated.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
         Result.success(Unit)
     }
 
@@ -191,6 +460,14 @@ class MandalRepository(context: Context) {
         }
         val updated = user.copy(password = newPass)
         userDao.updateUser(updated)
+        if (_currentUser.value?.id == userId) {
+            _currentUser.value = updated.toDomain()
+        }
+        try {
+            Tasks.await(firestore.collection("users").document(userId).update("password", newPass))
+        } catch (e: Exception) {
+            // Fallback
+        }
         Result.success(Unit)
     }
 
@@ -210,10 +487,8 @@ class MandalRepository(context: Context) {
                 val parts = if (dob.contains("-")) dob.split("-") else if (dob.contains("/")) dob.split("/") else emptyList()
                 if (parts.size == 3) {
                     val (m, d) = if (parts[0].length == 4) {
-                        // yyyy-MM-dd or yyyy/MM/dd
                         parts[1].padStart(2, '0') to parts[2].padStart(2, '0')
                     } else {
-                        // dd-MM-yyyy or dd/MM/yyyy
                         parts[1].padStart(2, '0') to parts[0].padStart(2, '0')
                     }
                     "$m-$d" == currentMonthDay
@@ -232,20 +507,34 @@ class MandalRepository(context: Context) {
         if (_currentUser.value?.id == userId) {
             _currentUser.value = updated.toDomain()
         }
+        try {
+            Tasks.await(firestore.collection("users").document(userId).update("role", newRole))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun setMemberStatus(userId: String, status: String) = withContext(Dispatchers.IO) {
         userDao.updateUserStatus(userId, status)
+        try {
+            Tasks.await(firestore.collection("users").document(userId).update("status", status))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deleteMember(userId: String) = withContext(Dispatchers.IO) {
         userDao.deleteUser(userId)
+        try {
+            Tasks.await(firestore.collection("users").document(userId).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deleteMemberAndTransferRights(userId: String) = withContext(Dispatchers.IO) {
         val admin = userDao.getUserById("admin_1") ?: userDao.getUserByMobile("9545791089")
         if (admin != null) {
-            // Reassign all posts and contributions of this member to the Administrator
             postDao.reassignPostsAuthor(
                 oldAuthorId = userId,
                 newAuthorId = admin.id,
@@ -254,6 +543,11 @@ class MandalRepository(context: Context) {
             )
         }
         userDao.deleteUser(userId)
+        try {
+            Tasks.await(firestore.collection("users").document(userId).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     // POSTS & FEED
@@ -270,7 +564,7 @@ class MandalRepository(context: Context) {
             authorId = user.id,
             authorName = user.fullName,
             authorPhotoUrl = user.profilePhotoUrl,
-            authorRole = "",
+            authorRole = if (user.isAdmin) "ADMIN" else "",
             content = content.trim(),
             imageUrlsJson = imageUrl ?: "",
             videoUrl = videoUrl,
@@ -280,18 +574,25 @@ class MandalRepository(context: Context) {
         )
         postDao.insertPost(newPost)
 
-        // Broadcast post notification with deep link to post comments / detail
-        notificationDao.insertNotification(
-            NotificationEntity(
-                id = "notif_" + UUID.randomUUID().toString().take(8),
-                title = "${user.fullName} यांनी नवीन पोस्ट केली 🚩",
-                message = if (content.isNotBlank()) content.take(60) else "नवीन फोटो किंवा माहिती पोस्ट केली आहे.",
-                type = "POST",
-                targetRoute = "POST_COMMENTS",
-                targetId = newPost.id,
-                targetExtra = content.take(40)
-            )
+        val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        val notif = NotificationEntity(
+            id = notifId,
+            title = "${user.fullName} यांनी नवीन पोस्ट केली 🚩",
+            message = if (content.isNotBlank()) content.take(60) else "नवीन फोटो किंवा माहिती पोस्ट केली आहे.",
+            type = "POST",
+            targetRoute = "POST_COMMENTS",
+            targetId = newPost.id,
+            targetExtra = content.take(40),
+            timestamp = System.currentTimeMillis()
         )
+        notificationDao.insertNotification(notif)
+
+        try {
+            Tasks.await(firestore.collection("posts").document(newPost.id).set(newPost.toMap()))
+            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
         Result.success(Unit)
     }
 
@@ -304,11 +605,22 @@ class MandalRepository(context: Context) {
         } else {
             currentLikes.add(user.id)
         }
-        postDao.updatePostLikes(postId, currentLikes.joinToString(","))
+        val updatedLikesJson = currentLikes.joinToString(",")
+        postDao.updatePostLikes(postId, updatedLikesJson)
+        try {
+            Tasks.await(firestore.collection("posts").document(postId).update("likedUserIdsJson", updatedLikesJson))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deletePost(postId: String) = withContext(Dispatchers.IO) {
         postDao.deletePost(postId)
+        try {
+            Tasks.await(firestore.collection("posts").document(postId).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     // COMMENTS
@@ -330,21 +642,32 @@ class MandalRepository(context: Context) {
         commentDao.insertComment(comment)
         postDao.incrementCommentsCount(postId)
 
-        // Targeted Notification: Only notify the author of the post (if someone else commented)
         val post = postDao.getAllPosts().first().find { it.id == postId }
+        val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        var notifEntity: NotificationEntity? = null
         if (post != null && post.authorId != user.id) {
-            notificationDao.insertNotification(
-                NotificationEntity(
-                    id = "notif_" + UUID.randomUUID().toString().take(8),
-                    title = "आपल्या पोस्टवर नवीन कमेंट 💬",
-                    message = "${user.fullName} यांनी आपल्या पोस्टवर कमेंट केली: \"${text.take(45)}\"",
-                    type = "COMMENT",
-                    targetUserId = post.authorId,
-                    targetRoute = "POST_COMMENTS",
-                    targetId = postId,
-                    targetExtra = post.content.take(30)
-                )
+            notifEntity = NotificationEntity(
+                id = notifId,
+                title = "आपल्या पोस्टवर नवीन कमेंट 💬",
+                message = "${user.fullName} यांनी आपल्या पोस्टवर कमेंट केली: \"${text.take(45)}\"",
+                type = "COMMENT",
+                targetUserId = post.authorId,
+                targetRoute = "POST_COMMENTS",
+                targetId = postId,
+                targetExtra = post.content.take(30),
+                timestamp = System.currentTimeMillis()
             )
+            notificationDao.insertNotification(notifEntity)
+        }
+
+        try {
+            Tasks.await(firestore.collection("comments").document(comment.id).set(comment.toMap()))
+            Tasks.await(firestore.collection("posts").document(postId).update("commentsCount", (post?.commentsCount ?: 0) + 1))
+            if (notifEntity != null) {
+                Tasks.await(firestore.collection("notifications").document(notifId).set(notifEntity.toMap()))
+            }
+        } catch (e: Exception) {
+            // Fallback
         }
         Result.success(Unit)
     }
@@ -389,7 +712,6 @@ class MandalRepository(context: Context) {
         )
         chatDao.insertMessage(msg)
 
-        // Notification to receiver
         val preview = if (messageText.isNotBlank()) messageText.take(50) else when (attachmentType) {
             "IMAGE" -> "📷 फोटो पाठवला आहे"
             "VIDEO" -> "🎥 व्हिडिओ पाठवला आहे"
@@ -397,18 +719,26 @@ class MandalRepository(context: Context) {
             "CONTACT" -> "👤 संपर्क क्रमांक: ${attachmentName ?: ""}"
             else -> "नवीन संदेश प्राप्त झाला"
         }
-        notificationDao.insertNotification(
-            NotificationEntity(
-                id = "notif_" + UUID.randomUUID().toString().take(8),
-                title = "${user.fullName} कडून मेसेज",
-                message = preview,
-                type = "CHAT",
-                targetUserId = receiverId,
-                targetRoute = "CHAT",
-                targetId = user.id,
-                targetExtra = user.fullName
-            )
+        val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        val notif = NotificationEntity(
+            id = notifId,
+            title = "${user.fullName} कडून मेसेज",
+            message = preview,
+            type = "CHAT",
+            targetUserId = receiverId,
+            targetRoute = "CHAT",
+            targetId = user.id,
+            targetExtra = user.fullName,
+            timestamp = System.currentTimeMillis()
         )
+        notificationDao.insertNotification(notif)
+
+        try {
+            Tasks.await(firestore.collection("chat_messages").document(msg.id).set(msg.toMap()))
+            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
         Result.success(Unit)
     }
 
@@ -418,7 +748,6 @@ class MandalRepository(context: Context) {
             allMembers
         ) { messages, members ->
             val memberMap = members.associateBy { it.id }
-            // Group strictly by other member's ID so there are never duplicate items or keys
             val grouped = messages.groupBy { msg ->
                 if (msg.senderId == currentUserId) msg.receiverId else msg.senderId
             }
@@ -475,6 +804,11 @@ class MandalRepository(context: Context) {
             photoCount = 0
         )
         galleryDao.insertAlbum(album)
+        try {
+            Tasks.await(firestore.collection("albums").document(album.id).set(album.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun addPhotoToAlbum(albumId: String, imageUrl: String, caption: String) = withContext(Dispatchers.IO) {
@@ -485,14 +819,29 @@ class MandalRepository(context: Context) {
             caption = caption.trim()
         )
         galleryDao.insertPhoto(photo)
+        try {
+            Tasks.await(firestore.collection("photos").document(photo.id).set(photo.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deleteAlbum(albumId: String) = withContext(Dispatchers.IO) {
         galleryDao.deleteAlbum(albumId)
+        try {
+            Tasks.await(firestore.collection("albums").document(albumId).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deletePhoto(photoId: String) = withContext(Dispatchers.IO) {
         galleryDao.deletePhoto(photoId)
+        try {
+            Tasks.await(firestore.collection("photos").document(photoId).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun addVideo(title: String, description: String, category: String, videoUrl: String, thumbnailUrl: String) = withContext(Dispatchers.IO) {
@@ -505,10 +854,20 @@ class MandalRepository(context: Context) {
             thumbnailUrl = thumbnailUrl.ifEmpty { "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=600&auto=format&fit=crop&q=80" }
         )
         galleryDao.insertVideo(video)
+        try {
+            Tasks.await(firestore.collection("videos").document(video.id).set(video.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deleteVideo(videoId: String) = withContext(Dispatchers.IO) {
         galleryDao.deleteVideo(videoId)
+        try {
+            Tasks.await(firestore.collection("videos").document(videoId).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     // EVENTS
@@ -535,17 +894,24 @@ class MandalRepository(context: Context) {
         )
         eventDao.insertEvent(event)
 
-        // Notification for new event with deep link to EVENTS
-        notificationDao.insertNotification(
-            NotificationEntity(
-                id = "notif_" + UUID.randomUUID().toString().take(8),
-                title = "नवीन कार्यक्रम: $title 🚩",
-                message = "$date रोजी $location येथे '$title' आयोजित करण्यात आला आहे.",
-                type = "EVENT",
-                targetRoute = "EVENTS",
-                targetId = event.id
-            )
+        val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        val notif = NotificationEntity(
+            id = notifId,
+            title = "नवीन कार्यक्रम: $title 🚩",
+            message = "$date रोजी $location येथे '$title' आयोजित करण्यात आला आहे.",
+            type = "EVENT",
+            targetRoute = "EVENTS",
+            targetId = event.id,
+            timestamp = System.currentTimeMillis()
         )
+        notificationDao.insertNotification(notif)
+
+        try {
+            Tasks.await(firestore.collection("events").document(event.id).set(event.toMap()))
+            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun updateEvent(
@@ -571,6 +937,11 @@ class MandalRepository(context: Context) {
             attendeesCount = existing?.attendeesCount ?: 0
         )
         eventDao.updateEvent(updated)
+        try {
+            Tasks.await(firestore.collection("events").document(eventId).set(updated.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun toggleEventRegistration(eventId: String, isRegistered: Boolean) = withContext(Dispatchers.IO) {
@@ -579,6 +950,11 @@ class MandalRepository(context: Context) {
 
     suspend fun deleteEvent(eventId: String) = withContext(Dispatchers.IO) {
         eventDao.deleteEvent(eventId)
+        try {
+            Tasks.await(firestore.collection("events").document(eventId).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     // ANNOUNCEMENTS
@@ -596,24 +972,36 @@ class MandalRepository(context: Context) {
         )
         announcementDao.insertAnnouncement(ann)
 
-        // Push notification with deep link to ANNOUNCEMENTS
-        notificationDao.insertNotification(
-            NotificationEntity(
-                id = "notif_" + UUID.randomUUID().toString().take(8),
-                title = "महत्वाची सूचना: $title 📢",
-                message = content.take(70),
-                type = "ANNOUNCEMENT",
-                targetRoute = "ANNOUNCEMENTS",
-                targetId = ann.id
-            )
+        val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        val notif = NotificationEntity(
+            id = notifId,
+            title = "महत्वाची सूचना: $title 📢",
+            message = content.take(70),
+            type = "ANNOUNCEMENT",
+            targetRoute = "ANNOUNCEMENTS",
+            targetId = ann.id,
+            timestamp = System.currentTimeMillis()
         )
+        notificationDao.insertNotification(notif)
+
+        try {
+            Tasks.await(firestore.collection("announcements").document(ann.id).set(ann.toMap()))
+            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deleteAnnouncement(id: String) = withContext(Dispatchers.IO) {
         announcementDao.deleteAnnouncement(id)
+        try {
+            Tasks.await(firestore.collection("announcements").document(id).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
-    // NOTIFICATIONS WITH STRICT RELEVANCE FILTERING & TODAY'S BIRTHDAY SUPPORT
+    // NOTIFICATIONS
     val notifications: Flow<List<MandalNotification>> = combine(
         notificationDao.getAllNotifications(),
         _currentUser,
@@ -624,15 +1012,13 @@ class MandalRepository(context: Context) {
                 "COMMENT" -> notif.targetUserId == user?.id
                 "CHAT" -> notif.targetUserId == user?.id
                 "ADMIN" -> user?.isAdmin == true
-                "BIRTHDAY" -> birthdayMembers.isNotEmpty() // Only show birthday alerts when someone has a birthday today
+                "BIRTHDAY" -> birthdayMembers.isNotEmpty()
                 else -> {
-                    // EVENT, ANNOUNCEMENT, POST: Visible to all or targeted
                     notif.targetUserId == null || notif.targetUserId == user?.id || (notif.targetUserId == "ADMIN" && user?.isAdmin == true)
                 }
             }
         }.map { it.toDomain() }
 
-        // Prepend dynamic birthday notification if today's birthdays are active and not in DB
         if (birthdayMembers.isNotEmpty() && filtered.none { it.type == "BIRTHDAY" }) {
             val names = birthdayMembers.take(2).joinToString(" व ") { it.fullName } + (if (birthdayMembers.size > 2) " आणि इतर" else "")
             val dynBirthday = MandalNotification(
@@ -666,15 +1052,21 @@ class MandalRepository(context: Context) {
     }
 
     suspend fun broadcastNotification(title: String, message: String) = withContext(Dispatchers.IO) {
-        notificationDao.insertNotification(
-            NotificationEntity(
-                id = "notif_" + UUID.randomUUID().toString().take(8),
-                title = title.trim(),
-                message = message.trim(),
-                type = "ADMIN",
-                targetRoute = "ANNOUNCEMENTS"
-            )
+        val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        val notif = NotificationEntity(
+            id = notifId,
+            title = title.trim(),
+            message = message.trim(),
+            type = "ADMIN",
+            targetRoute = "ANNOUNCEMENTS",
+            timestamp = System.currentTimeMillis()
         )
+        notificationDao.insertNotification(notif)
+        try {
+            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     // BANNERS MANAGEMENT
@@ -690,6 +1082,11 @@ class MandalRepository(context: Context) {
             orderIndex = System.currentTimeMillis().toInt()
         )
         bannerDao.insertBanner(banner)
+        try {
+            Tasks.await(firestore.collection("banners").document(banner.id).set(banner.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun updateBanner(id: String, imageUrl: String, title: String = "", subtitle: String = "", actionUrl: String = "") = withContext(Dispatchers.IO) {
@@ -701,13 +1098,23 @@ class MandalRepository(context: Context) {
             actionUrl = actionUrl.trim()
         )
         bannerDao.updateBanner(banner)
+        try {
+            Tasks.await(firestore.collection("banners").document(id).set(banner.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     suspend fun deleteBanner(id: String) = withContext(Dispatchers.IO) {
         bannerDao.deleteBanner(id)
+        try {
+            Tasks.await(firestore.collection("banners").document(id).delete())
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
-    // MANDAL INFO (ABOUT US, CONTACTS, SOCIAL HANDLES, ADMIN LINK)
+    // MANDAL INFO
     val mandalInfo: Flow<MandalInfo> = mandalInfoDao.getMandalInfo().map {
         it?.toDomain() ?: SeedData.defaultMandalInfo.toDomain()
     }
@@ -741,6 +1148,11 @@ class MandalRepository(context: Context) {
             updatedAt = System.currentTimeMillis()
         )
         mandalInfoDao.saveMandalInfo(entity)
+        try {
+            Tasks.await(firestore.collection("mandal_info").document("mandal_default").set(entity.toMap()))
+        } catch (e: Exception) {
+            // Fallback
+        }
     }
 
     // MANDAL LOGO MANAGEMENT
@@ -748,11 +1160,25 @@ class MandalRepository(context: Context) {
         val cleanUrl = url?.trim()?.ifEmpty { null }
         prefs.edit().putString("mandal_logo_url", cleanUrl).apply()
         _mandalLogoUrl.value = cleanUrl
+        repositoryScope.launch {
+            try {
+                Tasks.await(firestore.collection("mandal_info").document("mandal_default").update("logoUrl", cleanUrl ?: ""))
+            } catch (e: Exception) {
+                // Fallback
+            }
+        }
     }
 
     fun deleteMandalLogo() {
         prefs.edit().remove("mandal_logo_url").apply()
         _mandalLogoUrl.value = null
+        repositoryScope.launch {
+            try {
+                Tasks.await(firestore.collection("mandal_info").document("mandal_default").update("logoUrl", ""))
+            } catch (e: Exception) {
+                // Fallback
+            }
+        }
     }
 }
 
@@ -800,7 +1226,6 @@ fun CommentEntity.toDomain() = Comment(
     timestamp = timestamp
 )
 
-    // CHAT DOMAIN MAPPING
 fun ChatMessageEntity.toDomain() = ChatMessage(
     id = id,
     conversationId = conversationId,
@@ -828,13 +1253,13 @@ fun AlbumEntity.toDomain() = Album(
     createdAt = createdAt
 )
 
-fun PhotoEntity.toDomain() = PhotoEntity(
+fun PhotoEntity.toDomain() = GalleryPhoto(
     id = id,
     albumId = albumId,
     imageUrl = imageUrl,
     caption = caption,
     uploadedAt = uploadedAt
-).let { GalleryPhoto(it.id, it.albumId, it.imageUrl, it.caption, it.uploadedAt) }
+)
 
 fun VideoEntity.toDomain() = VideoItem(
     id = id,
@@ -910,3 +1335,358 @@ fun MandalInfoEntity.toDomain() = MandalInfo(
     logoUrl = logoUrl,
     updatedAt = updatedAt
 )
+
+// Firestore Map Converters
+fun UserEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "fullName" to fullName,
+    "mobileNumber" to mobileNumber,
+    "password" to password,
+    "profilePhotoUrl" to profilePhotoUrl,
+    "gender" to gender,
+    "bloodGroup" to bloodGroup,
+    "dateOfBirth" to dateOfBirth,
+    "address" to address,
+    "role" to role,
+    "designation" to designation,
+    "status" to status,
+    "createdAt" to createdAt,
+    "isOnline" to isOnline,
+    "lastSeen" to lastSeen,
+    "fcmToken" to fcmToken
+)
+
+fun DocumentSnapshot.toUserEntity(): UserEntity? {
+    val id = getString("id") ?: id
+    val mobile = getString("mobileNumber") ?: return null
+    return UserEntity(
+        id = id,
+        fullName = getString("fullName") ?: "",
+        mobileNumber = mobile,
+        password = getString("password") ?: "",
+        profilePhotoUrl = getString("profilePhotoUrl") ?: "",
+        gender = getString("gender") ?: "",
+        bloodGroup = getString("bloodGroup") ?: "",
+        dateOfBirth = getString("dateOfBirth") ?: "",
+        address = getString("address") ?: "",
+        role = getString("role") ?: "MEMBER",
+        designation = getString("designation") ?: "",
+        status = getString("status") ?: "APPROVED",
+        createdAt = getLong("createdAt") ?: System.currentTimeMillis(),
+        isOnline = getBoolean("isOnline") ?: false,
+        lastSeen = getLong("lastSeen") ?: 0L,
+        fcmToken = getString("fcmToken") ?: ""
+    )
+}
+
+fun PostEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "authorId" to authorId,
+    "authorName" to authorName,
+    "authorPhotoUrl" to authorPhotoUrl,
+    "authorRole" to authorRole,
+    "content" to content,
+    "imageUrlsJson" to imageUrlsJson,
+    "videoUrl" to videoUrl,
+    "likedUserIdsJson" to likedUserIdsJson,
+    "commentsCount" to commentsCount,
+    "timestamp" to timestamp
+)
+
+fun DocumentSnapshot.toPostEntity(): PostEntity? {
+    val id = getString("id") ?: id
+    val authorId = getString("authorId") ?: return null
+    return PostEntity(
+        id = id,
+        authorId = authorId,
+        authorName = getString("authorName") ?: "",
+        authorPhotoUrl = getString("authorPhotoUrl") ?: "",
+        authorRole = getString("authorRole") ?: "",
+        content = getString("content") ?: "",
+        imageUrlsJson = getString("imageUrlsJson") ?: "",
+        videoUrl = getString("videoUrl"),
+        likedUserIdsJson = getString("likedUserIdsJson") ?: "",
+        commentsCount = (getLong("commentsCount") ?: 0L).toInt(),
+        timestamp = getLong("timestamp") ?: System.currentTimeMillis()
+    )
+}
+
+fun CommentEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "postId" to postId,
+    "authorId" to authorId,
+    "authorName" to authorName,
+    "authorPhotoUrl" to authorPhotoUrl,
+    "text" to text,
+    "timestamp" to timestamp
+)
+
+fun DocumentSnapshot.toCommentEntity(): CommentEntity? {
+    val id = getString("id") ?: id
+    val postId = getString("postId") ?: return null
+    return CommentEntity(
+        id = id,
+        postId = postId,
+        authorId = getString("authorId") ?: "",
+        authorName = getString("authorName") ?: "",
+        authorPhotoUrl = getString("authorPhotoUrl") ?: "",
+        text = getString("text") ?: "",
+        timestamp = getLong("timestamp") ?: System.currentTimeMillis()
+    )
+}
+
+fun ChatMessageEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "conversationId" to conversationId,
+    "senderId" to senderId,
+    "receiverId" to receiverId,
+    "senderName" to senderName,
+    "senderPhotoUrl" to senderPhotoUrl,
+    "messageText" to messageText,
+    "imageUrl" to imageUrl,
+    "attachmentType" to attachmentType,
+    "attachmentUrl" to attachmentUrl,
+    "attachmentName" to attachmentName,
+    "attachmentExtra" to attachmentExtra,
+    "timestamp" to timestamp,
+    "isRead" to isRead
+)
+
+fun DocumentSnapshot.toChatMessageEntity(): ChatMessageEntity? {
+    val id = getString("id") ?: id
+    val conversationId = getString("conversationId") ?: return null
+    return ChatMessageEntity(
+        id = id,
+        conversationId = conversationId,
+        senderId = getString("senderId") ?: "",
+        receiverId = getString("receiverId") ?: "",
+        senderName = getString("senderName") ?: "",
+        senderPhotoUrl = getString("senderPhotoUrl") ?: "",
+        messageText = getString("messageText") ?: "",
+        imageUrl = getString("imageUrl"),
+        attachmentType = getString("attachmentType"),
+        attachmentUrl = getString("attachmentUrl"),
+        attachmentName = getString("attachmentName"),
+        attachmentExtra = getString("attachmentExtra"),
+        timestamp = getLong("timestamp") ?: System.currentTimeMillis(),
+        isRead = getBoolean("isRead") ?: false
+    )
+}
+
+fun AlbumEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "title" to title,
+    "category" to category,
+    "coverImageUrl" to coverImageUrl,
+    "description" to description,
+    "photoCount" to photoCount,
+    "createdAt" to createdAt
+)
+
+fun DocumentSnapshot.toAlbumEntity(): AlbumEntity? {
+    val id = getString("id") ?: id
+    val title = getString("title") ?: return null
+    return AlbumEntity(
+        id = id,
+        title = title,
+        category = getString("category") ?: "",
+        coverImageUrl = getString("coverImageUrl") ?: "",
+        description = getString("description") ?: "",
+        photoCount = (getLong("photoCount") ?: 0L).toInt(),
+        createdAt = getLong("createdAt") ?: System.currentTimeMillis()
+    )
+}
+
+fun PhotoEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "albumId" to albumId,
+    "imageUrl" to imageUrl,
+    "caption" to caption,
+    "uploadedAt" to uploadedAt
+)
+
+fun DocumentSnapshot.toPhotoEntity(): PhotoEntity? {
+    val id = getString("id") ?: id
+    val albumId = getString("albumId") ?: return null
+    return PhotoEntity(
+        id = id,
+        albumId = albumId,
+        imageUrl = getString("imageUrl") ?: "",
+        caption = getString("caption") ?: "",
+        uploadedAt = getLong("uploadedAt") ?: System.currentTimeMillis()
+    )
+}
+
+fun VideoEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "title" to title,
+    "description" to description,
+    "category" to category,
+    "videoUrl" to videoUrl,
+    "thumbnailUrl" to thumbnailUrl,
+    "duration" to duration,
+    "uploadedAt" to uploadedAt
+)
+
+fun DocumentSnapshot.toVideoEntity(): VideoEntity? {
+    val id = getString("id") ?: id
+    val title = getString("title") ?: return null
+    return VideoEntity(
+        id = id,
+        title = title,
+        description = getString("description") ?: "",
+        category = getString("category") ?: "",
+        videoUrl = getString("videoUrl") ?: "",
+        thumbnailUrl = getString("thumbnailUrl") ?: "",
+        duration = getString("duration") ?: "",
+        uploadedAt = getLong("uploadedAt") ?: System.currentTimeMillis()
+    )
+}
+
+fun EventEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "title" to title,
+    "date" to date,
+    "time" to time,
+    "location" to location,
+    "description" to description,
+    "imageUrl" to imageUrl,
+    "category" to category,
+    "attendeesCount" to attendeesCount,
+    "isRegistered" to isRegistered,
+    "createdAt" to createdAt
+)
+
+fun DocumentSnapshot.toEventEntity(): EventEntity? {
+    val id = getString("id") ?: id
+    val title = getString("title") ?: return null
+    return EventEntity(
+        id = id,
+        title = title,
+        date = getString("date") ?: "",
+        time = getString("time") ?: "",
+        location = getString("location") ?: "",
+        description = getString("description") ?: "",
+        imageUrl = getString("imageUrl") ?: "",
+        category = getString("category") ?: "",
+        attendeesCount = (getLong("attendeesCount") ?: 0L).toInt(),
+        isRegistered = getBoolean("isRegistered") ?: false,
+        createdAt = getLong("createdAt") ?: System.currentTimeMillis()
+    )
+}
+
+fun AnnouncementEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "title" to title,
+    "content" to content,
+    "priority" to priority,
+    "date" to date,
+    "author" to author,
+    "createdAt" to createdAt
+)
+
+fun DocumentSnapshot.toAnnouncementEntity(): AnnouncementEntity? {
+    val id = getString("id") ?: id
+    val title = getString("title") ?: return null
+    return AnnouncementEntity(
+        id = id,
+        title = title,
+        content = getString("content") ?: "",
+        priority = getString("priority") ?: "NORMAL",
+        date = getString("date") ?: "",
+        author = getString("author") ?: "",
+        createdAt = getLong("createdAt") ?: System.currentTimeMillis()
+    )
+}
+
+fun NotificationEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "title" to title,
+    "message" to message,
+    "type" to type,
+    "timestamp" to timestamp,
+    "isRead" to isRead,
+    "targetUserId" to targetUserId,
+    "targetRoute" to targetRoute,
+    "targetId" to targetId,
+    "targetExtra" to targetExtra
+)
+
+fun DocumentSnapshot.toNotificationEntity(): NotificationEntity? {
+    val id = getString("id") ?: id
+    val title = getString("title") ?: return null
+    return NotificationEntity(
+        id = id,
+        title = title,
+        message = getString("message") ?: "",
+        type = getString("type") ?: "GENERAL",
+        timestamp = getLong("timestamp") ?: System.currentTimeMillis(),
+        isRead = getBoolean("isRead") ?: false,
+        targetUserId = getString("targetUserId"),
+        targetRoute = getString("targetRoute"),
+        targetId = getString("targetId"),
+        targetExtra = getString("targetExtra")
+    )
+}
+
+fun BannerEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "imageUrl" to imageUrl,
+    "title" to title,
+    "subtitle" to subtitle,
+    "actionUrl" to actionUrl,
+    "orderIndex" to orderIndex,
+    "createdAt" to createdAt
+)
+
+fun DocumentSnapshot.toBannerEntity(): BannerEntity? {
+    val id = getString("id") ?: id
+    val imageUrl = getString("imageUrl") ?: return null
+    return BannerEntity(
+        id = id,
+        imageUrl = imageUrl,
+        title = getString("title") ?: "",
+        subtitle = getString("subtitle") ?: "",
+        actionUrl = getString("actionUrl") ?: "",
+        orderIndex = (getLong("orderIndex") ?: 0L).toInt(),
+        createdAt = getLong("createdAt") ?: System.currentTimeMillis()
+    )
+}
+
+fun MandalInfoEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "mandalName" to mandalName,
+    "tagline" to tagline,
+    "locationTitle" to locationTitle,
+    "aboutDescription" to aboutDescription,
+    "email" to email,
+    "address" to address,
+    "phone" to phone,
+    "youtubeHandle" to youtubeHandle,
+    "facebookHandle" to facebookHandle,
+    "instagramHandle" to instagramHandle,
+    "adminWebLink" to adminWebLink,
+    "logoUrl" to logoUrl,
+    "updatedAt" to updatedAt
+)
+
+fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
+    val id = getString("id") ?: "mandal_default"
+    val mandalName = getString("mandalName") ?: return null
+    return MandalInfoEntity(
+        id = id,
+        mandalName = mandalName,
+        tagline = getString("tagline") ?: "",
+        locationTitle = getString("locationTitle") ?: "",
+        aboutDescription = getString("aboutDescription") ?: "",
+        email = getString("email") ?: "",
+        address = getString("address") ?: "",
+        phone = getString("phone") ?: "",
+        youtubeHandle = getString("youtubeHandle") ?: "",
+        facebookHandle = getString("facebookHandle") ?: "",
+        instagramHandle = getString("instagramHandle") ?: "",
+        adminWebLink = getString("adminWebLink") ?: "",
+        logoUrl = getString("logoUrl") ?: "",
+        updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()
+    )
+}
