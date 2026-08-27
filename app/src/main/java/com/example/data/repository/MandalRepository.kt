@@ -44,13 +44,22 @@ class MandalRepository(context: Context) {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    // Firebase Firestore with offline cache enabled
+    // Firebase live connection / status tracking
+    private val _cloudSyncStatus = MutableStateFlow("Firebase चालू आहे")
+    val cloudSyncStatus: StateFlow<String> = _cloudSyncStatus.asStateFlow()
+
+    // Firebase Firestore instance
     private val firestore: FirebaseFirestore by lazy {
-        FirebaseFirestore.getInstance().apply {
-            firestoreSettings = FirebaseFirestoreSettings.Builder()
+        val db = FirebaseFirestore.getInstance()
+        try {
+            val settings = FirebaseFirestoreSettings.Builder()
                 .setPersistenceEnabled(true)
                 .build()
+            db.firestoreSettings = settings
+        } catch (e: Exception) {
+            Log.d("FirebaseSync", "Firestore settings note: ${e.message}")
         }
+        db
     }
 
     init {
@@ -573,7 +582,14 @@ class MandalRepository(context: Context) {
             Log.d("FirebaseSync", "Notification $notifId synced to Firestore successfully")
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error pushing registration to Firestore: ${e.message}", e)
-            // Even if network has temporary glitch, local entry is saved, but let's inform error if needed
+            val errLower = (e.message ?: "").lowercase()
+            if (errLower.contains("permission_denied") || errLower.contains("permission-denied") || errLower.contains("missing or insufficient permissions")) {
+                return@withContext Result.failure(Exception("Firebase Firestore सुरक्षा नियम (Rules) ब्लॉक आहेत! कृपया Firebase Console मध्ये Rules Publish करा."))
+            } else if (errLower.contains("unavailable") || errLower.contains("network")) {
+                return@withContext Result.failure(Exception("इंटरनेट कनेक्शन तपासा किंवा Firebase सर्व्हरशी संपर्क होऊ शकला नाही: ${e.localizedMessage}"))
+            } else {
+                return@withContext Result.failure(Exception("Firebase क्लाउडवर नोंदणी पाठवता आली नाही: ${e.localizedMessage}"))
+            }
         }
 
         Result.success("नोंदणी यशस्वी झाली! आपले खाते 'Pending Approval' मध्ये आहे. मंडळाच्या ॲडमिन मंजुरीनंतर आपण लॉगिन करू शकाल.")
