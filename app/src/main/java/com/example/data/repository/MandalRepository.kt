@@ -54,6 +54,11 @@ class MandalRepository(context: Context) {
     }
 
     init {
+        try {
+            com.google.firebase.FirebaseApp.initializeApp(context)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "FirebaseApp init error: ${e.message}")
+        }
         repositoryScope.launch {
             seedDatabaseIfEmpty()
             startFirestoreSync()
