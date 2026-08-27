@@ -448,6 +448,10 @@ class MandalRepository(context: Context) {
         }
     }
 
+    suspend fun refreshAllFromFirestore() = withContext(Dispatchers.IO) {
+        forceSyncFromFirebase()
+    }
+
     // AUTH & USERS
     suspend fun login(mobile: String, pass: String): Result<User> = withContext(Dispatchers.IO) {
         val cleanMobile = mobile.trim()

@@ -701,4 +701,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             showSnackbar("सभासदाचा रोल ($newRole) बदलण्यात आला! ✅")
         }
     }
+
+    // REFRESH & SYNC
+    fun refreshAllData() {
+        viewModelScope.launch {
+            repository.refreshAllFromFirestore()
+            showSnackbar("डेटा रिफ्रेश झाला! 🔄")
+        }
+    }
 }

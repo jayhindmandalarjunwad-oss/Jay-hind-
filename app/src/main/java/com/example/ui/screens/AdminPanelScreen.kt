@@ -58,6 +58,10 @@ fun AdminPanelScreen(
     val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshAllData()
+    }
+
     Scaffold(
         topBar = {
             MandalTopHeader(
