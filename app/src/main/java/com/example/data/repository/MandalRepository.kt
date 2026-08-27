@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.example.data.local.*
 import com.example.data.model.*
 import com.example.data.seed.SeedData
@@ -9,6 +10,7 @@ import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -55,6 +57,7 @@ class MandalRepository(context: Context) {
         repositoryScope.launch {
             seedDatabaseIfEmpty()
             startFirestoreSync()
+            forceSyncFromFirebase()
             // Check if user previously logged in on this device
             val savedUserId = prefs.getString("logged_user_id", null)
             if (!savedUserId.isNullOrBlank()) {
@@ -63,6 +66,93 @@ class MandalRepository(context: Context) {
                     _currentUser.value = savedUser.toDomain()
                 }
             }
+        }
+    }
+
+    suspend fun forceSyncFromFirebase() = withContext(Dispatchers.IO) {
+        try {
+            Log.d("FirebaseSync", "Starting manual Firestore force sync...")
+            // 1. Sync Users
+            val userSnap = Tasks.await(firestore.collection("users").get())
+            val users = userSnap.documents.mapNotNull { it.toUserEntity() }
+            if (users.isNotEmpty()) {
+                userDao.insertUsers(users)
+                Log.d("FirebaseSync", "Fetched ${users.size} users from Firestore")
+            }
+
+            // 2. Sync Posts
+            val postSnap = Tasks.await(firestore.collection("posts").get())
+            val posts = postSnap.documents.mapNotNull { it.toPostEntity() }
+            if (posts.isNotEmpty()) {
+                postDao.insertPosts(posts)
+                Log.d("FirebaseSync", "Fetched ${posts.size} posts from Firestore")
+            }
+
+            // 3. Sync Comments
+            val commSnap = Tasks.await(firestore.collection("comments").get())
+            val comments = commSnap.documents.mapNotNull { it.toCommentEntity() }
+            if (comments.isNotEmpty()) {
+                commentDao.insertComments(comments)
+            }
+
+            // 4. Sync Chat Messages
+            val chatSnap = Tasks.await(firestore.collection("chat_messages").get())
+            val chats = chatSnap.documents.mapNotNull { it.toChatMessageEntity() }
+            if (chats.isNotEmpty()) {
+                chatDao.insertMessages(chats)
+            }
+
+            // 5. Sync Announcements
+            val annSnap = Tasks.await(firestore.collection("announcements").get())
+            val anns = annSnap.documents.mapNotNull { it.toAnnouncementEntity() }
+            if (anns.isNotEmpty()) {
+                announcementDao.insertAnnouncements(anns)
+            }
+
+            // 6. Sync Events
+            val eventSnap = Tasks.await(firestore.collection("events").get())
+            val events = eventSnap.documents.mapNotNull { it.toEventEntity() }
+            if (events.isNotEmpty()) {
+                eventDao.insertEvents(events)
+            }
+
+            // 7. Sync Gallery
+            val albumSnap = Tasks.await(firestore.collection("albums").get())
+            val albums = albumSnap.documents.mapNotNull { it.toAlbumEntity() }
+            if (albums.isNotEmpty()) galleryDao.insertAlbums(albums)
+
+            val photoSnap = Tasks.await(firestore.collection("photos").get())
+            val photos = photoSnap.documents.mapNotNull { it.toPhotoEntity() }
+            if (photos.isNotEmpty()) galleryDao.insertPhotos(photos)
+
+            val videoSnap = Tasks.await(firestore.collection("videos").get())
+            val videos = videoSnap.documents.mapNotNull { it.toVideoEntity() }
+            if (videos.isNotEmpty()) galleryDao.insertVideos(videos)
+
+            // 8. Sync Banners
+            val bannerSnap = Tasks.await(firestore.collection("banners").get())
+            val banners = bannerSnap.documents.mapNotNull { it.toBannerEntity() }
+            if (banners.isNotEmpty()) bannerDao.insertBanners(banners)
+
+            // 9. Sync Notifications
+            val notifSnap = Tasks.await(firestore.collection("notifications").get())
+            val notifs = notifSnap.documents.mapNotNull { it.toNotificationEntity() }
+            if (notifs.isNotEmpty()) notificationDao.insertNotifications(notifs)
+
+            // 10. Sync Mandal Info
+            val infoDoc = Tasks.await(firestore.collection("mandal_info").document("mandal_default").get())
+            if (infoDoc.exists()) {
+                val info = infoDoc.toMandalInfoEntity()
+                if (info != null) {
+                    mandalInfoDao.saveMandalInfo(info)
+                    if (!info.logoUrl.isNullOrBlank()) {
+                        _mandalLogoUrl.value = info.logoUrl
+                    }
+                }
+            }
+            Log.d("FirebaseSync", "Firestore force sync completed successfully.")
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Firestore force sync failed: ${e.message}", e)
         }
     }
 
@@ -103,32 +193,32 @@ class MandalRepository(context: Context) {
             try {
                 val adminDoc = Tasks.await(firestore.collection("users").document("admin_1").get())
                 if (!adminDoc.exists()) {
-                    Tasks.await(firestore.collection("users").document("admin_1").set(SeedData.defaultAdmin.toMap()))
+                    Tasks.await(firestore.collection("users").document("admin_1").set(SeedData.defaultAdmin.toMap(), SetOptions.merge()))
                     for (post in SeedData.seedPosts) {
-                        firestore.collection("posts").document(post.id).set(post.toMap())
+                        firestore.collection("posts").document(post.id).set(post.toMap(), SetOptions.merge())
                     }
                     for (banner in SeedData.seedBanners) {
-                        firestore.collection("banners").document(banner.id).set(banner.toMap())
+                        firestore.collection("banners").document(banner.id).set(banner.toMap(), SetOptions.merge())
                     }
                     for (album in SeedData.seedAlbums) {
-                        firestore.collection("albums").document(album.id).set(album.toMap())
+                        firestore.collection("albums").document(album.id).set(album.toMap(), SetOptions.merge())
                     }
                     for (photo in SeedData.seedPhotos) {
-                        firestore.collection("photos").document(photo.id).set(photo.toMap())
+                        firestore.collection("photos").document(photo.id).set(photo.toMap(), SetOptions.merge())
                     }
                     for (video in SeedData.seedVideos) {
-                        firestore.collection("videos").document(video.id).set(video.toMap())
+                        firestore.collection("videos").document(video.id).set(video.toMap(), SetOptions.merge())
                     }
                     for (event in SeedData.seedEvents) {
-                        firestore.collection("events").document(event.id).set(event.toMap())
+                        firestore.collection("events").document(event.id).set(event.toMap(), SetOptions.merge())
                     }
                     for (ann in SeedData.seedAnnouncements) {
-                        firestore.collection("announcements").document(ann.id).set(ann.toMap())
+                        firestore.collection("announcements").document(ann.id).set(ann.toMap(), SetOptions.merge())
                     }
-                    firestore.collection("mandal_info").document("mandal_default").set(SeedData.defaultMandalInfo.toMap())
+                    firestore.collection("mandal_info").document("mandal_default").set(SeedData.defaultMandalInfo.toMap(), SetOptions.merge())
                 }
             } catch (e: Exception) {
-                // Ignore if offline
+                Log.e("FirebaseSync", "Seed database Firestore error: ${e.message}", e)
             }
         }
     }
@@ -138,11 +228,16 @@ class MandalRepository(context: Context) {
         try {
             // Real-time Users Sync (Members, Registrations, Approvals)
             firestore.collection("users").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Users snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val users = snapshots.documents.mapNotNull { it.toUserEntity() }
                     if (users.isNotEmpty()) {
                         userDao.insertUsers(users)
+                        Log.d("FirebaseSync", "Real-time sync: updated ${users.size} users")
                     }
                     for (change in snapshots.documentChanges) {
                         if (change.type == DocumentChange.Type.REMOVED) {
@@ -161,7 +256,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Posts Sync
             firestore.collection("posts").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Posts snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val posts = snapshots.documents.mapNotNull { it.toPostEntity() }
                     if (posts.isNotEmpty()) {
@@ -177,7 +276,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Comments Sync
             firestore.collection("comments").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Comments snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val comments = snapshots.documents.mapNotNull { it.toCommentEntity() }
                     if (comments.isNotEmpty()) {
@@ -188,7 +291,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Chat Messages Sync
             firestore.collection("chat_messages").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Chat snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val messages = snapshots.documents.mapNotNull { it.toChatMessageEntity() }
                     if (messages.isNotEmpty()) {
@@ -199,7 +306,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Announcements Sync
             firestore.collection("announcements").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Announcements snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toAnnouncementEntity() }
                     if (list.isNotEmpty()) {
@@ -215,7 +326,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Events Sync
             firestore.collection("events").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Events snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toEventEntity() }
                     if (list.isNotEmpty()) {
@@ -231,7 +346,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Gallery Albums, Photos, Videos
             firestore.collection("albums").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Albums snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toAlbumEntity() }
                     if (list.isNotEmpty()) galleryDao.insertAlbums(list)
@@ -242,7 +361,11 @@ class MandalRepository(context: Context) {
             }
 
             firestore.collection("photos").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Photos snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toPhotoEntity() }
                     if (list.isNotEmpty()) galleryDao.insertPhotos(list)
@@ -253,7 +376,11 @@ class MandalRepository(context: Context) {
             }
 
             firestore.collection("videos").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Videos snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toVideoEntity() }
                     if (list.isNotEmpty()) galleryDao.insertVideos(list)
@@ -265,7 +392,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Banners Sync
             firestore.collection("banners").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Banners snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toBannerEntity() }
                     if (list.isNotEmpty()) bannerDao.insertBanners(list)
@@ -277,7 +408,11 @@ class MandalRepository(context: Context) {
 
             // Real-time Mandal Info Sync
             firestore.collection("mandal_info").document("mandal_default").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Mandal info snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshot == null || !snapshot.exists()) return@addSnapshotListener
                 repositoryScope.launch {
                     val info = snapshot.toMandalInfoEntity()
                     if (info != null) {
@@ -291,14 +426,18 @@ class MandalRepository(context: Context) {
 
             // Real-time Notifications Sync
             firestore.collection("notifications").addSnapshotListener { snapshots, e ->
-                if (e != null || snapshots == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("FirebaseSync", "Notifications snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toNotificationEntity() }
                     if (list.isNotEmpty()) notificationDao.insertNotifications(list)
                 }
             }
         } catch (e: Exception) {
-            // Graceful fallback to local Room SQLite
+            Log.e("FirebaseSync", "startFirestoreSync error: ${e.message}", e)
         }
     }
 
@@ -414,10 +553,14 @@ class MandalRepository(context: Context) {
 
         // Push to Firebase Firestore so Admin on any phone sees it in real time
         try {
-            Tasks.await(firestore.collection("users").document(newId).set(entity.toMap()))
-            Tasks.await(firestore.collection("notifications").document(notifId).set(notifEntity.toMap()))
+            firestore.collection("users").document(newId).set(entity.toMap(), SetOptions.merge())
+                .addOnSuccessListener { Log.d("FirebaseSync", "Registered user $newId synced to Firestore") }
+                .addOnFailureListener { e -> Log.e("FirebaseSync", "Failed to sync user $newId to Firestore", e) }
+            firestore.collection("notifications").document(notifId).set(notifEntity.toMap(), SetOptions.merge())
+                .addOnSuccessListener { Log.d("FirebaseSync", "Notification $notifId synced to Firestore") }
+                .addOnFailureListener { e -> Log.e("FirebaseSync", "Failed to sync notification $notifId to Firestore", e) }
         } catch (e: Exception) {
-            // Local copy will sync via Firestore offline persistence
+            Log.e("FirebaseSync", "Error pushing registration to Firestore", e)
         }
 
         Result.success("नोंदणी यशस्वी झाली! आपले खाते 'Pending Approval' मध्ये आहे. मंडळाच्या ॲडमिन मंजुरीनंतर आपण लॉगिन करू शकाल.")
@@ -446,9 +589,9 @@ class MandalRepository(context: Context) {
             _currentUser.value = updated.toDomain()
         }
         try {
-            Tasks.await(firestore.collection("users").document(userId).set(updated.toMap()))
+            firestore.collection("users").document(userId).set(updated.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error updating profile on Firestore", e)
         }
         Result.success(Unit)
     }
@@ -464,9 +607,9 @@ class MandalRepository(context: Context) {
             _currentUser.value = updated.toDomain()
         }
         try {
-            Tasks.await(firestore.collection("users").document(userId).update("password", newPass))
+            firestore.collection("users").document(userId).set(mapOf("password" to newPass), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error changing password on Firestore", e)
         }
         Result.success(Unit)
     }
@@ -508,27 +651,34 @@ class MandalRepository(context: Context) {
             _currentUser.value = updated.toDomain()
         }
         try {
-            Tasks.await(firestore.collection("users").document(userId).update("role", newRole))
+            firestore.collection("users").document(userId).set(mapOf("role" to newRole), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error changing user role on Firestore", e)
         }
     }
 
     suspend fun setMemberStatus(userId: String, status: String) = withContext(Dispatchers.IO) {
         userDao.updateUserStatus(userId, status)
         try {
-            Tasks.await(firestore.collection("users").document(userId).update("status", status))
+            val user = userDao.getUserById(userId)
+            if (user != null) {
+                firestore.collection("users").document(userId).set(user.toMap(), SetOptions.merge())
+                    .addOnSuccessListener { Log.d("FirebaseSync", "Member $userId status successfully set to $status on Firestore") }
+                    .addOnFailureListener { e -> Log.e("FirebaseSync", "Failed to update member $userId status on Firestore", e) }
+            } else {
+                firestore.collection("users").document(userId).set(mapOf("status" to status), SetOptions.merge())
+            }
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error setting member status on Firestore", e)
         }
     }
 
     suspend fun deleteMember(userId: String) = withContext(Dispatchers.IO) {
         userDao.deleteUser(userId)
         try {
-            Tasks.await(firestore.collection("users").document(userId).delete())
+            firestore.collection("users").document(userId).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting member on Firestore", e)
         }
     }
 
@@ -544,9 +694,9 @@ class MandalRepository(context: Context) {
         }
         userDao.deleteUser(userId)
         try {
-            Tasks.await(firestore.collection("users").document(userId).delete())
+            firestore.collection("users").document(userId).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting member and transferring rights on Firestore", e)
         }
     }
 
@@ -588,10 +738,11 @@ class MandalRepository(context: Context) {
         notificationDao.insertNotification(notif)
 
         try {
-            Tasks.await(firestore.collection("posts").document(newPost.id).set(newPost.toMap()))
-            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+            firestore.collection("posts").document(newPost.id).set(newPost.toMap(), SetOptions.merge())
+            firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
+            Log.d("FirebaseSync", "New post ${newPost.id} and notification published to Firestore")
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Failed to upload post to Firestore: ${e.message}", e)
         }
         Result.success(Unit)
     }
@@ -608,18 +759,18 @@ class MandalRepository(context: Context) {
         val updatedLikesJson = currentLikes.joinToString(",")
         postDao.updatePostLikes(postId, updatedLikesJson)
         try {
-            Tasks.await(firestore.collection("posts").document(postId).update("likedUserIdsJson", updatedLikesJson))
+            firestore.collection("posts").document(postId).set(mapOf("likedUserIdsJson" to updatedLikesJson), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error updating post likes on Firestore", e)
         }
     }
 
     suspend fun deletePost(postId: String) = withContext(Dispatchers.IO) {
         postDao.deletePost(postId)
         try {
-            Tasks.await(firestore.collection("posts").document(postId).delete())
+            firestore.collection("posts").document(postId).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting post on Firestore", e)
         }
     }
 
@@ -661,13 +812,13 @@ class MandalRepository(context: Context) {
         }
 
         try {
-            Tasks.await(firestore.collection("comments").document(comment.id).set(comment.toMap()))
-            Tasks.await(firestore.collection("posts").document(postId).update("commentsCount", (post?.commentsCount ?: 0) + 1))
+            firestore.collection("comments").document(comment.id).set(comment.toMap(), SetOptions.merge())
+            firestore.collection("posts").document(postId).set(mapOf("commentsCount" to ((post?.commentsCount ?: 0) + 1)), SetOptions.merge())
             if (notifEntity != null) {
-                Tasks.await(firestore.collection("notifications").document(notifId).set(notifEntity.toMap()))
+                firestore.collection("notifications").document(notifId).set(notifEntity.toMap(), SetOptions.merge())
             }
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error adding comment on Firestore", e)
         }
         Result.success(Unit)
     }
@@ -734,10 +885,11 @@ class MandalRepository(context: Context) {
         notificationDao.insertNotification(notif)
 
         try {
-            Tasks.await(firestore.collection("chat_messages").document(msg.id).set(msg.toMap()))
-            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+            firestore.collection("chat_messages").document(msg.id).set(msg.toMap(), SetOptions.merge())
+            firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
+            Log.d("FirebaseSync", "Chat message sent to Firestore: ${msg.id}")
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error sending chat message on Firestore", e)
         }
         Result.success(Unit)
     }
@@ -805,9 +957,9 @@ class MandalRepository(context: Context) {
         )
         galleryDao.insertAlbum(album)
         try {
-            Tasks.await(firestore.collection("albums").document(album.id).set(album.toMap()))
+            firestore.collection("albums").document(album.id).set(album.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error creating album on Firestore", e)
         }
     }
 
@@ -820,27 +972,27 @@ class MandalRepository(context: Context) {
         )
         galleryDao.insertPhoto(photo)
         try {
-            Tasks.await(firestore.collection("photos").document(photo.id).set(photo.toMap()))
+            firestore.collection("photos").document(photo.id).set(photo.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error adding photo on Firestore", e)
         }
     }
 
     suspend fun deleteAlbum(albumId: String) = withContext(Dispatchers.IO) {
         galleryDao.deleteAlbum(albumId)
         try {
-            Tasks.await(firestore.collection("albums").document(albumId).delete())
+            firestore.collection("albums").document(albumId).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting album on Firestore", e)
         }
     }
 
     suspend fun deletePhoto(photoId: String) = withContext(Dispatchers.IO) {
         galleryDao.deletePhoto(photoId)
         try {
-            Tasks.await(firestore.collection("photos").document(photoId).delete())
+            firestore.collection("photos").document(photoId).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting photo on Firestore", e)
         }
     }
 
@@ -855,18 +1007,18 @@ class MandalRepository(context: Context) {
         )
         galleryDao.insertVideo(video)
         try {
-            Tasks.await(firestore.collection("videos").document(video.id).set(video.toMap()))
+            firestore.collection("videos").document(video.id).set(video.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error adding video on Firestore", e)
         }
     }
 
     suspend fun deleteVideo(videoId: String) = withContext(Dispatchers.IO) {
         galleryDao.deleteVideo(videoId)
         try {
-            Tasks.await(firestore.collection("videos").document(videoId).delete())
+            firestore.collection("videos").document(videoId).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting video on Firestore", e)
         }
     }
 
@@ -907,10 +1059,10 @@ class MandalRepository(context: Context) {
         notificationDao.insertNotification(notif)
 
         try {
-            Tasks.await(firestore.collection("events").document(event.id).set(event.toMap()))
-            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+            firestore.collection("events").document(event.id).set(event.toMap(), SetOptions.merge())
+            firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error creating event on Firestore", e)
         }
     }
 
@@ -938,9 +1090,9 @@ class MandalRepository(context: Context) {
         )
         eventDao.updateEvent(updated)
         try {
-            Tasks.await(firestore.collection("events").document(eventId).set(updated.toMap()))
+            firestore.collection("events").document(eventId).set(updated.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error updating event on Firestore", e)
         }
     }
 
@@ -951,9 +1103,9 @@ class MandalRepository(context: Context) {
     suspend fun deleteEvent(eventId: String) = withContext(Dispatchers.IO) {
         eventDao.deleteEvent(eventId)
         try {
-            Tasks.await(firestore.collection("events").document(eventId).delete())
+            firestore.collection("events").document(eventId).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting event on Firestore", e)
         }
     }
 
@@ -985,19 +1137,19 @@ class MandalRepository(context: Context) {
         notificationDao.insertNotification(notif)
 
         try {
-            Tasks.await(firestore.collection("announcements").document(ann.id).set(ann.toMap()))
-            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+            firestore.collection("announcements").document(ann.id).set(ann.toMap(), SetOptions.merge())
+            firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error creating announcement on Firestore", e)
         }
     }
 
     suspend fun deleteAnnouncement(id: String) = withContext(Dispatchers.IO) {
         announcementDao.deleteAnnouncement(id)
         try {
-            Tasks.await(firestore.collection("announcements").document(id).delete())
+            firestore.collection("announcements").document(id).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting announcement on Firestore", e)
         }
     }
 
@@ -1063,9 +1215,9 @@ class MandalRepository(context: Context) {
         )
         notificationDao.insertNotification(notif)
         try {
-            Tasks.await(firestore.collection("notifications").document(notifId).set(notif.toMap()))
+            firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error broadcasting notification on Firestore", e)
         }
     }
 
@@ -1083,9 +1235,9 @@ class MandalRepository(context: Context) {
         )
         bannerDao.insertBanner(banner)
         try {
-            Tasks.await(firestore.collection("banners").document(banner.id).set(banner.toMap()))
+            firestore.collection("banners").document(banner.id).set(banner.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error adding banner on Firestore", e)
         }
     }
 
@@ -1099,18 +1251,18 @@ class MandalRepository(context: Context) {
         )
         bannerDao.updateBanner(banner)
         try {
-            Tasks.await(firestore.collection("banners").document(id).set(banner.toMap()))
+            firestore.collection("banners").document(id).set(banner.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error updating banner on Firestore", e)
         }
     }
 
     suspend fun deleteBanner(id: String) = withContext(Dispatchers.IO) {
         bannerDao.deleteBanner(id)
         try {
-            Tasks.await(firestore.collection("banners").document(id).delete())
+            firestore.collection("banners").document(id).delete()
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error deleting banner on Firestore", e)
         }
     }
 
@@ -1149,9 +1301,9 @@ class MandalRepository(context: Context) {
         )
         mandalInfoDao.saveMandalInfo(entity)
         try {
-            Tasks.await(firestore.collection("mandal_info").document("mandal_default").set(entity.toMap()))
+            firestore.collection("mandal_info").document("mandal_default").set(entity.toMap(), SetOptions.merge())
         } catch (e: Exception) {
-            // Fallback
+            Log.e("FirebaseSync", "Error updating mandal info on Firestore", e)
         }
     }
 
@@ -1162,9 +1314,9 @@ class MandalRepository(context: Context) {
         _mandalLogoUrl.value = cleanUrl
         repositoryScope.launch {
             try {
-                Tasks.await(firestore.collection("mandal_info").document("mandal_default").update("logoUrl", cleanUrl ?: ""))
+                firestore.collection("mandal_info").document("mandal_default").set(mapOf("logoUrl" to (cleanUrl ?: "")), SetOptions.merge())
             } catch (e: Exception) {
-                // Fallback
+                Log.e("FirebaseSync", "Error updating mandal logo on Firestore", e)
             }
         }
     }
@@ -1174,9 +1326,9 @@ class MandalRepository(context: Context) {
         _mandalLogoUrl.value = null
         repositoryScope.launch {
             try {
-                Tasks.await(firestore.collection("mandal_info").document("mandal_default").update("logoUrl", ""))
+                firestore.collection("mandal_info").document("mandal_default").set(mapOf("logoUrl" to ""), SetOptions.merge())
             } catch (e: Exception) {
-                // Fallback
+                Log.e("FirebaseSync", "Error deleting mandal logo on Firestore", e)
             }
         }
     }

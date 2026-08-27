@@ -172,10 +172,24 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun navigateTo(screen: AppScreen) {
         _currentScreen.value = screen
+        if (screen == AppScreen.ADMIN_PANEL || screen == AppScreen.NOTIFICATIONS || screen == AppScreen.EVENTS) {
+            refreshAllData(silent = true)
+        }
     }
 
     fun setNavigationTab(tab: NavigationTab) {
         _currentTab.value = tab
+        if (tab == NavigationTab.POSTS || tab == NavigationTab.MEMBERS || tab == NavigationTab.CHAT) {
+            refreshAllData(silent = true)
+        }
+    }
+
+    fun refreshAllData(silent: Boolean = false) {
+        viewModelScope.launch {
+            if (!silent) showSnackbar("क्लाऊड डेटा सिंक होत आहे...")
+            repository.forceSyncFromFirebase()
+            if (!silent) showSnackbar("डेटा यशस्वीरित्या सिंक झाला! 🔄")
+        }
     }
 
     fun showSnackbar(msg: String) {
@@ -197,6 +211,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             res.onSuccess {
                 showSnackbar("स्वागत आहे, ${it.fullName}!")
                 _currentScreen.value = AppScreen.MAIN
+                refreshAllData(silent = true)
                 onSuccess()
             }.onFailure {
                 showSnackbar(it.message ?: "लॉगिन अयशस्वी झाले.")

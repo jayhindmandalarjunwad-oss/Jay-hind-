@@ -65,7 +65,19 @@ fun AdminPanelScreen(
                 subtitle = "सर्व व्यवस्थापन व मंजुरी प्रणाली",
                 logoUrl = mandalLogoUrl,
                 showBackButton = true,
-                onBackClick = onBack
+                onBackClick = onBack,
+                actions = {
+                    IconButton(
+                        onClick = { viewModel.refreshAllData() },
+                        modifier = Modifier.testTag("admin_refresh_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "रिफ्रेश / Sync",
+                            tint = SaffronPrimary
+                        )
+                    }
+                }
             )
         }
     ) { innerPadding ->
