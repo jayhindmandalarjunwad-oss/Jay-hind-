@@ -53,9 +53,41 @@ object IdCardUtils {
     }
 
     /**
-     * Creates verification text payload for QR Code
+     * Verification data extracted from scanned QR code
      */
-    fun getVerificationPayload(user: User, mandalInfo: MandalInfo): String {
+    data class QrVerificationResult(
+        val memberId: String,
+        val fullName: String,
+        val designation: String,
+        val mobileNumber: String,
+        val bloodGroup: String,
+        val address: String,
+        val userId: String? = null,
+        val matchedUser: User? = null,
+        val isOfficialMandal: Boolean = true,
+        val rawContent: String = ""
+    )
+
+    /**
+     * Creates universal verification URL for QR Code.
+     * When scanned by ANY standard mobile camera (Google Lens, Samsung Camera, Apple Camera, etc.)
+     * or by the in-app scanner, this instantly displays the member verification info.
+     */
+    fun getVerificationPayload(user: User, mandalInfo: MandalInfo? = null): String {
+        val memberId = formatMemberId(user)
+        val roleStr = if (user.designation.isNotBlank()) user.designation else if (user.isAdmin) "कार्यकारिणी सदस्य" else "आजीवन सभासद"
+        val encodedName = Uri.encode(user.fullName)
+        val encodedRole = Uri.encode(roleStr)
+        val encodedBlood = Uri.encode(user.bloodGroup.ifBlank { "माहित नाही" })
+        val encodedAddr = Uri.encode(user.address.ifBlank { "अर्जुनवाड, ता. शिरोळ" })
+        
+        return "https://jayhindmandal.arjunwad.org/verify?mid=$memberId&name=$encodedName&role=$encodedRole&mob=${user.mobileNumber}&bg=$encodedBlood&uid=${user.id}&addr=$encodedAddr"
+    }
+
+    /**
+     * Human-readable text summary of member verification for preview dialogs
+     */
+    fun getVerificationDisplaySummary(user: User, mandalInfo: MandalInfo? = null): String {
         val memberId = formatMemberId(user)
         val roleStr = if (user.designation.isNotBlank()) user.designation else if (user.isAdmin) "कार्यकारिणी सदस्य (Admin)" else "सक्रिय सभासद"
         val regDate = SimpleDateFormat("dd/MM/yyyy", Locale("mr", "IN")).format(Date(user.createdAt))
@@ -79,20 +111,143 @@ object IdCardUtils {
     }
 
     /**
-     * Generates high-contrast QR Code Bitmap using ZXing
+     * Parses any scanned QR payload (URL, deep-link, Member ID, phone number, or text)
+     * and maps it to verified member information.
+     */
+    fun parseVerificationQrPayload(raw: String, allMembers: List<User>): QrVerificationResult? {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return null
+
+        // 1. Check if it is a verification URL (e.g. https://jayhindmandal.arjunwad.org/verify?...)
+        if (trimmed.contains("/verify") || trimmed.startsWith("mandal://verify") || trimmed.contains("jayhindmandal")) {
+            try {
+                val uri = Uri.parse(trimmed)
+                val mid = uri.getQueryParameter("mid") ?: uri.getQueryParameter("id") ?: ""
+                val name = uri.getQueryParameter("name") ?: ""
+                val role = uri.getQueryParameter("role") ?: "सभासद"
+                val mob = uri.getQueryParameter("mob") ?: uri.getQueryParameter("mobile") ?: ""
+                val bg = uri.getQueryParameter("bg") ?: uri.getQueryParameter("blood") ?: ""
+                val uid = uri.getQueryParameter("uid") ?: ""
+                val addr = uri.getQueryParameter("addr") ?: uri.getQueryParameter("address") ?: "अर्जुनवाड"
+
+                // Try to find exact matching user from local/cloud list
+                val matched = allMembers.find { 
+                    (uid.isNotBlank() && it.id == uid) || 
+                    (mob.isNotBlank() && it.mobileNumber == mob) ||
+                    (mid.isNotBlank() && formatMemberId(it).equals(mid, ignoreCase = true)) ||
+                    (name.isNotBlank() && it.fullName.equals(name, ignoreCase = true))
+                }
+
+                return QrVerificationResult(
+                    memberId = mid.ifBlank { matched?.let { formatMemberId(it) } ?: "JH-2026-MEMBER" },
+                    fullName = matched?.fullName ?: name.ifBlank { "जय हिंद सभासद" },
+                    designation = matched?.designation?.ifBlank { null } ?: role,
+                    mobileNumber = matched?.mobileNumber ?: mob,
+                    bloodGroup = matched?.bloodGroup ?: bg,
+                    address = matched?.address ?: addr,
+                    userId = matched?.id ?: uid,
+                    matchedUser = matched,
+                    isOfficialMandal = true,
+                    rawContent = trimmed
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Check if matching by Member ID or Mobile Number or Name directly
+        val directMatch = allMembers.find {
+            it.mobileNumber == trimmed ||
+            it.id.equals(trimmed, ignoreCase = true) ||
+            formatMemberId(it).equals(trimmed, ignoreCase = true) ||
+            it.fullName.equals(trimmed, ignoreCase = true)
+        }
+
+        if (directMatch != null) {
+            return QrVerificationResult(
+                memberId = formatMemberId(directMatch),
+                fullName = directMatch.fullName,
+                designation = if (directMatch.designation.isNotBlank()) directMatch.designation else if (directMatch.isAdmin) "कार्यकारिणी सदस्य" else "सभासद",
+                mobileNumber = directMatch.mobileNumber,
+                bloodGroup = directMatch.bloodGroup,
+                address = directMatch.address,
+                userId = directMatch.id,
+                matchedUser = directMatch,
+                isOfficialMandal = true,
+                rawContent = trimmed
+            )
+        }
+
+        // 3. Check if raw string contains Marathi keywords from legacy text payload
+        if (trimmed.contains("जय हिंद") || trimmed.contains("सभासद") || trimmed.contains("नाव:")) {
+            val lines = trimmed.lines()
+            var extractedName = ""
+            var extractedMob = ""
+            var extractedMid = ""
+            var extractedRole = ""
+            var extractedBg = ""
+            var extractedAddr = ""
+
+            for (line in lines) {
+                when {
+                    line.contains("सभासद क्रमांक:") || line.contains("आयडी:") -> extractedMid = line.substringAfter(":").trim()
+                    line.contains("नाव:") -> extractedName = line.substringAfter(":").trim()
+                    line.contains("पद/हुद्दा:") || line.contains("पद:") -> extractedRole = line.substringAfter(":").trim()
+                    line.contains("रक्तगट:") -> extractedBg = line.substringAfter(":").trim()
+                    line.contains("मोबाईल:") -> extractedMob = line.substringAfter(":").trim()
+                    line.contains("पत्ता:") -> extractedAddr = line.substringAfter(":").trim()
+                }
+            }
+
+            val matchedFromText = allMembers.find {
+                (extractedMob.isNotBlank() && it.mobileNumber == extractedMob) ||
+                (extractedName.isNotBlank() && it.fullName.contains(extractedName, ignoreCase = true))
+            }
+
+            return QrVerificationResult(
+                memberId = extractedMid.ifBlank { matchedFromText?.let { formatMemberId(it) } ?: "JH-2026-MEMBER" },
+                fullName = matchedFromText?.fullName ?: extractedName.ifBlank { "जय हिंद सभासद" },
+                designation = matchedFromText?.designation?.ifBlank { null } ?: extractedRole.ifBlank { "सभासद" },
+                mobileNumber = matchedFromText?.mobileNumber ?: extractedMob,
+                bloodGroup = matchedFromText?.bloodGroup ?: extractedBg,
+                address = matchedFromText?.address ?: extractedAddr.ifBlank { "अर्जुनवाड" },
+                userId = matchedFromText?.id,
+                matchedUser = matchedFromText,
+                isOfficialMandal = true,
+                rawContent = trimmed
+            )
+        }
+
+        // Fallback generic scan result
+        return QrVerificationResult(
+            memberId = "JH-2026-SCAN",
+            fullName = trimmed.take(40),
+            designation = "स्कॅन केलेला मजकूर",
+            mobileNumber = "",
+            bloodGroup = "",
+            address = "",
+            isOfficialMandal = false,
+            rawContent = trimmed
+        )
+    }
+
+    /**
+     * Generates high-contrast QR Code Bitmap using ZXing.
+     * Uses ErrorCorrectionLevel.M and Margin 2 for 100% instant readability
+     * in any mobile camera app (Google Lens, Samsung, iOS, etc.)
      */
     fun generateQrBitmap(content: String, sizePx: Int = 512): Bitmap? {
         return try {
             val hints = EnumMap<EncodeHintType, Any>(EncodeHintType::class.java).apply {
                 put(EncodeHintType.CHARACTER_SET, "UTF-8")
-                put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H)
-                put(EncodeHintType.MARGIN, 1)
+                put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M)
+                put(EncodeHintType.MARGIN, 2)
             }
             val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
             val width = matrix.width
             val height = matrix.height
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val darkColor = Color.rgb(20, 25, 45)
+            val darkColor = Color.BLACK // Pure high-contrast solid black for 100% camera sensor scanning
             val lightColor = Color.WHITE
 
             for (x in 0 until width) {

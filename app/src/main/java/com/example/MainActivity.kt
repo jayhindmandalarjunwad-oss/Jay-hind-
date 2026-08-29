@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -23,8 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.ui.components.CreatePostDialog
-import com.example.ui.components.MandalTopHeader
+import com.example.data.model.User
+import com.example.ui.components.*
 import com.example.ui.screens.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.*
@@ -35,10 +36,24 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleIntent(intent)
         setContent {
             MyApplicationTheme {
                 MandalApp(viewModel = viewModel)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val dataString = intent?.dataString
+        if (!dataString.isNullOrBlank()) {
+            viewModel.handleScannedQrPayload(dataString)
         }
     }
 }
@@ -51,9 +66,13 @@ fun MandalApp(viewModel: MandalViewModel) {
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
     val unreadNotifs by viewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
     val unreadChatCount by viewModel.unreadChatCount.collectAsStateWithLifecycle()
+    val scannedResult by viewModel.scannedVerificationResult.collectAsStateWithLifecycle()
+    val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
+    val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreatePostDialog by remember { mutableStateOf(false) }
+    var memberForIdCardDialog by remember { mutableStateOf<User?>(null) }
 
     LaunchedEffect(snackbarMsg) {
         snackbarMsg?.let {
@@ -258,6 +277,31 @@ fun MandalApp(viewModel: MandalViewModel) {
                             showCreatePostDialog = false
                         }
                     }
+                )
+            }
+
+            // Member Verification Detail Modal (shows verified info after external camera scanning)
+            scannedResult?.let { result ->
+                MemberVerificationDetailDialog(
+                    result = result,
+                    onDismiss = { viewModel.clearVerificationResult() },
+                    onViewFullIdCard = { member ->
+                        memberForIdCardDialog = member
+                    },
+                    onOpenChat = { member ->
+                        viewModel.clearVerificationResult()
+                        viewModel.openChatWith(member)
+                    }
+                )
+            }
+
+            // Full Digital ID Card Modal
+            memberForIdCardDialog?.let { member ->
+                DigitalIdCardDialog(
+                    user = member,
+                    mandalInfo = mandalInfo,
+                    mandalLogoUrl = mandalLogoUrl,
+                    onDismiss = { memberForIdCardDialog = null }
                 )
             }
         }

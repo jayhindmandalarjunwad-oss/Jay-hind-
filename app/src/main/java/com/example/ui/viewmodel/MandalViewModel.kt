@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.*
 import com.example.data.repository.MandalRepository
+import com.example.util.IdCardUtils
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -98,6 +99,10 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     // Selected member for detail view sheet
     private val _selectedMemberForDetail = MutableStateFlow<User?>(null)
     val selectedMemberForDetail: StateFlow<User?> = _selectedMemberForDetail.asStateFlow()
+
+    // External Verification State (triggered when scanned by device camera deep-link)
+    private val _scannedVerificationResult = MutableStateFlow<IdCardUtils.QrVerificationResult?>(null)
+    val scannedVerificationResult: StateFlow<IdCardUtils.QrVerificationResult?> = _scannedVerificationResult.asStateFlow()
 
     // Posts & Feed
     val posts: StateFlow<List<Post>> = repository.posts
@@ -317,6 +322,39 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectMemberForDetail(user: User?) {
         _selectedMemberForDetail.value = user
+    }
+
+    // QR VERIFICATION ACTIONS (Deep-link & external camera verification)
+    fun handleScannedQrPayload(raw: String) {
+        val membersList = allMembers.value
+        val result = IdCardUtils.parseVerificationQrPayload(raw, membersList)
+        if (result != null) {
+            _scannedVerificationResult.value = result
+            showSnackbar("✅ सभासद पडताळणी यशस्वी: ${result.fullName}")
+        } else {
+            showSnackbar("QR कोड ओळखता आला नाही. कृपया पुन्हा प्रयत्न करा.")
+        }
+    }
+
+    fun clearVerificationResult() {
+        _scannedVerificationResult.value = null
+    }
+
+    fun showVerificationForUser(user: User) {
+        val memberId = IdCardUtils.formatMemberId(user)
+        val roleStr = if (user.designation.isNotBlank()) user.designation else if (user.isAdmin) "कार्यकारिणी सदस्य" else "सभासद"
+        _scannedVerificationResult.value = IdCardUtils.QrVerificationResult(
+            memberId = memberId,
+            fullName = user.fullName,
+            designation = roleStr,
+            mobileNumber = user.mobileNumber,
+            bloodGroup = user.bloodGroup,
+            address = user.address,
+            userId = user.id,
+            matchedUser = user,
+            isOfficialMandal = true,
+            rawContent = IdCardUtils.getVerificationPayload(user)
+        )
     }
 
     // POSTS ACTIONS

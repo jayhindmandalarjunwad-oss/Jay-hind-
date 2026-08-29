@@ -651,7 +651,7 @@ fun DigitalIdCardDialog(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = IdCardUtils.getVerificationPayload(user, mandalInfo),
+                            text = IdCardUtils.getVerificationDisplaySummary(user, mandalInfo),
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
                             color = TextPrimary,
