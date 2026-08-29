@@ -13,7 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -31,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ui.theme.*
+import com.example.util.MediaUtils
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -44,11 +47,24 @@ fun GalleryImagePicker(
     shape: Shape = RoundedCornerShape(12.dp),
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isProcessing by remember { mutableStateOf(false) }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            onImageSelected(uri.toString())
+            coroutineScope.launch {
+                isProcessing = true
+                val base64 = MediaUtils.uriToBase64(context, uri)
+                isProcessing = false
+                if (!base64.isNullOrBlank()) {
+                    onImageSelected(base64)
+                } else {
+                    onImageSelected(uri.toString())
+                }
+            }
         }
     }
 
@@ -56,7 +72,7 @@ fun GalleryImagePicker(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .clickable { galleryLauncher.launch("image/*") }
+            .clickable(enabled = !isProcessing) { galleryLauncher.launch("image/*") }
             .testTag("gallery_image_picker"),
         shape = shape,
         color = SurfaceWarm,
@@ -65,7 +81,20 @@ fun GalleryImagePicker(
             if (!selectedImageUrl.isNullOrBlank()) SaffronPrimary else CardBorderColor
         )
     ) {
-        if (!selectedImageUrl.isNullOrBlank()) {
+        if (isProcessing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(height),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(32.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("फोटो तयार होत आहे...", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                }
+            }
+        } else if (!selectedImageUrl.isNullOrBlank()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

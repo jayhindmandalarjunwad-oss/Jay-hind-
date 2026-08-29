@@ -28,11 +28,13 @@ import com.example.ui.theme.*
 @Composable
 fun CreatePostDialog(
     currentUser: User?,
+    initialPost: com.example.data.model.Post? = null,
     onDismiss: () -> Unit,
     onPostCreated: (content: String, imageUrl: String?, videoUrl: String?) -> Unit
 ) {
-    var postText by remember { mutableStateOf("") }
-    var selectedImageUrl by remember { mutableStateOf<String?>(null) }
+    val isEdit = initialPost != null
+    var postText by remember { mutableStateOf(initialPost?.content ?: "") }
+    var selectedImageUrl by remember { mutableStateOf<String?>(initialPost?.imageUrls?.firstOrNull()) }
     var customImageUrl by remember { mutableStateOf("") }
     var showCustomImageInput by remember { mutableStateOf(false) }
 
@@ -64,7 +66,7 @@ fun CreatePostDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "नवीन पोस्ट तयार करा",
+                        text = if (isEdit) "पोस्ट संपादित करा (Edit Post)" else "नवीन पोस्ट तयार करा",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = TextPrimary
                     )
@@ -192,10 +194,10 @@ fun CreatePostDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Send, contentDescription = null)
+                    Icon(imageVector = if (isEdit) Icons.Default.Check else Icons.Default.Send, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "पोस्ट प्रसिद्ध करा (Post)",
+                        text = if (isEdit) "पोस्ट अपडेट करा (Update Post)" else "पोस्ट प्रसिद्ध करा (Post)",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )

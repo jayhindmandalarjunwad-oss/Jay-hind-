@@ -205,8 +205,18 @@ class MandalRepository(context: Context) {
                 }
             }
 
+            // Cleanup obsolete dummy banners from local DB
+            bannerDao.deleteBanner("banner_1")
+            bannerDao.deleteBanner("banner_2")
+            bannerDao.deleteBanner("banner_3")
+
             // Sync default Admin and initial content to Firebase Firestore if not present
             try {
+                // Also purge obsolete banners on Firestore
+                firestore.collection("banners").document("banner_1").delete()
+                firestore.collection("banners").document("banner_2").delete()
+                firestore.collection("banners").document("banner_3").delete()
+
                 val adminDoc = Tasks.await(firestore.collection("users").document("admin_1").get())
                 if (!adminDoc.exists()) {
                     Tasks.await(firestore.collection("users").document("admin_1").set(SeedData.defaultAdmin.toMap(), SetOptions.merge()))
@@ -433,8 +443,12 @@ class MandalRepository(context: Context) {
                     val info = snapshot.toMandalInfoEntity()
                     if (info != null) {
                         mandalInfoDao.saveMandalInfo(info)
-                        if (!info.logoUrl.isNullOrBlank()) {
-                            _mandalLogoUrl.value = info.logoUrl
+                        val cleanLogo = info.logoUrl?.ifEmpty { null }
+                        _mandalLogoUrl.value = cleanLogo
+                        if (cleanLogo != null) {
+                            prefs.edit().putString("mandal_logo_url", cleanLogo).apply()
+                        } else {
+                            prefs.edit().remove("mandal_logo_url").apply()
                         }
                     }
                 }
@@ -450,6 +464,11 @@ class MandalRepository(context: Context) {
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toNotificationEntity() }
                     if (list.isNotEmpty()) notificationDao.insertNotifications(list)
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            notificationDao.deleteNotification(change.document.id)
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -795,11 +814,39 @@ class MandalRepository(context: Context) {
 
     suspend fun deletePost(postId: String) = withContext(Dispatchers.IO) {
         postDao.deletePost(postId)
+        notificationDao.deleteNotificationsByTargetId(postId)
         try {
             firestore.collection("posts").document(postId).delete()
+            val notifQuery = firestore.collection("notifications").whereEqualTo("targetId", postId).get()
+            val notifSnap = Tasks.await(notifQuery)
+            for (doc in notifSnap.documents) {
+                firestore.collection("notifications").document(doc.id).delete()
+            }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error deleting post on Firestore", e)
         }
+    }
+
+    suspend fun updatePost(
+        postId: String,
+        content: String,
+        imageUrl: String?,
+        videoUrl: String?
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val cleanContent = content.trim()
+        val cleanImage = imageUrl ?: ""
+        postDao.updatePostContent(postId, cleanContent, cleanImage, videoUrl)
+        try {
+            val updateMap = mutableMapOf<String, Any?>(
+                "content" to cleanContent,
+                "imageUrlsJson" to cleanImage,
+                "videoUrl" to videoUrl
+            )
+            firestore.collection("posts").document(postId).set(updateMap, SetOptions.merge())
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating post on Firestore", e)
+        }
+        Result.success(Unit)
     }
 
     // COMMENTS
@@ -960,6 +1007,27 @@ class MandalRepository(context: Context) {
         } else {
             chatDao.markMessagesAsRead(conversationId, currentUserId)
         }
+        try {
+            val query = firestore.collection("chat_messages")
+                .whereEqualTo("receiverId", currentUserId)
+                .whereEqualTo("isRead", false)
+                .get()
+            val snap = Tasks.await(query)
+            for (doc in snap.documents) {
+                val docConvId = doc.getString("conversationId")
+                val docSenderId = doc.getString("senderId")
+                if (docConvId == conversationId || docSenderId == partnerId) {
+                    firestore.collection("chat_messages").document(doc.id).update("isRead", true)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating chat read status on Firestore", e)
+        }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val unreadChatCount: Flow<Int> = _currentUser.flatMapLatest { user ->
+        if (user != null) chatDao.getUnreadChatCount(user.id) else kotlinx.coroutines.flow.flowOf(0)
     }
 
     fun getConversationId(userA: String, userB: String): String {
@@ -1172,10 +1240,39 @@ class MandalRepository(context: Context) {
         }
     }
 
+    suspend fun updateAnnouncement(
+        id: String,
+        title: String,
+        content: String,
+        priority: String
+    ) = withContext(Dispatchers.IO) {
+        val user = _currentUser.value
+        val ann = AnnouncementEntity(
+            id = id,
+            title = title.trim(),
+            content = content.trim(),
+            priority = priority,
+            date = SimpleDateFormat("dd MMMM yyyy", Locale("mr", "IN")).format(Date()),
+            author = user?.fullName ?: "मंडळ कार्यकारणी"
+        )
+        announcementDao.insertAnnouncement(ann)
+        try {
+            firestore.collection("announcements").document(id).set(ann.toMap(), SetOptions.merge())
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating announcement on Firestore", e)
+        }
+    }
+
     suspend fun deleteAnnouncement(id: String) = withContext(Dispatchers.IO) {
         announcementDao.deleteAnnouncement(id)
+        notificationDao.deleteNotificationsByTargetId(id)
         try {
             firestore.collection("announcements").document(id).delete()
+            val notifQuery = firestore.collection("notifications").whereEqualTo("targetId", id).get()
+            val notifSnap = Tasks.await(notifQuery)
+            for (doc in notifSnap.documents) {
+                firestore.collection("notifications").document(doc.id).delete()
+            }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error deleting announcement on Firestore", e)
         }

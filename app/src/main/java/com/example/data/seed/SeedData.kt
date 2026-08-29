@@ -213,29 +213,7 @@ object SeedData {
 
     val seedChatMessages = emptyList<ChatMessageEntity>()
 
-    val seedBanners = listOf(
-        BannerEntity(
-            id = "banner_1",
-            imageUrl = "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=1000&auto=format&fit=crop&q=80",
-            title = "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ",
-            subtitle = "🚩 भव्य गणेशोत्सव २०२६ व सांस्कृतिक महोत्सव",
-            orderIndex = 0
-        ),
-        BannerEntity(
-            id = "banner_2",
-            imageUrl = "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=1000&auto=format&fit=crop&q=80",
-            title = "अर्जुनवाड प्रीमियर लीग २०२६",
-            subtitle = "🏆 भव्य ग्रामीण क्रिकेट स्पर्धा - सर्व खेळाडूंचे स्वागत",
-            orderIndex = 1
-        ),
-        BannerEntity(
-            id = "banner_3",
-            imageUrl = "https://images.unsplash.com/photo-1615461066841-6116e61058f4?w=1000&auto=format&fit=crop&q=80",
-            title = "महा रक्तदान व आरोग्य तपासणी शिबीर",
-            subtitle = "🩸 'रक्तदान हेच श्रेष्ठ जीवनदान' - सहकार्य करा",
-            orderIndex = 2
-        )
-    )
+    val seedBanners = emptyList<BannerEntity>()
 
     val defaultMandalInfo = MandalInfoEntity(
         id = "mandal_default",

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.model.Post
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
@@ -33,6 +34,7 @@ fun PostsScreen(
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val activeCommentPost by viewModel.activeCommentPost.collectAsStateWithLifecycle()
     val activePostComments by viewModel.activePostComments.collectAsStateWithLifecycle()
+    var postToEdit by remember { mutableStateOf<Post?>(null) }
 
     Box(
         modifier = Modifier
@@ -111,6 +113,7 @@ fun PostsScreen(
                         onLikeClick = { viewModel.toggleLike(post.id) },
                         onCommentClick = { viewModel.openComments(post) },
                         onDeleteClick = { viewModel.deletePost(post.id) },
+                        onEditClick = { postToEdit = post },
                         onImageClick = { viewModel.openFullscreenPhoto(it) }
                     )
                 }
@@ -128,6 +131,22 @@ fun PostsScreen(
                 .testTag("feed_fab_create_post")
         ) {
             Icon(imageVector = Icons.Default.Add, contentDescription = "नवीन पोस्ट")
+        }
+
+        // Edit Post Dialog
+        if (postToEdit != null) {
+            CreatePostDialog(
+                currentUser = currentUser,
+                initialPost = postToEdit,
+                onDismiss = { postToEdit = null },
+                onPostCreated = { content, imageUrl, videoUrl ->
+                    postToEdit?.let { target ->
+                        viewModel.updatePost(target.id, content, imageUrl, videoUrl) {
+                            postToEdit = null
+                        }
+                    }
+                }
+            )
         }
 
         // Comments Bottom Sheet

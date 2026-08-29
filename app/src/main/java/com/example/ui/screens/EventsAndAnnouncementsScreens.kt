@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.data.model.Announcement
 import com.example.data.model.MandalEvent
 import com.example.ui.components.*
 import com.example.ui.theme.*
@@ -390,6 +391,12 @@ fun AnnouncementsScreen(
     onBack: () -> Unit
 ) {
     val announcements by viewModel.announcements.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val isAdmin = currentUser?.isAdmin == true
+
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var announcementToEdit by remember { mutableStateOf<Announcement?>(null) }
+    var announcementToDelete by remember { mutableStateOf<Announcement?>(null) }
 
     Scaffold(
         topBar = {
@@ -397,8 +404,42 @@ fun AnnouncementsScreen(
                 title = "मंडळ सूचना फलक (Notice Board)",
                 subtitle = "अधिकृत पत्रके, परिपत्रके व निर्णय",
                 showBackButton = true,
-                onBackClick = onBack
+                onBackClick = onBack,
+                actions = {
+                    if (isAdmin) {
+                        IconButton(
+                            onClick = { showCreateDialog = true },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SaffronPrimary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Announcement",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
             )
+        },
+        floatingActionButton = {
+            if (isAdmin) {
+                FloatingActionButton(
+                    onClick = { showCreateDialog = true },
+                    containerColor = SaffronPrimary,
+                    contentColor = Color.White
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Notice")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("नवीन सूचना", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
     ) { innerPadding ->
         Box(
@@ -411,7 +452,8 @@ fun AnnouncementsScreen(
             if (announcements.isEmpty()) {
                 EmptyStateView(
                     icon = Icons.Default.Campaign,
-                    title = "कोणतीही नवीन सूचना नाही"
+                    title = "कोणतीही नवीन सूचना नाही",
+                    subtitle = "नवीन सूचना येथे प्रसिद्ध केल्या जातील."
                 )
             } else {
                 LazyColumn(
@@ -440,6 +482,33 @@ fun AnnouncementsScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     PriorityBadge(priority = ann.priority)
+
+                                    if (isAdmin) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        IconButton(
+                                            onClick = { announcementToEdit = ann },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Edit Announcement",
+                                                tint = SaffronPrimary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        IconButton(
+                                            onClick = { announcementToDelete = ann },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete Announcement",
+                                                tint = BloodRed,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -478,6 +547,141 @@ fun AnnouncementsScreen(
             }
         }
     }
+
+    // Admin Announcement Create Dialog
+    if (showCreateDialog) {
+        AddEditAnnouncementDialog(
+            announcement = null,
+            onDismiss = { showCreateDialog = false },
+            onSave = { title, content, priority ->
+                viewModel.createAnnouncement(title, content, priority)
+                showCreateDialog = false
+            }
+        )
+    }
+
+    // Admin Announcement Edit Dialog
+    if (announcementToEdit != null) {
+        AddEditAnnouncementDialog(
+            announcement = announcementToEdit,
+            onDismiss = { announcementToEdit = null },
+            onSave = { title, content, priority ->
+                announcementToEdit?.let { ann ->
+                    viewModel.updateAnnouncement(ann.id, title, content, priority)
+                }
+                announcementToEdit = null
+            }
+        )
+    }
+
+    // Admin Delete Announcement Confirmation Dialog
+    if (announcementToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { announcementToDelete = null },
+            title = { Text("सूचना हटवा (Delete Notice)", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            text = { Text("'${announcementToDelete?.title}' ही सूचना सूचना फलकावरून कायमची हटवायची आहे का?", color = TextPrimary) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        announcementToDelete?.let { viewModel.deleteAnnouncement(it.id) }
+                        announcementToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                ) {
+                    Text("हटवा (Delete)")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { announcementToDelete = null }) {
+                    Text("रद्द करा", color = TextPrimary)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun AddEditAnnouncementDialog(
+    announcement: Announcement?,
+    onDismiss: () -> Unit,
+    onSave: (title: String, content: String, priority: String) -> Unit
+) {
+    var title by remember { mutableStateOf(announcement?.title ?: "") }
+    var content by remember { mutableStateOf(announcement?.content ?: "") }
+    var priority by remember { mutableStateOf(announcement?.priority ?: "HIGH") }
+
+    val priorityOptions = listOf("HIGH" to "अति महत्त्वाचे (High)", "MEDIUM" to "महत्त्वाचे (Medium)", "NORMAL" to "सामान्य (Normal)")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (announcement == null) "नवीन सूचना प्रसिद्ध करा" else "सूचना संपादित करा (Edit Notice)",
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("सूचनेचे शीर्षक") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text("सूचनेचा तपशील / मजकूर") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4
+                )
+
+                Text(
+                    text = "प्राधान्यक्रम (Priority):",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    priorityOptions.forEach { (key, label) ->
+                        FilterChip(
+                            selected = priority == key,
+                            onClick = { priority = key },
+                            label = { Text(label, fontSize = 11.sp) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isNotBlank() && content.isNotBlank()) {
+                        onSave(title, content, priority)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
+            ) {
+                Text(if (announcement == null) "सूचना प्रसिद्ध करा" else "बदल जतन करा")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("रद्द करा", color = TextPrimary)
+            }
+        }
+    )
 }
 
 // NOTIFICATIONS SCREEN

@@ -131,9 +131,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         if (user != null) repository.getConversationSummaries(user.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val unreadChatCount: StateFlow<Int> = chatSummaries.map { summaries ->
-        summaries.sumOf { it.unreadCount }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val unreadChatCount: StateFlow<Int> = repository.unreadChatCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     // Gallery State
     val albums: StateFlow<List<Album>> = repository.albums
@@ -361,6 +360,22 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updatePost(postId: String, content: String, imageUrl: String?, videoUrl: String?, onDone: () -> Unit) {
+        if (content.isBlank() && imageUrl == null) {
+            showSnackbar("पोस्टसाठी काही मजकूर किंवा फोटो निवडा.")
+            return
+        }
+        viewModelScope.launch {
+            val res = repository.updatePost(postId, content, imageUrl, videoUrl)
+            res.onSuccess {
+                showSnackbar("पोस्ट यशस्वीरित्या अपडेट झाली! ✏️")
+                onDone()
+            }.onFailure {
+                showSnackbar(it.message ?: "पोस्ट अपडेट करताना त्रुटी आली.")
+            }
+        }
+    }
+
     // CHAT ACTIONS
     fun openChatWith(partner: User) {
         _activeChatPartner.value = partner
@@ -495,6 +510,13 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.createAnnouncement(title, content, priority)
             showSnackbar("सूचना फलकावर प्रसिद्ध झाली!")
+        }
+    }
+
+    fun updateAnnouncement(id: String, title: String, content: String, priority: String) {
+        viewModelScope.launch {
+            repository.updateAnnouncement(id, title, content, priority)
+            showSnackbar("सूचना यशस्वीरित्या बदलण्यात आली! ✏️")
         }
     }
 

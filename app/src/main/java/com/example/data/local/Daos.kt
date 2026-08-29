@@ -62,6 +62,9 @@ interface PostDao {
 
     @Query("UPDATE posts SET commentsCount = commentsCount + 1 WHERE id = :postId")
     suspend fun incrementCommentsCount(postId: String)
+
+    @Query("UPDATE posts SET content = :content, imageUrlsJson = :imageUrls, videoUrl = :videoUrl WHERE id = :postId")
+    suspend fun updatePostContent(postId: String, content: String, imageUrls: String, videoUrl: String?)
 }
 
 @Dao
@@ -98,6 +101,9 @@ interface ChatDao {
 
     @Query("UPDATE chat_messages SET isRead = 1 WHERE conversationId = :convId AND receiverId = :userId")
     suspend fun markMessagesAsRead(convId: String, userId: String)
+
+    @Query("SELECT COUNT(*) FROM chat_messages WHERE receiverId = :userId AND isRead = 0")
+    fun getUnreadChatCount(userId: String): Flow<Int>
 }
 
 @Dao
@@ -197,6 +203,9 @@ interface NotificationDao {
 
     @Query("DELETE FROM notifications WHERE id = :id")
     suspend fun deleteNotification(id: String)
+
+    @Query("DELETE FROM notifications WHERE targetId = :targetId")
+    suspend fun deleteNotificationsByTargetId(targetId: String)
 }
 
 @Dao

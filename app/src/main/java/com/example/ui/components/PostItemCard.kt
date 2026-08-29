@@ -34,11 +34,13 @@ fun PostItemCard(
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onEditClick: () -> Unit = {},
     onImageClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val isLiked = currentUser?.let { post.isLikedBy(it.id) } == true
+    val canEdit = currentUser != null && (currentUser.isAdmin || currentUser.id == post.authorId)
     val canDelete = currentUser != null && (currentUser.isAdmin || currentUser.id == post.authorId)
 
     var showMenu by remember { mutableStateOf(false) }
@@ -87,7 +89,7 @@ fun PostItemCard(
                     }
                 }
 
-                if (canDelete) {
+                if (canEdit || canDelete) {
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(imageVector = Icons.Default.MoreVert, contentDescription = "पर्याय", tint = TextSecondary)
@@ -96,16 +98,30 @@ fun PostItemCard(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("पोस्ट हटवा (Delete Post)", color = BloodRed) },
-                                onClick = {
-                                    showMenu = false
-                                    onDeleteClick()
-                                },
-                                leadingIcon = {
-                                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = BloodRed)
-                                }
-                            )
+                            if (canEdit) {
+                                DropdownMenuItem(
+                                    text = { Text("पोस्ट संपादित करा (Edit Post)", color = TextPrimary) },
+                                    onClick = {
+                                        showMenu = false
+                                        onEditClick()
+                                    },
+                                    leadingIcon = {
+                                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = SaffronPrimary)
+                                    }
+                                )
+                            }
+                            if (canDelete) {
+                                DropdownMenuItem(
+                                    text = { Text("पोस्ट हटवा (Delete Post)", color = BloodRed) },
+                                    onClick = {
+                                        showMenu = false
+                                        onDeleteClick()
+                                    },
+                                    leadingIcon = {
+                                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = BloodRed)
+                                    }
+                                )
+                            }
                         }
                     }
                 }

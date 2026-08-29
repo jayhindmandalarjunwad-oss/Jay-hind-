@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +37,9 @@ import com.example.data.model.User
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
+import com.example.util.MediaUtils
+import kotlinx.coroutines.launch
+import android.widget.Toast
 
 @Composable
 fun ChatListScreen(viewModel: MandalViewModel) {
@@ -652,6 +656,8 @@ fun ChatDetailScreen(
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val approvedMembers by viewModel.approvedMembers.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -661,17 +667,21 @@ fun ChatDetailScreen(
     var showDocDialog by remember { mutableStateOf(false) }
     var showContactDialog by remember { mutableStateOf(false) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
+    var isSavingPhoto by remember { mutableStateOf(false) }
 
     // Direct Gallery Launchers
     val photoGalleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.sendChatMessage(
-                text = "",
-                attachmentType = "IMAGE",
-                attachmentUrl = uri.toString()
-            )
+            scope.launch {
+                val base64 = MediaUtils.uriToBase64(context, uri) ?: uri.toString()
+                viewModel.sendChatMessage(
+                    text = "",
+                    attachmentType = "IMAGE",
+                    attachmentUrl = base64
+                )
+            }
         }
     }
 
@@ -1344,8 +1354,7 @@ fun ChatDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.9f))
-                    .clickable { previewImageUrl = null },
+                    .background(Color.Black.copy(alpha = 0.92f)),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
@@ -1356,13 +1365,62 @@ fun ChatDetailScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 )
-                IconButton(
-                    onClick = { previewImageUrl = null },
+
+                // Top Controls: Close and Save to Gallery
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(16.dp)
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                    // Save Button
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.6f)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                previewImageUrl?.let { url ->
+                                    scope.launch {
+                                        isSavingPhoto = true
+                                        val success = MediaUtils.saveImageToGallery(context, url, "JayHind_ChatPhoto")
+                                        isSavingPhoto = false
+                                        if (success) {
+                                            Toast.makeText(context, "फोटो गॅलरीमध्ये सेव्ह केला! (Saved to Gallery)", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "फोटो सेव्ह करण्यात अयशस्वी झाले.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isSavingPhoto
+                        ) {
+                            if (isSavingPhoto) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = "Download Photo",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    // Close Button
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.6f)
+                    ) {
+                        IconButton(onClick = { previewImageUrl = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
                 }
             }
         }

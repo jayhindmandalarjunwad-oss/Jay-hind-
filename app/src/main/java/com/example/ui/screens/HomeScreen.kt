@@ -36,6 +36,7 @@ import com.example.R
 import com.example.data.model.MandalBanner
 import com.example.data.model.MandalEvent
 import com.example.data.model.MandalInfo
+import com.example.data.model.Post
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppScreen
@@ -56,6 +57,7 @@ fun HomeScreen(
     val events by viewModel.events.collectAsStateWithLifecycle()
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val unreadNotifs by viewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
+    var postToEdit by remember { mutableStateOf<Post?>(null) }
 
     LazyColumn(
         modifier = Modifier
@@ -470,6 +472,7 @@ fun HomeScreen(
                 onLikeClick = { viewModel.toggleLike(post.id) },
                 onCommentClick = { viewModel.openComments(post) },
                 onDeleteClick = { viewModel.deletePost(post.id) },
+                onEditClick = { postToEdit = post },
                 onImageClick = { viewModel.openFullscreenPhoto(it) },
                 modifier = Modifier.padding(horizontal = 14.dp)
             )
@@ -478,6 +481,21 @@ fun HomeScreen(
         item {
             Spacer(modifier = Modifier.height(80.dp))
         }
+    }
+
+    if (postToEdit != null) {
+        CreatePostDialog(
+            currentUser = currentUser,
+            initialPost = postToEdit,
+            onDismiss = { postToEdit = null },
+            onPostCreated = { content, imageUrl, videoUrl ->
+                postToEdit?.let { target ->
+                    viewModel.updatePost(target.id, content, imageUrl, videoUrl) {
+                        postToEdit = null
+                    }
+                }
+            }
+        )
     }
 }
 
