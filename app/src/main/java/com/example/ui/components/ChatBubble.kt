@@ -118,7 +118,7 @@ fun ChatBubble(
                 // 1. IMAGE ATTACHMENT
                 val imageToDisplay = message.attachmentUrl.takeIf { message.attachmentType == "IMAGE" } ?: message.imageUrl
                 if (!imageToDisplay.isNullOrBlank()) {
-                    AsyncImage(
+                    UniversalAsyncImage(
                         model = imageToDisplay,
                         contentDescription = "Chat Image",
                         contentScale = ContentScale.Crop,
@@ -174,7 +174,7 @@ fun ChatBubble(
                         contentAlignment = Alignment.Center
                     ) {
                         if (!message.attachmentExtra.isNullOrBlank()) {
-                            AsyncImage(
+                            UniversalAsyncImage(
                                 model = message.attachmentExtra,
                                 contentDescription = "Video Thumbnail",
                                 contentScale = ContentScale.Crop,

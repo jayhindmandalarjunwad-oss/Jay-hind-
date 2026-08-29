@@ -1074,6 +1074,20 @@ class MandalRepository(context: Context) {
         )
         galleryDao.insertPhoto(photo)
         try {
+            val albums = galleryDao.getAllAlbums().first()
+            val targetAlbum = albums.find { it.id == albumId }
+            if (targetAlbum != null) {
+                val updatedAlbum = targetAlbum.copy(
+                    photoCount = targetAlbum.photoCount + 1,
+                    coverImageUrl = if (targetAlbum.coverImageUrl.isBlank()) imageUrl else targetAlbum.coverImageUrl
+                )
+                galleryDao.insertAlbum(updatedAlbum)
+                firestore.collection("albums").document(albumId).set(updatedAlbum.toMap(), SetOptions.merge())
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating album photo count", e)
+        }
+        try {
             firestore.collection("photos").document(photo.id).set(photo.toMap(), SetOptions.merge())
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error adding photo on Firestore", e)

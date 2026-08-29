@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -36,6 +37,43 @@ import com.example.util.MediaUtils
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+
+@Composable
+fun UniversalAsyncImage(
+    model: Any?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
+) {
+    val modelStr = model as? String
+    val isBase64 = modelStr?.startsWith("data:image/") == true || modelStr?.startsWith("data:video/") == true
+
+    if (isBase64) {
+        val bitmap = remember(modelStr) { MediaUtils.base64ToBitmap(modelStr) }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                modifier = modifier
+            )
+        } else {
+            AsyncImage(
+                model = model,
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                modifier = modifier
+            )
+        }
+    } else {
+        AsyncImage(
+            model = model,
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            modifier = modifier
+        )
+    }
+}
 
 @Composable
 fun GalleryImagePicker(

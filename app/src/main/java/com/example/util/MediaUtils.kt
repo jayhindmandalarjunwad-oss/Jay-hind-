@@ -32,8 +32,8 @@ object MediaUtils {
     suspend fun uriToBase64(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 900,
-        quality: Int = 78
+        maxDimension: Int = 800,
+        quality: Int = 72
     ): String? = withContext(Dispatchers.IO) {
         try {
             val uriStr = uri.toString()
@@ -122,6 +122,48 @@ object MediaUtils {
         } catch (e: Exception) {
             Log.e("MediaUtils", "Failed to convert Uri to Base64: ${e.message}", e)
             null
+        }
+    }
+
+    /**
+     * Extracts a frame from a local video URI and converts it to a Base64 JPEG string thumbnail.
+     */
+    suspend fun getVideoThumbnailBase64(
+        context: Context,
+        uri: Uri,
+        maxDimension: Int = 480,
+        quality: Int = 70
+    ): String? = withContext(Dispatchers.IO) {
+        val retriever = android.media.MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            val bitmap = retriever.getFrameAtTime(1000000)
+                ?: retriever.frameAtTime
+            if (bitmap != null) {
+                val scale = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
+                    val maxSrc = maxOf(bitmap.width, bitmap.height)
+                    maxDimension.toFloat() / maxSrc.toFloat()
+                } else 1.0f
+
+                val scaledBitmap = if (scale < 1.0f) {
+                    val targetW = (bitmap.width * scale).toInt().coerceAtLeast(1)
+                    val targetH = (bitmap.height * scale).toInt().coerceAtLeast(1)
+                    Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)
+                } else bitmap
+
+                val outputStream = ByteArrayOutputStream()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+                val byteArray = outputStream.toByteArray()
+                val base64Str = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                "data:image/jpeg;base64,$base64Str"
+            } else null
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Failed to extract video thumbnail: ${e.message}")
+            null
+        } finally {
+            try {
+                retriever.release()
+            } catch (_: Exception) {}
         }
     }
 

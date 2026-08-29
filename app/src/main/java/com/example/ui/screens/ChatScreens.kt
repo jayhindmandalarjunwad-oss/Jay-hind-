@@ -824,13 +824,16 @@ fun ChatDetailScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.sendChatMessage(
-                text = "",
-                attachmentType = "VIDEO",
-                attachmentUrl = uri.toString(),
-                attachmentName = "गॅलरी व्हिडिओ",
-                attachmentExtra = ""
-            )
+            scope.launch {
+                val thumbBase64 = MediaUtils.getVideoThumbnailBase64(context, uri) ?: ""
+                viewModel.sendChatMessage(
+                    text = "",
+                    attachmentType = "VIDEO",
+                    attachmentUrl = uri.toString(),
+                    attachmentName = "गॅलरी व्हिडिओ",
+                    attachmentExtra = thumbBase64
+                )
+            }
         }
     }
 

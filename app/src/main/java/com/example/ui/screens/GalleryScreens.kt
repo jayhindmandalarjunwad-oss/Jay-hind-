@@ -42,6 +42,7 @@ import com.example.data.model.VideoItem
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.GalleryImagePicker
 import com.example.ui.components.MandalTopHeader
+import com.example.ui.components.UniversalAsyncImage
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
 
@@ -239,7 +240,7 @@ fun GalleryScreen(
                                             .border(1.dp, CardBorderColor, RoundedCornerShape(12.dp))
                                             .clickable { viewModel.openFullscreenPhoto(photo.imageUrl) }
                                     ) {
-                                        AsyncImage(
+                                        UniversalAsyncImage(
                                             model = photo.imageUrl,
                                             contentDescription = photo.caption,
                                             contentScale = ContentScale.Crop,
@@ -421,7 +422,7 @@ fun GalleryScreen(
                             .background(Color.Black)
                             .testTag("fullscreen_photo_viewer")
                     ) {
-                        AsyncImage(
+                        UniversalAsyncImage(
                             model = fullscreenUrl,
                             contentDescription = "Full Screen Photo",
                             contentScale = ContentScale.Fit,
@@ -521,7 +522,7 @@ fun AlbumCard(
                     .fillMaxWidth()
                     .height(130.dp)
             ) {
-                AsyncImage(
+                UniversalAsyncImage(
                     model = album.coverImageUrl,
                     contentDescription = album.title,
                     contentScale = ContentScale.Crop,
@@ -614,7 +615,7 @@ fun VideoCard(
                     .fillMaxWidth()
                     .height(180.dp)
             ) {
-                AsyncImage(
+                UniversalAsyncImage(
                     model = video.thumbnailUrl,
                     contentDescription = video.title,
                     contentScale = ContentScale.Crop,
