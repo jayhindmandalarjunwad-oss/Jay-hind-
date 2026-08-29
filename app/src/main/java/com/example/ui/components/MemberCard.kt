@@ -167,7 +167,8 @@ fun MemberCard(
 fun MemberDetailSheet(
     member: User?,
     onDismiss: () -> Unit,
-    onChatClick: (User) -> Unit
+    onChatClick: (User) -> Unit,
+    onViewIdCard: ((User) -> Unit)? = null
 ) {
     if (member == null) return
     val context = LocalContext.current
@@ -206,9 +207,40 @@ fun MemberDetailSheet(
                 StatusBadge(status = member.status)
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-            HorizontalDivider(color = DividerColor)
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Digital ID Card View Button
+            if (onViewIdCard != null) {
+                OutlinedButton(
+                    onClick = {
+                        onDismiss()
+                        onViewIdCard(member)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SaffronPrimary),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Badge,
+                        contentDescription = null,
+                        tint = SaffronPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "🪪 डिजिटल ओळखपत्र पहा (ID Card)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            HorizontalDivider(color = DividerColor)
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Details List
             DetailRow(icon = Icons.Default.Phone, label = "मोबाईल नंबर", value = member.mobileNumber)

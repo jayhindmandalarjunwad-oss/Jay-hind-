@@ -15,6 +15,9 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.components.DigitalIdCardDialog
 import com.example.ui.components.MandalLogoBadge
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppScreen
@@ -40,7 +44,10 @@ fun QuickAccessScreen(
 ) {
     val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
+
+    var showIdCardDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -128,6 +135,81 @@ fun QuickAccessScreen(
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
+
+                // Digital ID Card Special Banner for logged in user
+                if (currentUser != null) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showIdCardDialog = true },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, SaffronPrimary.copy(alpha = 0.5f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(SaffronContainer, Color(0xFFFFFBEB))
+                                    )
+                                )
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(SaffronPrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Badge,
+                                    contentDescription = "ID Card",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "माझे डिजिटल ओळखपत्र",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = TextPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = SaffronDark
+                                    ) {
+                                        Text(
+                                            text = "HD QR",
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "QR कोड पडताळणी, अधिकृत शिक्का व HD सेव्ह पर्याय",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = SaffronDark,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = SaffronDark
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
                 // Service Cards Grid (2 columns)
                 Row(
@@ -436,6 +518,15 @@ fun QuickAccessScreen(
                 }
             }
         }
+    }
+
+    if (showIdCardDialog && currentUser != null) {
+        DigitalIdCardDialog(
+            user = currentUser!!,
+            mandalInfo = mandalInfo,
+            mandalLogoUrl = mandalLogoUrl,
+            onDismiss = { showIdCardDialog = false }
+        )
     }
 }
 

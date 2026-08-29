@@ -1,8 +1,19 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -31,21 +43,29 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.data.model.ChatMessage
+import com.example.data.model.ChatConversationSummary
 import com.example.data.model.User
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
+import com.example.util.AudioPlayerManager
+import com.example.util.AudioRecorderHelper
 import com.example.util.MediaUtils
 import kotlinx.coroutines.launch
-import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ChatListScreen(viewModel: MandalViewModel) {
     val summaries by viewModel.chatSummaries.collectAsStateWithLifecycle()
     val approvedMembers by viewModel.approvedMembers.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val groupMessages by viewModel.groupChatMessages.collectAsStateWithLifecycle()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Chats, 1: All Members
@@ -53,6 +73,10 @@ fun ChatListScreen(viewModel: MandalViewModel) {
 
     val otherMembers = remember(approvedMembers, currentUser) {
         approvedMembers.filter { it.id != currentUser?.id }
+    }
+
+    val lastGroupMessage = remember(groupMessages) {
+        groupMessages.lastOrNull()
     }
 
     // Filter active chat summaries by Name, Mobile Number, or Message text
@@ -126,7 +150,7 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                         singleLine = true
                     )
 
-                    // Secondary Tab Row: [चॅट्स] [सर्व सदस्य (Total)]
+                    // Secondary Tab Row: [चॅट्स] [सर्व सदस्य]
                     TabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -139,7 +163,7 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("चॅट्स (${summaries.size})", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal)
+                                    Text("चॅट्स (${summaries.size + 1})", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal)
                                 }
                             }
                         )
@@ -158,24 +182,40 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                 }
             }
 
-            // Tab 0: Active Chats & Quick Contact Search
+            // Tab 0: Active Chats & Pinned Mandal Community Group
             if (selectedTab == 0) {
-                if (filteredSummaries.isEmpty() && searchQuery.isNotBlank()) {
-                    // When searching and no previous conversation matched, show all matching members directly
-                    if (filteredAllMembers.isNotEmpty()) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
+                ) {
+                    // 1. PINNED OFFICIAL MANDAL GROUP CHAT
+                    if (searchQuery.isBlank() || "जय हिंद मंडळ सर्व सदस्य ग्रुप".contains(searchQuery, ignoreCase = true)) {
+                        item {
+                            MandalGroupChatPinnedCard(
+                                totalMembers = approvedMembers.size,
+                                lastMessage = lastGroupMessage,
+                                onClick = { viewModel.openGroupChat() }
+                            )
+                            HorizontalDivider(
+                                color = DividerColor.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    if (filteredSummaries.isEmpty() && searchQuery.isNotBlank()) {
+                        // When searching and no 1-on-1 chat matched
+                        if (filteredAllMembers.isNotEmpty()) {
                             item {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = SaffronLight.copy(alpha = 0.25f),
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        text = "🔍 नाव किंवा नंबरनुसार सापडलेले एकूण सदस्य (${filteredAllMembers.size}):",
+                                        text = "🔍 सापडलेले सदस्य (${filteredAllMembers.size}):",
                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                         color = SaffronDark,
                                         modifier = Modifier.padding(10.dp)
@@ -184,72 +224,24 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                             }
 
                             items(filteredAllMembers, key = { it.id }) { member ->
-                                ChatMemberPickCard(
-                                    member = member,
-                                    onClick = { viewModel.openChatWith(member) }
+                                Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                                    ChatMemberPickCard(
+                                        member = member,
+                                        onClick = { viewModel.openChatWith(member) }
+                                    )
+                                }
+                            }
+                        } else {
+                            item {
+                                EmptyStateView(
+                                    icon = Icons.Default.PersonSearch,
+                                    title = "'$searchQuery' साठी कोणीही सदस्य आढळले नाही",
+                                    subtitle = "कृपया अचूक नाव किंवा मोबाईल नंबर टाकून पुन्हा प्रयत्न करा."
                                 )
                             }
                         }
                     } else {
-                        EmptyStateView(
-                            icon = Icons.Default.PersonSearch,
-                            title = "'$searchQuery' साठी कोणीही सदस्य आढळले नाही",
-                            subtitle = "कृपया अचूक नाव किंवा मोबाईल नंबर टाकून पुन्हा प्रयत्न करा."
-                        )
-                    }
-                } else if (filteredSummaries.isEmpty() && searchQuery.isBlank()) {
-                    // No active chats yet -> Show all members to start chat right away
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(14.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = SaffronLight.copy(alpha = 0.2f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Group, contentDescription = null, tint = SaffronPrimary)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "मंडळातील एकूण सदस्य: ${otherMembers.size}",
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = "चॅट सुरू करण्यासाठी कोणत्याही सदस्यावर टॅप करा किंवा नाव/नंबरने शोधा.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(bottom = 90.dp)
-                        ) {
-                            items(otherMembers, key = { it.id }) { member ->
-                                ChatMemberPickCard(
-                                    member = member,
-                                    onClick = { viewModel.openChatWith(member) }
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // List active conversation rows + any extra matching members if searching
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
-                    ) {
+                        // Active 1-on-1 Conversations
                         items(filteredSummaries, key = { it.otherUser.id }) { summary ->
                             ChatConversationRow(
                                 summary = summary,
@@ -267,7 +259,9 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Surface(
                                     color = BackgroundWarm,
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         text = "इतर सापडलेले मंडळ सदस्य (${matchingMembersWithoutSummary.size}):",
@@ -372,82 +366,108 @@ fun ChatListScreen(viewModel: MandalViewModel) {
             AlertDialog(
                 onDismissRequest = { showNewChatDialog = false },
                 title = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("नवीन चॅट सुरू करा", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = SaffronLight.copy(alpha = 0.3f)
-                        ) {
-                            Text(
-                                text = "${otherMembers.size} सदस्य",
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                color = SaffronDark,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PersonAdd, contentDescription = null, tint = SaffronPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("नवीन चॅट सुरू करा", fontWeight = FontWeight.Bold)
                     }
                 },
                 text = {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
                     ) {
-                        // Dialog Search input
                         OutlinedTextField(
                             value = dialogSearchQuery,
                             onValueChange = { dialogSearchQuery = it },
-                            placeholder = { Text("नाव किंवा मोबाईल नंबर शोधा...", fontSize = 12.sp) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaffronPrimary, modifier = Modifier.size(18.dp)) },
+                            placeholder = { Text("नाव किंवा नंबर शोधा...", fontSize = 13.sp) },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaffronPrimary) },
                             trailingIcon = {
                                 if (dialogSearchQuery.isNotBlank()) {
                                     IconButton(onClick = { dialogSearchQuery = "" }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Close, contentDescription = "Clear")
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            shape = RoundedCornerShape(8.dp),
                             singleLine = true
                         )
 
-                        if (dialogFilteredMembers.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(140.dp),
-                                contentAlignment = Alignment.Center
+                        // Option to open Mandal Group Chat directly
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = SaffronLight.copy(alpha = 0.35f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showNewChatDialog = false
+                                    viewModel.openGroupChat()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "कोणताही सदस्य आढळला नाही",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary
-                                )
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SaffronPrimary,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("🚩 जय हिंद मंडळ - सर्व सदस्य ग्रुप", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SaffronDark)
+                                    Text("सर्व सदस्यांसोबत ग्रुप चर्चा करा", fontSize = 11.sp, color = TextSecondary)
+                                }
                             }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 360.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                items(dialogFilteredMembers, key = { it.id }) { member ->
-                                    ChatMemberPickCard(
-                                        member = member,
-                                        onClick = {
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("किंवा वैयक्तिक सदस्य निवडा:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(dialogFilteredMembers, key = { it.id }) { member ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
                                             showNewChatDialog = false
                                             viewModel.openChatWith(member)
                                         }
-                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        MemberAvatar(photoUrl = member.profilePhotoUrl, name = member.fullName, size = 36)
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(member.fullName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                            Text(member.mobileNumber, fontSize = 11.sp, color = TextSecondary)
+                                        }
+                                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary)
+                                    }
                                 }
                             }
                         }
                     }
                 },
-                confirmButton = {
+                confirmButton = {},
+                dismissButton = {
                     TextButton(onClick = { showNewChatDialog = false }) {
                         Text("बंद करा")
                     }
@@ -458,15 +478,129 @@ fun ChatListScreen(viewModel: MandalViewModel) {
 }
 
 @Composable
-fun ChatConversationRow(
-    summary: com.example.data.model.ChatConversationSummary,
+fun MandalGroupChatPinnedCard(
+    totalMembers: Int,
+    lastMessage: ChatMessage?,
     onClick: () -> Unit
 ) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, SaffronPrimary.copy(alpha = 0.6f)),
+        shadowElevation = 2.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .clickable { onClick() }
+            .testTag("group_chat_card")
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Group Icon with gradient badge
+            Box {
+                Surface(
+                    shape = CircleShape,
+                    color = SaffronPrimary,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Groups,
+                            contentDescription = "Group",
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = SuccessGreen,
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, Color.White),
+                    modifier = Modifier
+                        .size(14.dp)
+                        .align(Alignment.BottomEnd)
+                ) {}
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🚩 जय हिंद मंडळ सर्व सदस्य",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = SaffronPrimary.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "ग्रुप चॅट",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SaffronDark,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = "सर्व $totalMembers सभासद • अधिकृत मंडळ मंच",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SaffronDark,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                val previewText = when {
+                    lastMessage == null -> "येथे सर्व सदस्य एकत्र चर्चा व माहिती शेअर करू शकतात..."
+                    lastMessage.attachmentType == "VOICE" -> "🎙️ ${lastMessage.senderName}: व्हॉईस संदेश"
+                    lastMessage.attachmentType == "DOCUMENT" -> "📄 ${lastMessage.senderName}: ${lastMessage.attachmentName ?: "दस्तावेज"}"
+                    lastMessage.attachmentType == "IMAGE" -> "📷 ${lastMessage.senderName}: फोटो"
+                    lastMessage.attachmentType == "VIDEO" -> "🎥 ${lastMessage.senderName}: व्हिडिओ"
+                    else -> "${lastMessage.senderName}: ${lastMessage.messageText}"
+                }
+
+                Text(
+                    text = previewText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatConversationRow(
+    summary: ChatConversationSummary,
+    onClick: () -> Unit
+) {
+    val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
+    val formattedTime = remember(summary.lastTimestamp) { timeFormatter.format(Date(summary.lastTimestamp)) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .testTag("chat_conversation_${summary.otherUser.id}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         MemberAvatar(
@@ -475,7 +609,7 @@ fun ChatConversationRow(
             size = 50
         )
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Row(
@@ -485,16 +619,15 @@ fun ChatConversationRow(
             ) {
                 Text(
                     text = summary.otherUser.fullName,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    ),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = TextPrimary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+
                 Text(
-                    text = formatTimestampToMarathi(summary.lastTimestamp),
+                    text = formattedTime,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (summary.unreadCount > 0) SaffronPrimary else TextSecondary,
                     fontSize = 11.sp
@@ -644,7 +777,7 @@ fun ChatMemberPickCard(member: User, onClick: () -> Unit) {
     }
 }
 
-// 1-on-1 Fullscreen WhatsApp-style Chat Room
+// Fullscreen WhatsApp-style Chat Room (Supports 1-on-1 & Mandal Group Chat)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatDetailScreen(
@@ -660,6 +793,8 @@ fun ChatDetailScreen(
     val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    val isGroupChat = partner.id == "GROUP_MANDAL"
 
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var showPhotoDialog by remember { mutableStateOf(false) }
@@ -699,6 +834,82 @@ fun ChatDetailScreen(
         }
     }
 
+    // Direct Document / PDF Launcher
+    val docPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            var fileName = "दस्तावेज.pdf"
+            var fileSize = "PDF Document"
+            try {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst()) {
+                        if (nameIndex != -1) fileName = cursor.getString(nameIndex) ?: fileName
+                        if (sizeIndex != -1) {
+                            val sizeBytes = cursor.getLong(sizeIndex)
+                            val mb = sizeBytes / (1024.0 * 1024.0)
+                            fileSize = if (mb >= 1.0) String.format(Locale.getDefault(), "PDF • %.1f MB", mb) else String.format(Locale.getDefault(), "PDF • %d KB", sizeBytes / 1024)
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            viewModel.sendChatMessage(
+                text = "",
+                attachmentType = "DOCUMENT",
+                attachmentUrl = uri.toString(),
+                attachmentName = fileName,
+                attachmentExtra = fileSize
+            )
+        }
+    }
+
+    // Voice Recording Permission Launcher
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val started = AudioRecorderHelper.startRecording(context)
+            if (!started) {
+                Toast.makeText(context, "रेकॉर्डिंग सुरू करण्यात अयशस्वी", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "व्हॉईस मेसेजसाठी मायक्रोफोन परवानगी आवश्यक आहे", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun startVoiceRecording() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            val started = AudioRecorderHelper.startRecording(context)
+            if (!started) {
+                Toast.makeText(context, "रेकॉर्डिंग सुरू करण्यात अयशस्वी", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    fun finishVoiceRecordingAndSend() {
+        val result = AudioRecorderHelper.stopRecording()
+        if (result != null) {
+            val (file, durationMillis) = result
+            val seconds = (durationMillis / 1000).toInt().coerceAtLeast(1)
+            val durationLabel = String.format(Locale.getDefault(), "%02d:%02d", seconds / 60, seconds % 60)
+            val base64Audio = AudioRecorderHelper.fileToBase64(file)
+            if (base64Audio.isNotBlank()) {
+                viewModel.sendChatMessage(
+                    text = "",
+                    attachmentType = "VOICE",
+                    attachmentUrl = base64Audio,
+                    attachmentName = "व्हॉईस संदेश",
+                    attachmentExtra = durationLabel
+                )
+            }
+        }
+    }
+
     // Auto-scroll to latest message
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -706,14 +917,68 @@ fun ChatDetailScreen(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            AudioPlayerManager.stop()
+            AudioRecorderHelper.cancelRecording()
+        }
+    }
+
     Scaffold(
         topBar = {
-            MandalTopHeader(
-                title = partner.fullName,
-                subtitle = "मोबाईल: ${partner.mobileNumber}",
-                showBackButton = true,
-                onBackClick = onBack
-            )
+            Surface(
+                color = SaffronPrimary,
+                shadowElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+
+                    if (isGroupChat) {
+                        Surface(
+                            shape = CircleShape,
+                            color = SaffronDark,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                            }
+                        }
+                    } else {
+                        MemberAvatar(photoUrl = partner.profilePhotoUrl, name = partner.fullName, size = 40)
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isGroupChat) "🚩 जय हिंद मंडळ सर्व सदस्य" else partner.fullName,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = if (isGroupChat) "${approvedMembers.size} सभासद • अधिकृत कम्युनिटी मंच" else "📱 ${partner.mobileNumber}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
         },
         bottomBar = {
             Surface(
@@ -721,73 +986,170 @@ fun ChatDetailScreen(
                 shadowElevation = 8.dp,
                 modifier = Modifier.navigationBarsPadding()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Attachment Action Icon
-                    IconButton(
-                        onClick = { showAttachmentMenu = true },
-                        modifier = Modifier.testTag("chat_attachment_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AttachFile,
-                            contentDescription = "Attach File",
-                            tint = SaffronPrimary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        placeholder = { Text("संदेश लिहा (Type message)...", fontSize = 14.sp) },
+                if (AudioRecorderHelper.isRecording) {
+                    // LIVE VOICE RECORDING BAR
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .testTag("chat_detail_input"),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = SaffronPrimary,
-                            unfocusedBorderColor = DividerColor
-                        ),
-                        trailingIcon = {
-                            IconButton(onClick = { showPhotoDialog = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.CameraAlt,
-                                    contentDescription = "Photo",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        },
-                        maxLines = 4
-                    )
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    IconButton(
-                        onClick = {
-                            if (inputText.isNotBlank()) {
-                                viewModel.sendChatMessage(text = inputText)
-                                inputText = ""
-                            }
-                        },
-                        modifier = Modifier.testTag("chat_detail_send_button")
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = SaffronPrimary,
-                            contentColor = Color.White
+                        // Cancel Button
+                        IconButton(
+                            onClick = { AudioRecorderHelper.cancelRecording() }
                         ) {
-                            Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Send",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Cancel Recording",
+                                tint = BloodRed,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Glowing Recording Indicator & Duration
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val infiniteTransition = rememberInfiniteTransition(label = "recDot")
+                            val dotAlpha by infiniteTransition.animateFloat(
+                                initialValue = 0.2f,
+                                targetValue = 1.0f,
+                                animationSpec = infiniteRepeatable(animation = tween(500), repeatMode = RepeatMode.Reverse),
+                                label = "dotPulse"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(BloodRed.copy(alpha = dotAlpha))
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            val sec = AudioRecorderHelper.recordingDurationSeconds
+                            Text(
+                                text = String.format(Locale.getDefault(), "%02d:%02d रेकॉर्डिंग...", sec / 60, sec % 60),
+                                fontWeight = FontWeight.Bold,
+                                color = BloodRed,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        // Send Voice Note Button
+                        Button(
+                            onClick = { finishVoiceRecordingAndSend() },
+                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send Audio",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // STANDARD CHAT INPUT BAR
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Attachment Action Icon
+                        IconButton(
+                            onClick = { showAttachmentMenu = true },
+                            modifier = Modifier.testTag("chat_attachment_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AttachFile,
+                                contentDescription = "Attach File",
+                                tint = SaffronPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            placeholder = {
+                                Text(
+                                    if (isGroupChat) "ग्रुपमध्ये संदेश लिहा..." else "संदेश लिहा (Type message)...",
+                                    fontSize = 14.sp
                                 )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("chat_detail_input"),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = SaffronPrimary,
+                                unfocusedBorderColor = DividerColor
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = { showPhotoDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Photo",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
+                            maxLines = 4
+                        )
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        if (inputText.isNotBlank()) {
+                            // Text Send Button
+                            IconButton(
+                                onClick = {
+                                    if (inputText.isNotBlank()) {
+                                        viewModel.sendChatMessage(text = inputText)
+                                        inputText = ""
+                                    }
+                                },
+                                modifier = Modifier.testTag("chat_detail_send_button")
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SaffronPrimary,
+                                    contentColor = Color.White
+                                ) {
+                                    Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Send,
+                                            contentDescription = "Send",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            // Voice Note Recording Mic Button
+                            IconButton(
+                                onClick = { startVoiceRecording() },
+                                modifier = Modifier.testTag("chat_voice_mic_button")
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SaffronPrimary,
+                                    contentColor = Color.White
+                                ) {
+                                    Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Mic,
+                                            contentDescription = "Record Voice Note",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -803,13 +1165,32 @@ fun ChatDetailScreen(
         ) {
             if (messages.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "🚩 ${partner.fullName} यांच्याशी चॅट सुरू करा!\nयेथे एकमेकांशी संवाद, फोटो, व्हिडिओ, डॉक्युमेंट्स आणि कॉन्टॅक्ट शेअर करा.",
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.bodyMedium,
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(24.dp)
-                    )
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = SaffronLight.copy(alpha = 0.3f),
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isGroupChat) Icons.Default.Groups else Icons.Default.Chat,
+                                    contentDescription = null,
+                                    tint = SaffronPrimary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (isGroupChat) "🚩 जय हिंद मंडळ - सर्व सदस्य ग्रुप\nयेथे सर्व सदस्य एकत्र चर्चा करू शकतात, व्हॉईस नोट्स, फोटो व डॉक्युमेंट्स पाठवू शकतात." else "🚩 ${partner.fullName} यांच्याशी चॅट सुरू करा!\nयेथे एकमेकांशी संवाद, व्हॉईस नोट्स, फोटो, आणि डॉक्युमेंट्स शेअर करा.",
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
@@ -824,6 +1205,7 @@ fun ChatDetailScreen(
                         ChatBubble(
                             message = msg,
                             isSentByMe = isMe,
+                            isGroupChat = isGroupChat,
                             onImageClick = { previewImageUrl = it }
                         )
                     }
@@ -854,6 +1236,17 @@ fun ChatDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
+                    // Voice Note
+                    AttachmentItemOption(
+                        icon = Icons.Default.Mic,
+                        label = "व्हॉईस मेसेज",
+                        color = Color(0xFFD97706),
+                        onClick = {
+                            showAttachmentMenu = false
+                            startVoiceRecording()
+                        }
+                    )
+
                     // Photo
                     AttachmentItemOption(
                         icon = Icons.Default.Image,
@@ -865,21 +1258,10 @@ fun ChatDetailScreen(
                         }
                     )
 
-                    // Video
+                    // Document / PDF
                     AttachmentItemOption(
-                        icon = Icons.Default.Videocam,
-                        label = "गॅलरी व्हिडिओ",
-                        color = Color(0xFF7C3AED),
-                        onClick = {
-                            showAttachmentMenu = false
-                            videoGalleryLauncher.launch("video/*")
-                        }
-                    )
-
-                    // Document
-                    AttachmentItemOption(
-                        icon = Icons.Default.Description,
-                        label = "दस्तावेज (Docs)",
+                        icon = Icons.Default.PictureAsPdf,
+                        label = "दस्तावेज / PDF",
                         color = Color(0xFF2563EB),
                         onClick = {
                             showAttachmentMenu = false
@@ -887,10 +1269,21 @@ fun ChatDetailScreen(
                         }
                     )
 
+                    // Video
+                    AttachmentItemOption(
+                        icon = Icons.Default.Videocam,
+                        label = "व्हिडिओ",
+                        color = Color(0xFF7C3AED),
+                        onClick = {
+                            showAttachmentMenu = false
+                            videoGalleryLauncher.launch("video/*")
+                        }
+                    )
+
                     // Contact
                     AttachmentItemOption(
                         icon = Icons.Default.ContactPhone,
-                        label = "संपर्क (Contact)",
+                        label = "संपर्क",
                         color = Color(0xFF059669),
                         onClick = {
                             showAttachmentMenu = false
@@ -900,37 +1293,6 @@ fun ChatDetailScreen(
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-                HorizontalDivider(color = DividerColor)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    TextButton(
-                        onClick = {
-                            showAttachmentMenu = false
-                            showPhotoDialog = true
-                        }
-                    ) {
-                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = SaffronPrimary, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("फोटो पर्याय (Photo Options)", fontSize = 12.sp, color = SaffronPrimary)
-                    }
-
-                    TextButton(
-                        onClick = {
-                            showAttachmentMenu = false
-                            showVideoDialog = true
-                        }
-                    ) {
-                        Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = SaffronPrimary, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("व्हिडिओ लिंक / माहिती", fontSize = 12.sp, color = SaffronPrimary)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -1110,11 +1472,12 @@ fun ChatDetailScreen(
         )
     }
 
-    // 3. Document Attachment Dialog
+    // 3. Document / PDF Attachment Dialog
     if (showDocDialog) {
         val sampleDocs = listOf(
-            Triple("मंडळ नियमावली व घटना २०२६.pdf", "PDF • 1.8 MB", "https://jayhindmandal.org/docs/bylaws.pdf"),
+            Triple("बैठक इतिवृत्त व ठराव अहवाल.pdf", "PDF • 1.2 MB", "https://jayhindmandal.org/docs/minutes.pdf"),
             Triple("गणेशोत्सव नियोजन व कार्यक्रम अहवाल.pdf", "PDF • 3.2 MB", "https://jayhindmandal.org/docs/ganeshotsav.pdf"),
+            Triple("मंडळ नियमावली व घटना २०२६.pdf", "PDF • 1.8 MB", "https://jayhindmandal.org/docs/bylaws.pdf"),
             Triple("वार्षिक जमा-खर्च हिशोब अहवाल.pdf", "PDF • 2.1 MB", "https://jayhindmandal.org/docs/accounts.pdf"),
             Triple("क्रीडा महोत्सव वेळापत्रक व नियम.pdf", "PDF • 950 KB", "https://jayhindmandal.org/docs/sports.pdf")
         )
@@ -1124,7 +1487,7 @@ fun ChatDetailScreen(
 
         AlertDialog(
             onDismissRequest = { showDocDialog = false },
-            title = { Text("दस्तावेज पाठवा (Send Document)", fontWeight = FontWeight.Bold) },
+            title = { Text("दस्तावेज / PDF पाठवा (Send PDF)", fontWeight = FontWeight.Bold) },
             text = {
                 Column(
                     modifier = Modifier
@@ -1132,7 +1495,22 @@ fun ChatDetailScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("उपलब्ध मंडळ दस्तऐवज निवडा:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = {
+                            showDocDialog = false
+                            docPickerLauncher.launch("application/pdf")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("मोबाईलमधून PDF निवडा (Pick from Device)")
+                    }
+
+                    HorizontalDivider(color = DividerColor)
+                    Text("किंवा अधिकृत मंडळ दस्तऐवज निवडा:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
 
                     sampleDocs.forEach { doc ->
                         Surface(
@@ -1163,14 +1541,14 @@ fun ChatDetailScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text("किंवा कस्टम दस्तऐवज नाव टाका:", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("किंवा स्वतःचे नाव टाका:", style = MaterialTheme.typography.bodySmall)
 
                     OutlinedTextField(
                         value = customDocName,
                         onValueChange = { customDocName = it },
                         label = { Text("दस्तऐवजाचे नाव") },
-                        placeholder = { Text("उदा. अहवाल_२०२६.pdf") },
+                        placeholder = { Text("उदा. बैठक_इतिवृत्त_२०२६.pdf") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
                     )
@@ -1441,10 +1819,10 @@ fun AttachmentItemOption(
         Surface(
             shape = CircleShape,
             color = color.copy(alpha = 0.15f),
-            modifier = Modifier.size(56.dp)
+            modifier = Modifier.size(52.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(imageVector = icon, contentDescription = label, tint = color, modifier = Modifier.size(28.dp))
+                Icon(imageVector = icon, contentDescription = label, tint = color, modifier = Modifier.size(26.dp))
             }
         }
         Spacer(modifier = Modifier.height(6.dp))

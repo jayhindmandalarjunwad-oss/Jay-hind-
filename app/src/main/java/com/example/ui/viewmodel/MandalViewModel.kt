@@ -115,13 +115,20 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _activeChatPartner = MutableStateFlow<User?>(null)
     val activeChatPartner: StateFlow<User?> = _activeChatPartner.asStateFlow()
 
+    val groupChatMessages: StateFlow<List<ChatMessage>> = repository.groupChatMessages
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val activeConversationMessages: StateFlow<List<ChatMessage>> = combine(
         currentUser,
         _activeChatPartner
     ) { user, partner ->
         if (user != null && partner != null) {
-            val convId = repository.getConversationId(user.id, partner.id)
-            repository.getConversationMessages(convId, user.id, partner.id)
+            if (partner.id == "GROUP_MANDAL") {
+                repository.groupChatMessages
+            } else {
+                val convId = repository.getConversationId(user.id, partner.id)
+                repository.getConversationMessages(convId, user.id, partner.id)
+            }
         } else {
             flowOf(emptyList())
         }
@@ -377,11 +384,27 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // CHAT ACTIONS
+    val MANDAL_GROUP_USER = User(
+        id = "GROUP_MANDAL",
+        fullName = "🚩 जय हिंद मंडळ सर्व सदस्य",
+        mobileNumber = "सर्व सभासद",
+        password = "",
+        role = "ADMIN",
+        designation = "अधिकृत मंडळ ग्रुप",
+        status = "APPROVED",
+        profilePhotoUrl = "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&auto=format&fit=crop&q=80"
+    )
+
+    fun openGroupChat() {
+        _activeChatPartner.value = MANDAL_GROUP_USER
+        _currentScreen.value = AppScreen.CHAT_DETAIL
+    }
+
     fun openChatWith(partner: User) {
         _activeChatPartner.value = partner
         val user = currentUser.value
         if (user != null) {
-            val convId = repository.getConversationId(user.id, partner.id)
+            val convId = if (partner.id == "GROUP_MANDAL") "conv_mandal_group" else repository.getConversationId(user.id, partner.id)
             viewModelScope.launch {
                 repository.markChatAsRead(convId, user.id, partner.id)
             }

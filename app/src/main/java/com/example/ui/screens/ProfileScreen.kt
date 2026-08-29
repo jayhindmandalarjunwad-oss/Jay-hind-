@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -31,12 +32,19 @@ import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppScreen
 import com.example.ui.viewmodel.MandalViewModel
+import com.example.util.IdCardUtils
 
 @Composable
 fun ProfileScreen(viewModel: MandalViewModel) {
+    val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
+    val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
+
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var showIdCardFullDialog by remember { mutableStateOf(false) }
+    var isSavingIdCard by remember { mutableStateOf(false) }
 
     if (currentUser == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -58,133 +66,93 @@ fun ProfileScreen(viewModel: MandalViewModel) {
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        // OFFICIAL DIGITAL MEMBERSHIP CARD
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("membership_id_card"),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        // 1. OFFICIAL DIGITAL MEMBERSHIP CARD SECTION (New Design)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Top Header of ID Card
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(SaffronPrimary, GoldenTertiary)
-                            )
+            DigitalIdCardView(
+                user = user,
+                mandalInfo = mandalInfo,
+                mandalLogoUrl = mandalLogoUrl,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showIdCardFullDialog = true },
+                onQrClick = { showIdCardFullDialog = true }
+            )
+
+            // Two Quick Action Buttons: Save HD & WhatsApp Share
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Button 1: Save HD Image to Mobile Gallery
+                Button(
+                    onClick = {
+                        isSavingIdCard = true
+                        IdCardUtils.saveIdCardToGallery(
+                            context = context,
+                            user = user,
+                            mandalInfo = mandalInfo,
+                            onSuccess = {
+                                isSavingIdCard = false
+                                viewModel.showSnackbar("✅ HD ओळखपत्र गॅलरीमध्ये सेव्ह झाले!")
+                            },
+                            onError = { err ->
+                                isSavingIdCard = false
+                                viewModel.showSnackbar("❌ $err")
+                            }
                         )
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "जय हिंद मंडळ अर्जुनवाड",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 15.sp
-                                ),
-                                color = Color.White
-                            )
-                            Text(
-                                text = "अधिकृत डिजिटल सभासद ओळखपत्र",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontSize = 10.sp
-                            )
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color.White.copy(alpha = 0.25f)
-                        ) {
-                            Text(
-                                text = "ID: #${user.id.takeLast(6).uppercase()}",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Body of ID Card
-                Row(
+                    },
+                    enabled = !isSavingIdCard,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("profile_save_hd_id_card_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    MemberAvatar(
-                        photoUrl = user.profilePhotoUrl,
-                        name = user.fullName,
-                        size = 76
+                    Icon(
+                        imageVector = Icons.Default.FileDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
                     )
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = user.fullName,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            ),
-                            color = TextPrimary
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            BloodGroupBadge(bloodGroup = user.bloodGroup)
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Text(
-                            text = "मोबाईल: ${user.mobileNumber}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-
-                        Text(
-                            text = "पत्ता: ${user.address}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isSavingIdCard) "सेव्ह होत आहे..." else "HD सेव्ह करा",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
                 }
 
-                // Card Footer
-                Surface(
-                    color = SurfaceVariantWarm,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "नोंदणी तारीख: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date(user.createdAt))}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            fontSize = 10.sp
+                // Button 2: WhatsApp Share Button
+                Button(
+                    onClick = {
+                        IdCardUtils.shareIdCard(
+                            context = context,
+                            user = user,
+                            mandalInfo = mandalInfo,
+                            onlyWhatsApp = true
                         )
-                        StatusBadge(status = user.status)
-                    }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .testTag("profile_share_whatsapp_id_card_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "WhatsApp शेअर",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
@@ -219,6 +187,13 @@ fun ProfileScreen(viewModel: MandalViewModel) {
         ) {
             Column {
                 ProfileOptionRow(
+                    icon = Icons.Default.Badge,
+                    title = "माझे डिजिटल ओळखपत्र (Full View)",
+                    subtitle = "QR कोड, शिक्का व सेव्ह पर्याय",
+                    onClick = { showIdCardFullDialog = true }
+                )
+                HorizontalDivider(color = DividerColor)
+                ProfileOptionRow(
                     icon = Icons.Default.Edit,
                     title = "प्रोफाइल माहिती व फोटो बदला",
                     subtitle = "नाव, फोटो, रक्तगट, जन्म तारीख, पत्ता",
@@ -251,6 +226,16 @@ fun ProfileScreen(viewModel: MandalViewModel) {
         }
 
         Spacer(modifier = Modifier.height(90.dp))
+    }
+
+    // Full Digital ID Card Dialog
+    if (showIdCardFullDialog) {
+        DigitalIdCardDialog(
+            user = user,
+            mandalInfo = mandalInfo,
+            mandalLogoUrl = mandalLogoUrl,
+            onDismiss = { showIdCardFullDialog = false }
+        )
     }
 
     // Edit Profile Dialog

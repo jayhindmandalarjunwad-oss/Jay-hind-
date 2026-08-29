@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.User
+import com.example.ui.components.DigitalIdCardDialog
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.MemberCard
 import com.example.ui.components.MemberDetailSheet
@@ -32,6 +33,10 @@ fun MembersScreen(viewModel: MandalViewModel) {
     val searchQuery by viewModel.memberSearchQuery.collectAsStateWithLifecycle()
     val selectedBloodGroup by viewModel.selectedBloodGroupFilter.collectAsStateWithLifecycle()
     val selectedMemberForDetail by viewModel.selectedMemberForDetail.collectAsStateWithLifecycle()
+    val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
+    val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
+
+    var memberForIdCard by remember { mutableStateOf<User?>(null) }
 
     val bloodGroups = listOf("सर्व", "A+", "B+", "AB+", "O+", "A-", "B-", "AB-", "O-")
 
@@ -177,7 +182,20 @@ fun MembersScreen(viewModel: MandalViewModel) {
                 onChatClick = { partner ->
                     viewModel.selectMemberForDetail(null)
                     viewModel.openChatWith(partner)
+                },
+                onViewIdCard = { targetMember ->
+                    memberForIdCard = targetMember
                 }
+            )
+        }
+
+        // Digital ID Card Dialog for selected member
+        if (memberForIdCard != null) {
+            DigitalIdCardDialog(
+                user = memberForIdCard!!,
+                mandalInfo = mandalInfo,
+                mandalLogoUrl = mandalLogoUrl,
+                onDismiss = { memberForIdCard = null }
             )
         }
     }

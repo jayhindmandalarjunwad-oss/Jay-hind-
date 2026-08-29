@@ -918,7 +918,8 @@ class MandalRepository(context: Context) {
         attachmentExtra: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
-        val convId = getConversationId(user.id, receiverId)
+        val isGroup = receiverId == "GROUP_MANDAL"
+        val convId = if (isGroup) "conv_mandal_group" else getConversationId(user.id, receiverId)
         val finalImageUrl = imageUrl ?: if (attachmentType == "IMAGE") attachmentUrl else null
         val msg = ChatMessageEntity(
             id = "msg_" + UUID.randomUUID().toString().take(8),
@@ -941,6 +942,7 @@ class MandalRepository(context: Context) {
         val preview = if (messageText.isNotBlank()) messageText.take(50) else when (attachmentType) {
             "IMAGE" -> "📷 फोटो पाठवला आहे"
             "VIDEO" -> "🎥 व्हिडिओ पाठवला आहे"
+            "VOICE" -> "🎙️ व्हॉईस संदेश (${attachmentExtra ?: "ऑडिओ"})"
             "DOCUMENT" -> "📄 डॉक्युमेंट: ${attachmentName ?: ""}"
             "CONTACT" -> "👤 संपर्क क्रमांक: ${attachmentName ?: ""}"
             else -> "नवीन संदेश प्राप्त झाला"
@@ -948,13 +950,13 @@ class MandalRepository(context: Context) {
         val notifId = "notif_" + UUID.randomUUID().toString().take(8)
         val notif = NotificationEntity(
             id = notifId,
-            title = "${user.fullName} कडून मेसेज",
+            title = if (isGroup) "🚩 जय हिंद ग्रुप: ${user.fullName}" else "${user.fullName} कडून मेसेज",
             message = preview,
             type = "CHAT",
-            targetUserId = receiverId,
+            targetUserId = if (isGroup) null else receiverId,
             targetRoute = "CHAT",
-            targetId = user.id,
-            targetExtra = user.fullName,
+            targetId = if (isGroup) "GROUP_MANDAL" else user.id,
+            targetExtra = if (isGroup) "🚩 जय हिंद मंडळ - सर्व सदस्य ग्रुप" else user.fullName,
             timestamp = System.currentTimeMillis()
         )
         notificationDao.insertNotification(notif)
@@ -975,7 +977,8 @@ class MandalRepository(context: Context) {
             allMembers
         ) { messages, members ->
             val memberMap = members.associateBy { it.id }
-            val grouped = messages.groupBy { msg ->
+            val nonGroupMessages = messages.filter { it.receiverId != "GROUP_MANDAL" && it.conversationId != "conv_mandal_group" }
+            val grouped = nonGroupMessages.groupBy { msg ->
                 if (msg.senderId == currentUserId) msg.receiverId else msg.senderId
             }
             grouped.mapNotNull { (otherId, msgs) ->
@@ -987,6 +990,7 @@ class MandalRepository(context: Context) {
                 } else when (lastMsg.attachmentType) {
                     "IMAGE" -> "📷 फोटो"
                     "VIDEO" -> "🎥 व्हिडिओ"
+                    "VOICE" -> "🎙️ व्हॉईस संदेश"
                     "DOCUMENT" -> "📄 ${lastMsg.attachmentName ?: "दस्तावेज"}"
                     "CONTACT" -> "👤 ${lastMsg.attachmentName ?: "संपर्क"}"
                     else -> "संदेश"
@@ -1000,6 +1004,8 @@ class MandalRepository(context: Context) {
             }.sortedByDescending { it.lastTimestamp }
         }
     }
+
+    val groupChatMessages: Flow<List<ChatMessage>> = chatDao.getMessagesForConversation("conv_mandal_group").map { list -> list.map { it.toDomain() } }
 
     suspend fun markChatAsRead(conversationId: String, currentUserId: String, partnerId: String = "") = withContext(Dispatchers.IO) {
         if (partnerId.isNotBlank()) {

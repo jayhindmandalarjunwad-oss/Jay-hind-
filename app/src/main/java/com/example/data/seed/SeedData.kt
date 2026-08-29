@@ -211,7 +211,49 @@ object SeedData {
 
     val seedNotifications = emptyList<NotificationEntity>()
 
-    val seedChatMessages = emptyList<ChatMessageEntity>()
+    val seedChatMessages = listOf(
+        ChatMessageEntity(
+            id = "msg_group_1",
+            conversationId = "conv_mandal_group",
+            senderId = "user_2",
+            receiverId = "GROUP_MANDAL",
+            senderName = "संदीप पाटील",
+            senderPhotoUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80",
+            messageText = "जय हिंद सर्व सदस्यांना! उद्या संध्याकाळी ७ वाजता गणेशोत्सवाची महत्त्वाची बैठक आहे.",
+            timestamp = System.currentTimeMillis() - 7200000,
+            isRead = true
+        ),
+        ChatMessageEntity(
+            id = "msg_group_2",
+            conversationId = "conv_mandal_group",
+            senderId = "user_3",
+            receiverId = "GROUP_MANDAL",
+            senderName = "अमोल पाटील",
+            senderPhotoUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80",
+            messageText = "बैठकीचे नियोजन व विषय पत्रक सर्वांसाठी पाठवत आहे, कृपया तपासावे.",
+            attachmentType = "DOCUMENT",
+            attachmentUrl = "https://jayhindmandal.org/docs/ganeshotsav_2026.pdf",
+            attachmentName = "गणेशोत्सव_नियोजन_२०२६.pdf",
+            attachmentExtra = "PDF Document • 1.4 MB",
+            timestamp = System.currentTimeMillis() - 3600000,
+            isRead = true
+        ),
+        ChatMessageEntity(
+            id = "msg_group_3",
+            conversationId = "conv_mandal_group",
+            senderId = "user_1",
+            receiverId = "GROUP_MANDAL",
+            senderName = "वैभव चौगुले",
+            senderPhotoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+            messageText = "सर्व सदस्यांनी वेळेवर उपस्थित राहावे ही विनंती.",
+            attachmentType = "VOICE",
+            attachmentUrl = "",
+            attachmentName = "व्हॉईस संदेश",
+            attachmentExtra = "0:28",
+            timestamp = System.currentTimeMillis() - 1800000,
+            isRead = true
+        )
+    )
 
     val seedBanners = emptyList<BannerEntity>()
 

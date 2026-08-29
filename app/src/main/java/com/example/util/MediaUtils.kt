@@ -126,6 +126,25 @@ object MediaUtils {
     }
 
     /**
+     * Converts a Base64 image data string or raw Base64 string into an Android Bitmap.
+     */
+    fun base64ToBitmap(data: String?): Bitmap? {
+        if (data.isNullOrBlank()) return null
+        return try {
+            val base64Clean = if (data.contains("base64,")) {
+                data.substringAfter("base64,")
+            } else {
+                data
+            }
+            val decodedBytes = Base64.decode(base64Clean.trim(), Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Failed to decode base64 to bitmap: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Downloads/saves an image (Base64 data or HTTP URL) directly to the Android MediaStore/Gallery.
      */
     suspend fun saveImageToGallery(

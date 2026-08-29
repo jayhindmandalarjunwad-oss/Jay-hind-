@@ -87,7 +87,7 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE conversationId = :convId ORDER BY timestamp ASC")
     fun getMessagesForConversation(convId: String): Flow<List<ChatMessageEntity>>
 
-    @Query("SELECT * FROM chat_messages WHERE senderId = :userId OR receiverId = :userId ORDER BY timestamp DESC")
+    @Query("SELECT * FROM chat_messages WHERE senderId = :userId OR receiverId = :userId OR conversationId = 'conv_mandal_group' OR receiverId = 'GROUP_MANDAL' ORDER BY timestamp DESC")
     fun getAllMessagesForUser(userId: String): Flow<List<ChatMessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

@@ -58,6 +58,7 @@ fun HomeScreen(
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val unreadNotifs by viewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
     var postToEdit by remember { mutableStateOf<Post?>(null) }
+    var showIdCardDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -214,6 +215,13 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     QuickButton(
+                        icon = Icons.Default.Badge,
+                        label = "ओळखपत्र",
+                        color = SaffronPrimary,
+                        modifier = Modifier.weight(1f),
+                        onClick = { showIdCardDialog = true }
+                    )
+                    QuickButton(
                         icon = Icons.Default.PhotoLibrary,
                         label = "गॅलरी",
                         color = NavySecondary,
@@ -229,7 +237,7 @@ fun HomeScreen(
                     )
                     QuickButton(
                         icon = Icons.Default.Campaign,
-                        label = "सूचना फलक",
+                        label = "सूचना",
                         color = Color(0xFF7C3AED),
                         modifier = Modifier.weight(1f),
                         onClick = { viewModel.navigateTo(AppScreen.ANNOUNCEMENTS) }
@@ -495,6 +503,15 @@ fun HomeScreen(
                     }
                 }
             }
+        )
+    }
+
+    if (showIdCardDialog && currentUser != null) {
+        DigitalIdCardDialog(
+            user = currentUser!!,
+            mandalInfo = mandalInfo,
+            mandalLogoUrl = mandalLogoUrl,
+            onDismiss = { showIdCardDialog = false }
         )
     }
 }
