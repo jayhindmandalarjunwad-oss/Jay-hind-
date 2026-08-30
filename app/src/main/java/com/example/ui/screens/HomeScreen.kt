@@ -215,13 +215,6 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     QuickButton(
-                        icon = Icons.Default.Badge,
-                        label = "ओळखपत्र",
-                        color = SaffronPrimary,
-                        modifier = Modifier.weight(1f),
-                        onClick = { showIdCardDialog = true }
-                    )
-                    QuickButton(
                         icon = Icons.Default.PhotoLibrary,
                         label = "गॅलरी",
                         color = NavySecondary,
@@ -560,22 +553,9 @@ fun GroupBannerCard(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = Color.White.copy(alpha = 0.25f)
-                    ) {
-                        Text(
-                            text = "🚩 मंडळ बॅनर",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-
                     IconButton(
                         onClick = onNotifClick,
                         modifier = Modifier
@@ -737,59 +717,65 @@ fun AboutUsHomeSection(
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                 color = TextPrimary
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // YouTube Handle Button
-            SocialHandleRow(
-                platformName = "YouTube Channel",
-                handle = mandalInfo.youtubeHandle,
-                badgeColor = Color(0xFFFF0000),
-                icon = Icons.Default.PlayCircleFilled,
-                onClick = {
-                    val clean = mandalInfo.youtubeHandle.trim()
-                    val url = if (clean.startsWith("http")) clean else "https://www.youtube.com/${clean}"
-                    openUrlSafely(url)
-                }
-            )
+            // Side-by-Side Logo Tabs: YouTube, Facebook, Instagram
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // YouTube Logo Tab
+                SocialLogoTab(
+                    platformName = "YouTube",
+                    icon = Icons.Default.PlayCircleFilled,
+                    brandColor = Color(0xFFFF0000),
+                    containerColor = Color(0xFFFEF2F2),
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        val clean = mandalInfo.youtubeHandle.trim()
+                        val url = if (clean.startsWith("http")) clean else "https://www.youtube.com/${clean}"
+                        openUrlSafely(url)
+                    }
+                )
 
-            Spacer(modifier = Modifier.height(6.dp))
+                // Facebook Logo Tab
+                SocialLogoTab(
+                    platformName = "Facebook",
+                    icon = Icons.Default.ThumbUp,
+                    brandColor = Color(0xFF1877F2),
+                    containerColor = Color(0xFFEFF6FF),
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        val clean = mandalInfo.facebookHandle.trim()
+                        val url = if (clean.startsWith("http")) clean else "https://www.facebook.com/${clean}"
+                        openUrlSafely(url)
+                    }
+                )
 
-            // Facebook Handle Button
-            SocialHandleRow(
-                platformName = "Facebook Page",
-                handle = mandalInfo.facebookHandle,
-                badgeColor = Color(0xFF1877F2),
-                icon = Icons.Default.ThumbUp,
-                onClick = {
-                    val clean = mandalInfo.facebookHandle.trim()
-                    val url = if (clean.startsWith("http")) clean else "https://www.facebook.com/${clean}"
-                    openUrlSafely(url)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Instagram Handle Button
-            SocialHandleRow(
-                platformName = "Instagram Page",
-                handle = mandalInfo.instagramHandle,
-                badgeColor = Color(0xFFE1306C),
-                icon = Icons.Default.CameraAlt,
-                onClick = {
-                    val clean = mandalInfo.instagramHandle.trim().removePrefix("@")
-                    val url = if (clean.startsWith("http")) clean else "https://www.instagram.com/${clean}"
-                    openUrlSafely(url)
-                }
-            )
+                // Instagram Logo Tab
+                SocialLogoTab(
+                    platformName = "Instagram",
+                    icon = Icons.Default.CameraAlt,
+                    brandColor = Color(0xFFE1306C),
+                    containerColor = Color(0xFFFDF2F8),
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        val clean = mandalInfo.instagramHandle.trim().removePrefix("@")
+                        val url = if (clean.startsWith("http")) clean else "https://www.instagram.com/${clean}"
+                        openUrlSafely(url)
+                    }
+                )
+            }
 
             // Optional Admin Web Link if added
             if (mandalInfo.adminWebLink.isNotBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                SocialHandleRow(
-                    platformName = "Admin Web Portal Link",
-                    handle = mandalInfo.adminWebLink,
-                    badgeColor = Color(0xFF0D9488),
+                Spacer(modifier = Modifier.height(8.dp))
+                SocialLogoTab(
+                    platformName = "Admin Web Portal",
                     icon = Icons.Default.Link,
+                    brandColor = Color(0xFF0D9488),
+                    containerColor = Color(0xFFF0FDFA),
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = { openUrlSafely(mandalInfo.adminWebLink) }
                 )
             }
@@ -903,66 +889,53 @@ fun AboutUsHomeSection(
 }
 
 @Composable
-fun SocialHandleRow(
+fun SocialLogoTab(
     platformName: String,
-    handle: String,
-    badgeColor: Color,
     icon: ImageVector,
+    brandColor: Color,
+    containerColor: Color,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(10.dp),
-        color = badgeColor.copy(alpha = 0.08f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor.copy(alpha = 0.25f))
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        border = androidx.compose.foundation.BorderStroke(1.dp, brandColor.copy(alpha = 0.28f))
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(brandColor),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(CircleShape)
-                        .background(badgeColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = platformName,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = platformName,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = badgeColor
-                    )
-                    Text(
-                        text = handle,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = platformName,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
             }
-
-            Icon(
-                imageVector = Icons.Default.OpenInNew,
-                contentDescription = "Open",
-                tint = badgeColor,
-                modifier = Modifier.size(16.dp)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = platformName,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                ),
+                color = brandColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
