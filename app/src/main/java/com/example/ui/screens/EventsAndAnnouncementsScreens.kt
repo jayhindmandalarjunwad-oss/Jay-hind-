@@ -114,6 +114,7 @@ fun EventsScreen(
                             event = event,
                             isAdmin = isAdmin,
                             onRegisterClick = { viewModel.toggleEventRegistration(event) },
+                            onImageClick = { viewModel.openFullscreenPhoto(it) },
                             onEditClick = { eventToEdit = event },
                             onDeleteClick = { eventToDelete = event }
                         )
@@ -180,6 +181,7 @@ fun FullEventCard(
     event: MandalEvent,
     isAdmin: Boolean,
     onRegisterClick: () -> Unit,
+    onImageClick: (String) -> Unit = {},
     onEditClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {}
 ) {
@@ -190,13 +192,38 @@ fun FullEventCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
-                AsyncImage(
-                    model = event.imageUrl,
-                    contentDescription = event.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+            if (event.imageUrl.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clickable { onImageClick(event.imageUrl) }
+                ) {
+                    UniversalAsyncImage(
+                        model = event.imageUrl,
+                        contentDescription = event.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Fullscreen indicator
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.55f),
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fullscreen,
+                            contentDescription = "मोठा करा",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .size(18.dp)
+                        )
+                    }
+                }
             }
 
             Column(modifier = Modifier.padding(14.dp)) {

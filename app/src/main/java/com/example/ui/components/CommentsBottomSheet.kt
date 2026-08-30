@@ -36,13 +36,14 @@ fun CommentsBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.75f)
+                .fillMaxHeight(0.85f)
+                .imePadding()
                 .navigationBarsPadding()
         ) {
             // Header
@@ -131,15 +132,16 @@ fun CommentsBottomSheet(
                 }
             }
 
-            // Bottom Input Row
+            // Bottom Input Row - Guaranteed above keyboard
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 8.dp
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     MemberAvatar(
@@ -151,30 +153,35 @@ fun CommentsBottomSheet(
                     OutlinedTextField(
                         value = commentText,
                         onValueChange = { commentText = it },
-                        placeholder = { Text("आपली प्रतिक्रिया लिहा...", fontSize = 13.sp) },
+                        placeholder = { Text("आपली प्रतिक्रिया येथे लिहा...", fontSize = 13.sp, color = TextMuted) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("comment_input_field"),
                         shape = RoundedCornerShape(24.dp),
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
                             focusedBorderColor = SaffronPrimary,
-                            unfocusedBorderColor = DividerColor
+                            unfocusedBorderColor = DividerColor,
+                            focusedContainerColor = SurfaceWarm,
+                            unfocusedContainerColor = SurfaceWarm
                         ),
-                        maxLines = 3
+                        maxLines = 4
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(
                         onClick = {
                             if (commentText.isNotBlank()) {
-                                onAddComment(commentText)
+                                onAddComment(commentText.trim())
                                 commentText = ""
                             }
                         },
+                        enabled = commentText.isNotBlank(),
                         modifier = Modifier.testTag("comment_send_button")
                     ) {
                         Surface(
                             shape = androidx.compose.foundation.shape.CircleShape,
-                            color = if (commentText.isNotBlank()) SaffronPrimary else SaffronPrimary.copy(alpha = 0.4f),
+                            color = if (commentText.isNotBlank()) SaffronPrimary else Color.LightGray,
                             contentColor = Color.White
                         ) {
                             Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {

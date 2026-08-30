@@ -1,12 +1,19 @@
 package com.example.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,14 +23,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import coil.compose.AsyncImage
 import com.example.data.model.User
 import com.example.ui.theme.*
+import com.example.util.MediaUtils
+import kotlinx.coroutines.launch
 
 @Composable
 fun CreatePostDialog(
@@ -34,17 +43,32 @@ fun CreatePostDialog(
 ) {
     val isEdit = initialPost != null
     var postText by remember { mutableStateOf(initialPost?.content ?: "") }
-    var selectedImageUrl by remember { mutableStateOf<String?>(initialPost?.imageUrls?.firstOrNull()) }
-    var customImageUrl by remember { mutableStateOf("") }
-    var showCustomImageInput by remember { mutableStateOf(false) }
+    var selectedImages by remember {
+        mutableStateOf<List<String>>(initialPost?.imageUrls?.filter { it.isNotBlank() } ?: emptyList())
+    }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isProcessingImage by remember { mutableStateOf(false) }
 
-    val presetImages = listOf(
-        "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=800&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=800&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1566737236500-c8ac43014a67?w=800&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1615461066841-6116e61058f4?w=800&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1608889175123-8ee362201f81?w=800&auto=format&fit=crop&q=80"
-    )
+    // Multi-photo gallery picker
+    val multiGalleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            coroutineScope.launch {
+                isProcessingImage = true
+                val newImages = mutableListOf<String>()
+                for (uri in uris) {
+                    val base64 = MediaUtils.uriToBase64(context, uri, maxDimension = 900, quality = 85)
+                    if (!base64.isNullOrBlank()) {
+                        newImages.add(base64)
+                    }
+                }
+                selectedImages = (selectedImages + newImages).distinct().take(10)
+                isProcessingImage = false
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -57,6 +81,7 @@ fun CreatePostDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
                 // Header
@@ -112,80 +137,203 @@ fun CreatePostDialog(
                         .heightIn(min = 100.dp, max = 150.dp)
                         .testTag("create_post_text_input"),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
                         focusedBorderColor = SaffronPrimary,
                         unfocusedBorderColor = DividerColor
                     )
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Photo Selection Section (from Gallery)
-                Text(
-                    text = "पोस्टमध्ये फोटो जोडा (गॅलरीतून निवडा):",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary
-                )
+                // Multiple Photos Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "फोटो जोडा (${selectedImages.size}/१०):",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary
+                    )
+
+                    TextButton(
+                        onClick = { multiGalleryLauncher.launch("image/*") },
+                        enabled = !isProcessingImage
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddPhotoAlternate,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (selectedImages.isEmpty()) "गॅलरीतून निवडा" else "+ आणखी जोडा",
+                            color = SaffronPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(6.dp))
 
-                GalleryImagePicker(
-                    selectedImageUrl = selectedImageUrl,
-                    onImageSelected = { selectedImageUrl = it },
-                    label = "गॅलरीतून फोटो निवडा",
-                    helperText = "मोबाईल गॅलरीतून फोटो अपलोड करण्यासाठी क्लिक करा",
-                    height = 130.dp
-                )
-
-                if (selectedImageUrl != null) {
-                    TextButton(
-                        onClick = { selectedImageUrl = null },
-                        colors = ButtonDefaults.textButtonColors(contentColor = BloodRed)
+                // Image Selection List & Add Button
+                if (isProcessingImage) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceWarm),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("फोटो काढून टाका", fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("फोटो लोड होत आहेत...", color = TextPrimary, fontSize = 13.sp)
+                        }
+                    }
+                } else if (selectedImages.isEmpty()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { multiGalleryLauncher.launch("image/*") },
+                        shape = RoundedCornerShape(12.dp),
+                        color = SurfaceWarm,
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, CardBorderColor)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Collections,
+                                contentDescription = null,
+                                tint = SaffronPrimary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "एका वेळी एकापेक्षा जास्त (Multiple) फोटो निवडा",
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                "मोबाईल गॅलरीतून फोटो निवडण्यासाठी येथे टॅप करा",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 } else {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "किंवा नमुना फोटो निवडा:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
-                        fontSize = 11.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(presetImages) { imgUrl ->
+                        itemsIndexed(selectedImages) { index, imgUrl ->
                             Box(
                                 modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .border(
-                                        if (selectedImageUrl == imgUrl) 2.dp else 0.dp,
-                                        if (selectedImageUrl == imgUrl) SaffronPrimary else Color.Transparent,
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { selectedImageUrl = imgUrl }
+                                    .size(100.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, CardBorderColor, RoundedCornerShape(10.dp))
                             ) {
-                                AsyncImage(
+                                UniversalAsyncImage(
                                     model = imgUrl,
-                                    contentDescription = "Preset Photo",
+                                    contentDescription = "Selected photo ${index + 1}",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
+
+                                // Delete button badge
+                                IconButton(
+                                    onClick = {
+                                        selectedImages = selectedImages.toMutableList().apply { removeAt(index) }
+                                    },
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .align(Alignment.TopEnd)
+                                        .padding(2.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.7f))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+
+                                // Index badge
+                                Surface(
+                                    color = Color.Black.copy(alpha = 0.6f),
+                                    shape = RoundedCornerShape(topEnd = 6.dp),
+                                    modifier = Modifier.align(Alignment.BottomStart)
+                                ) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Extra Add Tile
+                        if (selectedImages.size < 10) {
+                            item {
+                                Surface(
+                                    modifier = Modifier
+                                        .size(100.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { multiGalleryLauncher.launch("image/*") },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = SurfaceWarm,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AddPhotoAlternate,
+                                            contentDescription = "Add More",
+                                            tint = SaffronPrimary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            "+ आणखी",
+                                            color = SaffronPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // Post Submit Button
                 Button(
                     onClick = {
-                        onPostCreated(postText, selectedImageUrl, null)
+                        val joinedImages = if (selectedImages.isNotEmpty()) {
+                            selectedImages.joinToString("|||")
+                        } else null
+                        onPostCreated(postText, joinedImages, null)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -206,3 +354,4 @@ fun CreatePostDialog(
         }
     }
 }
+

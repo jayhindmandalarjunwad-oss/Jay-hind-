@@ -269,7 +269,7 @@ object MediaUtils {
     }
 
     /**
-     * Downloads/saves an image (Base64 data or HTTP URL) directly to the Android MediaStore/Gallery.
+     * Downloads/saves an image (Base64 data, content URI, or HTTP URL) directly to the Android MediaStore/Gallery.
      */
     suspend fun saveImageToGallery(
         context: Context,
@@ -277,26 +277,40 @@ object MediaUtils {
         fileNamePrefix: String = "JayHind_Photo"
     ): Boolean = withContext(Dispatchers.IO) {
         try {
+            if (imageUrlOrBase64.isBlank()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "फोटो सापडला नाही", Toast.LENGTH_SHORT).show()
+                }
+                return@withContext false
+            }
             val fileName = "${fileNamePrefix}_${System.currentTimeMillis()}.jpg"
 
-            val bitmap: Bitmap? = if (imageUrlOrBase64.startsWith("data:image/")) {
-                val base64Data = imageUrlOrBase64.substringAfter("base64,")
-                val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-            } else if (imageUrlOrBase64.startsWith("http://") || imageUrlOrBase64.startsWith("https://")) {
-                val url = URL(imageUrlOrBase64)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.doInput = true
-                connection.connect()
-                val input = connection.inputStream
-                BitmapFactory.decodeStream(input)
-            } else {
-                null
+            val imageBytes: ByteArray? = when {
+                imageUrlOrBase64.startsWith("data:") -> {
+                    val base64Data = imageUrlOrBase64.substringAfter("base64,")
+                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                }
+                imageUrlOrBase64.startsWith("http://") || imageUrlOrBase64.startsWith("https://") -> {
+                    val url = URL(imageUrlOrBase64)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connect()
+                    connection.inputStream.use { it.readBytes() }
+                }
+                imageUrlOrBase64.startsWith("content://") || imageUrlOrBase64.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(imageUrlOrBase64))?.use { it.readBytes() }
+                }
+                else -> {
+                    try {
+                        Base64.decode(imageUrlOrBase64.trim(), Base64.DEFAULT)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
             }
 
-            if (bitmap == null) {
+            if (imageBytes == null || imageBytes.isEmpty()) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "फोटो सेव्ह करता आला नाही", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "फोटो डाऊनलोड करता आला नाही", Toast.LENGTH_SHORT).show()
                 }
                 return@withContext false
             }
@@ -315,7 +329,7 @@ object MediaUtils {
                 val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
                 if (uri != null) {
                     resolver.openOutputStream(uri)?.use { stream ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, stream)
+                        stream.write(imageBytes)
                     }
                     contentValues.clear()
                     contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
@@ -327,14 +341,14 @@ object MediaUtils {
                 val mandalDir = File(picturesDir, "JayHindMandal").apply { if (!exists()) mkdirs() }
                 val imageFile = File(mandalDir, fileName)
                 FileOutputStream(imageFile).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                    out.write(imageBytes)
                 }
                 isSaved = true
             }
 
             withContext(Dispatchers.Main) {
                 if (isSaved) {
-                    Toast.makeText(context, "फोटो मोबाईल गॅलरीत सेव्ह झाला! 📥", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "✅ फोटो मोबाईल गॅलरीमध्ये सेव्ह झाला! 📥", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(context, "फोटो सेव्ह करण्यात अडचण आली", Toast.LENGTH_SHORT).show()
                 }

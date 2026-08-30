@@ -69,6 +69,9 @@ interface PostDao {
 
 @Dao
 interface CommentDao {
+    @Query("SELECT * FROM comments ORDER BY timestamp ASC")
+    fun getAllComments(): Flow<List<CommentEntity>>
+
     @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY timestamp ASC")
     fun getCommentsForPost(postId: String): Flow<List<CommentEntity>>
 

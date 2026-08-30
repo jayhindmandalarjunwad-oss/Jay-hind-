@@ -69,6 +69,7 @@ fun MandalApp(viewModel: MandalViewModel) {
     val scannedResult by viewModel.scannedVerificationResult.collectAsStateWithLifecycle()
     val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
+    val fullscreenPhotoUrl by viewModel.fullscreenPhotoUrl.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreatePostDialog by remember { mutableStateOf(false) }
@@ -307,6 +308,12 @@ fun MandalApp(viewModel: MandalViewModel) {
                     onDismiss = { memberForIdCardDialog = null }
                 )
             }
+
+            // Global Fullscreen Photo Viewer Modal with Download functionality
+            FullscreenPhotoDialog(
+                photoUrl = fullscreenPhotoUrl,
+                onDismiss = { viewModel.openFullscreenPhoto(null) }
+            )
         }
     }
 }

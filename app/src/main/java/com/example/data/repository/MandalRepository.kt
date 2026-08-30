@@ -841,7 +841,16 @@ class MandalRepository(context: Context) {
     }
 
     // POSTS & FEED
-    val posts: Flow<List<Post>> = postDao.getAllPosts().map { list -> list.map { it.toDomain() } }
+    val posts: Flow<List<Post>> = combine(
+        postDao.getAllPosts(),
+        commentDao.getAllComments()
+    ) { postEntities, allComments ->
+        val commentCounts = allComments.groupBy { it.postId }.mapValues { it.value.size }
+        postEntities.map { entity ->
+            val actualCount = commentCounts[entity.id] ?: entity.commentsCount
+            entity.toDomain().copy(commentsCount = actualCount)
+        }
+    }
 
     suspend fun createPost(
         content: String,
@@ -1632,6 +1641,18 @@ fun UserEntity.toDomain() = User(
     fcmToken = fcmToken
 )
 
+fun parsePostImageUrls(raw: String): List<String> {
+    if (raw.isBlank()) return emptyList()
+    if (raw.contains("|||")) {
+        return raw.split("|||").map { it.trim() }.filter { it.isNotBlank() }
+    }
+    val trimmed = raw.trim()
+    if (trimmed.startsWith("data:") || trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("content://") || trimmed.startsWith("file://")) {
+        return listOf(trimmed)
+    }
+    return trimmed.split(",").map { it.trim() }.filter { it.isNotBlank() }
+}
+
 fun PostEntity.toDomain() = Post(
     id = id,
     authorId = authorId,
@@ -1639,9 +1660,9 @@ fun PostEntity.toDomain() = Post(
     authorPhotoUrl = authorPhotoUrl,
     authorRole = authorRole,
     content = content,
-    imageUrls = if (imageUrlsJson.isNotBlank()) imageUrlsJson.split(",") else emptyList(),
+    imageUrls = parsePostImageUrls(imageUrlsJson),
     videoUrl = videoUrl,
-    likedUserIds = if (likedUserIdsJson.isNotBlank()) likedUserIdsJson.split(",") else emptyList(),
+    likedUserIds = if (likedUserIdsJson.isNotBlank()) likedUserIdsJson.split(",").filter { it.isNotBlank() } else emptyList(),
     commentsCount = commentsCount,
     timestamp = timestamp
 )

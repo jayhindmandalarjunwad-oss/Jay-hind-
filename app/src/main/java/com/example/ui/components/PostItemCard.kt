@@ -137,20 +137,14 @@ fun PostItemCard(
                 )
             }
 
-            // Post Images
-            if (post.imageUrls.isNotEmpty()) {
+            // Post Media (Multiple Photos support)
+            val validImages = post.imageUrls.filter { it.isNotBlank() }
+            if (validImages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                post.imageUrls.firstOrNull()?.let { imgUrl ->
-                    AsyncImage(
-                        model = imgUrl,
-                        contentDescription = "Post Image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp)
-                            .clickable { onImageClick(imgUrl) }
-                    )
-                }
+                PostImagesGallery(
+                    images = validImages,
+                    onImageClick = onImageClick
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -265,6 +259,201 @@ fun PostItemCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(text = "शेअर", color = TextSecondary, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PostImagesGallery(
+    images: List<String>,
+    onImageClick: (String) -> Unit
+) {
+    when (images.size) {
+        1 -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 180.dp, max = 320.dp)
+                    .clickable { onImageClick(images[0]) }
+            ) {
+                UniversalAsyncImage(
+                    model = images[0],
+                    contentDescription = "Post photo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().height(260.dp)
+                )
+
+                // Fullscreen indicator badge
+                Surface(
+                    color = Color.Black.copy(alpha = 0.55f),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "मोठा करा",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .size(18.dp)
+                    )
+                }
+            }
+        }
+
+        2 -> {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                for (img in images.take(2)) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable { onImageClick(img) }
+                    ) {
+                        UniversalAsyncImage(
+                            model = img,
+                            contentDescription = "Post photo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            }
+        }
+
+        3 -> {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clickable { onImageClick(images[0]) }
+                ) {
+                    UniversalAsyncImage(
+                        model = images[0],
+                        contentDescription = "Post photo 1",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    for (i in 1..2) {
+                        val img = images[i]
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { onImageClick(img) }
+                        ) {
+                            UniversalAsyncImage(
+                                model = img,
+                                contentDescription = "Post photo ${i + 1}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        else -> {
+            // 4 or more photos: 2x2 grid with +N indicator
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    for (i in 0..1) {
+                        val img = images[i]
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { onImageClick(img) }
+                        ) {
+                            UniversalAsyncImage(
+                                model = img,
+                                contentDescription = "Post photo ${i + 1}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable { onImageClick(images[2]) }
+                    ) {
+                        UniversalAsyncImage(
+                            model = images[2],
+                            contentDescription = "Post photo 3",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable { onImageClick(images[3]) }
+                    ) {
+                        UniversalAsyncImage(
+                            model = images[3],
+                            contentDescription = "Post photo 4",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        if (images.size > 4) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.65f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "+${images.size - 3}",
+                                    color = Color.White,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

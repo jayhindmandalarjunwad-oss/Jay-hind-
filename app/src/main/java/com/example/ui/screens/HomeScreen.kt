@@ -434,7 +434,8 @@ fun HomeScreen(
                         items(events, key = { it.id }) { event ->
                             EventCardCompact(
                                 event = event,
-                                onRegisterClick = { viewModel.toggleEventRegistration(event) }
+                                onRegisterClick = { viewModel.toggleEventRegistration(event) },
+                                onImageClick = { viewModel.openFullscreenPhoto(it) }
                             )
                         }
                     }
@@ -945,7 +946,8 @@ fun QuickButton(
 @Composable
 fun EventCardCompact(
     event: MandalEvent,
-    onRegisterClick: () -> Unit
+    onRegisterClick: () -> Unit,
+    onImageClick: (String) -> Unit = {}
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -955,13 +957,20 @@ fun EventCardCompact(
         modifier = Modifier.width(260.dp)
     ) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth().height(120.dp)) {
-                AsyncImage(
-                    model = event.imageUrl,
-                    contentDescription = event.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+            if (event.imageUrl.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .clickable { onImageClick(event.imageUrl) }
+                ) {
+                    UniversalAsyncImage(
+                        model = event.imageUrl,
+                        contentDescription = event.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
             Column(modifier = Modifier.padding(12.dp)) {
