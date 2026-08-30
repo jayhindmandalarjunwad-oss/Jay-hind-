@@ -1558,13 +1558,13 @@ fun ManageLogoAdminTab(
                                 .padding(8.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            AsyncImage(
+                            UniversalAsyncImage(
                                 model = selectedLogoInput,
                                 contentDescription = null,
                                 contentScale = ContentScale.Fit,
+                                alpha = 0.18f,
                                 modifier = Modifier
                                     .size(54.dp)
-                                    .alpha(0.18f)
                             )
                             Text(
                                 text = "डिजिटल ओळखपत्र वॉटरमार्क प्रिव्ह्यू",

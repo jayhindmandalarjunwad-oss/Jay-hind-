@@ -162,15 +162,27 @@ fun DigitalIdCardView(
                     .padding(14.dp)
             ) {
                 // Subtle Center Watermark Logo
-                if (!mandalLogoUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = mandalLogoUrl,
+                val cleanWatermarkLogo = mandalLogoUrl?.trim()?.ifEmpty { null }
+                if (cleanWatermarkLogo != null) {
+                    UniversalAsyncImage(
+                        model = cleanWatermarkLogo,
                         contentDescription = null,
                         contentScale = ContentScale.Fit,
+                        alpha = 0.09f,
                         modifier = Modifier
                             .size(160.dp)
-                            .align(Alignment.Center)
-                            .alpha(0.09f)
+                            .align(Alignment.Center),
+                        placeholder = {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_jayhind_logo),
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .size(160.dp)
+                                    .align(Alignment.Center)
+                                    .alpha(0.09f)
+                            )
+                        }
                     )
                 } else {
                     Image(

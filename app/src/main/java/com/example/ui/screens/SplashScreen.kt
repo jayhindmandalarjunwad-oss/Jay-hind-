@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.R
+import com.example.ui.components.MandalLogoBadge
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 
@@ -70,37 +71,7 @@ fun SplashScreen(
                 .scale(scale.value)
         ) {
             // Mandal Emblem / Logo
-            Surface(
-                shape = CircleShape,
-                color = Color.White,
-                shadowElevation = 8.dp,
-                modifier = Modifier.size(130.dp)
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!mandalLogoUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = mandalLogoUrl,
-                            contentDescription = "मंडळ लोगो",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    } else {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_jayhind_logo),
-                            contentDescription = "मंडळ लोगो",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    }
-                }
-            }
+            MandalLogoBadge(logoUrl = mandalLogoUrl, size = 130, borderWidth = 2.dp)
 
             Spacer(modifier = Modifier.height(24.dp))
 

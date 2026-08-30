@@ -27,15 +27,15 @@ import java.net.URL
 object MediaUtils {
 
     /**
-     * Converts a local Uri (content:// or file://) into a compact Base64 JPEG data string.
+     * Converts a local Uri (content:// or file://) into a compact Base64 image data string.
      * This guarantees that images selected from gallery are stored and synced globally
      * across all devices via Firestore without depending on local device file paths.
      */
     suspend fun uriToBase64(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 800,
-        quality: Int = 72
+        maxDimension: Int = 600,
+        quality: Int = 80
     ): String? = withContext(Dispatchers.IO) {
         try {
             val uriStr = uri.toString()
@@ -44,16 +44,28 @@ object MediaUtils {
             }
 
             // 1. Decode bounds
-            var inputStream: InputStream? = context.contentResolver.openInputStream(uri) ?: return@withContext null
+            var inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+            if (inputStream == null) {
+                return@withContext null
+            }
             val options = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
             }
             BitmapFactory.decodeStream(inputStream, null, options)
-            inputStream?.close()
+            inputStream.close()
 
             val srcWidth = options.outWidth
             val srcHeight = options.outHeight
-            if (srcWidth <= 0 || srcHeight <= 0) return@withContext null
+            if (srcWidth <= 0 || srcHeight <= 0) {
+                // Fallback: direct stream to Base64
+                val rawBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (rawBytes != null && rawBytes.isNotEmpty()) {
+                    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    val b64 = Base64.encodeToString(rawBytes, Base64.NO_WRAP)
+                    return@withContext "data:$mime;base64,$b64"
+                }
+                return@withContext null
+            }
 
             // 2. Calculate sample size
             var inSampleSize = 1
@@ -61,15 +73,23 @@ object MediaUtils {
                 inSampleSize *= 2
             }
 
-            // 3. Decode scaled bitmap
+            // 3. Decode scaled bitmap with ARGB_8888 (preserves transparency for PNGs and sharpness)
             val decodeOptions = BitmapFactory.Options().apply {
                 this.inSampleSize = inSampleSize
-                inPreferredConfig = Bitmap.Config.RGB_565 // Memory & size optimization
+                inPreferredConfig = Bitmap.Config.ARGB_8888
             }
             inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext null
             val originalBitmap = BitmapFactory.decodeStream(inputStream, null, decodeOptions)
-            inputStream?.close()
-            if (originalBitmap == null) return@withContext null
+            inputStream.close()
+            if (originalBitmap == null) {
+                val rawBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (rawBytes != null && rawBytes.isNotEmpty()) {
+                    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    val b64 = Base64.encodeToString(rawBytes, Base64.NO_WRAP)
+                    return@withContext "data:$mime;base64,$b64"
+                }
+                return@withContext null
+            }
 
             // 4. Handle EXIF rotation
             var rotationAngle = 0
@@ -114,16 +134,31 @@ object MediaUtils {
                 workingBitmap
             }
 
-            // 6. Compress to JPEG Base64
+            // 6. Compress appropriately (PNG if alpha, JPEG otherwise)
             val outputStream = ByteArrayOutputStream()
-            finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            val isAlpha = finalBitmap.hasAlpha()
+            if (isAlpha) {
+                finalBitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            } else {
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+            }
             val byteArray = outputStream.toByteArray()
             val base64Str = Base64.encodeToString(byteArray, Base64.NO_WRAP)
 
-            "data:image/jpeg;base64,$base64Str"
+            val mime = if (isAlpha) "image/png" else "image/jpeg"
+            "data:$mime;base64,$base64Str"
         } catch (e: Exception) {
             Log.e("MediaUtils", "Failed to convert Uri to Base64: ${e.message}", e)
-            null
+            try {
+                val rawBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (rawBytes != null && rawBytes.isNotEmpty()) {
+                    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    val b64 = Base64.encodeToString(rawBytes, Base64.NO_WRAP)
+                    "data:$mime;base64,$b64"
+                } else null
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 
@@ -175,13 +210,17 @@ object MediaUtils {
     fun base64ToBitmap(data: String?): Bitmap? {
         if (data.isNullOrBlank()) return null
         return try {
-            val base64Clean = if (data.contains("base64,")) {
-                data.substringAfter("base64,")
+            val trimmed = data.trim()
+            val base64Clean = if (trimmed.contains("base64,")) {
+                trimmed.substringAfter("base64,")
             } else {
-                data
+                trimmed
             }
             val decodedBytes = Base64.decode(base64Clean.trim(), Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+            val options = BitmapFactory.Options().apply {
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size, options)
         } catch (e: Exception) {
             Log.e("MediaUtils", "Failed to decode base64 to bitmap: ${e.message}")
             null

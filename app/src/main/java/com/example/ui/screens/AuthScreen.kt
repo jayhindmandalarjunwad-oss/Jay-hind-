@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.ui.components.GalleryImagePicker
+import com.example.ui.components.MandalLogoBadge
 import com.example.ui.components.MemberAvatar
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
@@ -99,32 +100,7 @@ fun AuthScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.White,
-                        shadowElevation = 6.dp,
-                        modifier = Modifier.size(82.dp)
-                    ) {
-                        if (!mandalLogoUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = mandalLogoUrl,
-                                contentDescription = "मंडळ लोगो",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_jayhind_logo),
-                                contentDescription = "मंडळ लोगो",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        }
-                    }
+                    MandalLogoBadge(logoUrl = mandalLogoUrl, size = 82)
 
                     Spacer(modifier = Modifier.height(12.dp))
 

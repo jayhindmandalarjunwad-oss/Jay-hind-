@@ -443,13 +443,13 @@ class MandalRepository(context: Context) {
                     val info = snapshot.toMandalInfoEntity()
                     if (info != null) {
                         mandalInfoDao.saveMandalInfo(info)
-                        val cleanLogo = info.logoUrl?.ifEmpty { null }
-                        _mandalLogoUrl.value = cleanLogo
-                        if (cleanLogo != null) {
-                            prefs.edit().putString("mandal_logo_url", cleanLogo).apply()
-                        } else {
-                            prefs.edit().remove("mandal_logo_url").apply()
-                        }
+                    }
+                    val cleanLogo = snapshot.getString("logoUrl")?.trim()?.ifEmpty { null }
+                    _mandalLogoUrl.value = cleanLogo
+                    if (cleanLogo != null) {
+                        prefs.edit().putString("mandal_logo_url", cleanLogo).apply()
+                    } else {
+                        prefs.edit().remove("mandal_logo_url").apply()
                     }
                 }
             }
@@ -1996,21 +1996,21 @@ fun MandalInfoEntity.toMap(): Map<String, Any?> = mapOf(
 )
 
 fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
-    val id = getString("id") ?: "mandal_default"
-    val mandalName = getString("mandalName") ?: return null
+    val id = getString("id") ?: id.ifEmpty { "mandal_default" }
+    val mandalName = getString("mandalName") ?: SeedData.defaultMandalInfo.mandalName
     return MandalInfoEntity(
         id = id,
         mandalName = mandalName,
-        tagline = getString("tagline") ?: "",
-        locationTitle = getString("locationTitle") ?: "",
-        aboutDescription = getString("aboutDescription") ?: "",
-        email = getString("email") ?: "",
-        address = getString("address") ?: "",
-        phone = getString("phone") ?: "",
-        youtubeHandle = getString("youtubeHandle") ?: "",
-        facebookHandle = getString("facebookHandle") ?: "",
-        instagramHandle = getString("instagramHandle") ?: "",
-        adminWebLink = getString("adminWebLink") ?: "",
+        tagline = getString("tagline") ?: SeedData.defaultMandalInfo.tagline,
+        locationTitle = getString("locationTitle") ?: SeedData.defaultMandalInfo.locationTitle,
+        aboutDescription = getString("aboutDescription") ?: SeedData.defaultMandalInfo.aboutDescription,
+        email = getString("email") ?: SeedData.defaultMandalInfo.email,
+        address = getString("address") ?: SeedData.defaultMandalInfo.address,
+        phone = getString("phone") ?: SeedData.defaultMandalInfo.phone,
+        youtubeHandle = getString("youtubeHandle") ?: SeedData.defaultMandalInfo.youtubeHandle,
+        facebookHandle = getString("facebookHandle") ?: SeedData.defaultMandalInfo.facebookHandle,
+        instagramHandle = getString("instagramHandle") ?: SeedData.defaultMandalInfo.instagramHandle,
+        adminWebLink = getString("adminWebLink") ?: SeedData.defaultMandalInfo.adminWebLink,
         logoUrl = getString("logoUrl") ?: "",
         updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()
     )

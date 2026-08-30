@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,35 +45,105 @@ fun UniversalAsyncImage(
     model: Any?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Crop
+    contentScale: ContentScale = ContentScale.Crop,
+    alignment: Alignment = Alignment.Center,
+    alpha: Float = 1.0f,
+    placeholder: @Composable (() -> Unit)? = null
 ) {
-    val modelStr = model as? String
-    val isBase64 = modelStr?.startsWith("data:image/") == true || modelStr?.startsWith("data:video/") == true
+    if (model == null || (model is String && model.isBlank())) {
+        if (placeholder != null) {
+            placeholder()
+        }
+        return
+    }
 
-    if (isBase64) {
-        val bitmap = remember(modelStr) { MediaUtils.base64ToBitmap(modelStr) }
-        if (bitmap != null) {
+    when (model) {
+        is Bitmap -> {
             Image(
-                bitmap = bitmap.asImageBitmap(),
+                bitmap = model.asImageBitmap(),
                 contentDescription = contentDescription,
                 contentScale = contentScale,
-                modifier = modifier
-            )
-        } else {
-            AsyncImage(
-                model = model,
-                contentDescription = contentDescription,
-                contentScale = contentScale,
+                alignment = alignment,
+                alpha = alpha,
                 modifier = modifier
             )
         }
-    } else {
-        AsyncImage(
-            model = model,
-            contentDescription = contentDescription,
-            contentScale = contentScale,
-            modifier = modifier
-        )
+        is Int -> {
+            Image(
+                painter = painterResource(id = model),
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                alignment = alignment,
+                alpha = alpha,
+                modifier = modifier
+            )
+        }
+        is String -> {
+            val trimmed = model.trim()
+            val isBase64 = trimmed.startsWith("data:") ||
+                    trimmed.contains("base64,") ||
+                    trimmed.startsWith("/9j/") ||
+                    trimmed.startsWith("iVBOR") ||
+                    trimmed.startsWith("R0lGOD") ||
+                    trimmed.startsWith("UklGR") ||
+                    (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("content://") && !trimmed.startsWith("file://") && trimmed.length > 80)
+
+            if (isBase64) {
+                val bitmap = remember(trimmed) { MediaUtils.base64ToBitmap(trimmed) }
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = contentDescription,
+                        contentScale = contentScale,
+                        alignment = alignment,
+                        alpha = alpha,
+                        modifier = modifier
+                    )
+                } else if (placeholder != null) {
+                    placeholder()
+                } else {
+                    Image(
+                        painter = painterResource(id = com.example.R.drawable.ic_jayhind_logo),
+                        contentDescription = contentDescription,
+                        contentScale = contentScale,
+                        alignment = alignment,
+                        alpha = alpha,
+                        modifier = modifier
+                    )
+                }
+            } else {
+                val context = LocalContext.current
+                AsyncImage(
+                    model = coil.request.ImageRequest.Builder(context)
+                        .data(trimmed)
+                        .crossfade(true)
+                        .error(com.example.R.drawable.ic_jayhind_logo)
+                        .fallback(com.example.R.drawable.ic_jayhind_logo)
+                        .build(),
+                    contentDescription = contentDescription,
+                    contentScale = contentScale,
+                    alignment = alignment,
+                    alpha = alpha,
+                    modifier = modifier
+                )
+            }
+        }
+        else -> {
+            val context = LocalContext.current
+            AsyncImage(
+                model = coil.request.ImageRequest.Builder(context)
+                    .data(model)
+                    .crossfade(true)
+                    .error(com.example.R.drawable.ic_jayhind_logo)
+                    .fallback(com.example.R.drawable.ic_jayhind_logo)
+                    .build(),
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                alignment = alignment,
+                alpha = alpha,
+                modifier = modifier
+            )
+        }
     }
 }
 
@@ -95,12 +167,10 @@ fun GalleryImagePicker(
         if (uri != null) {
             coroutineScope.launch {
                 isProcessing = true
-                val base64 = MediaUtils.uriToBase64(context, uri)
+                val base64 = MediaUtils.uriToBase64(context, uri, maxDimension = 600, quality = 85)
                 isProcessing = false
                 if (!base64.isNullOrBlank()) {
                     onImageSelected(base64)
-                } else {
-                    onImageSelected(uri.toString())
                 }
             }
         }
@@ -138,7 +208,7 @@ fun GalleryImagePicker(
                     .fillMaxWidth()
                     .height(height)
             ) {
-                AsyncImage(
+                UniversalAsyncImage(
                     model = selectedImageUrl,
                     contentDescription = label,
                     contentScale = ContentScale.Crop,
@@ -241,28 +311,42 @@ fun GalleryImagePicker(
 fun MandalLogoBadge(
     logoUrl: String? = null,
     size: Int = 42,
+    borderWidth: Dp = 1.5.dp,
+    borderColor: Color = SaffronPrimary,
     modifier: Modifier = Modifier
 ) {
-    if (!logoUrl.isNullOrBlank()) {
-        AsyncImage(
-            model = logoUrl,
-            contentDescription = "मंडळ लोगो",
-            contentScale = ContentScale.Crop,
-            modifier = modifier
-                .size(size.dp)
-                .clip(CircleShape)
-                .border(1.5.dp, SaffronPrimary, CircleShape)
-        )
-    } else {
-        Image(
-            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_jayhind_logo),
-            contentDescription = "मंडळ लोगो",
-            contentScale = ContentScale.Crop,
-            modifier = modifier
-                .size(size.dp)
-                .clip(CircleShape)
-                .border(1.5.dp, SaffronPrimary, CircleShape)
-        )
+    Surface(
+        shape = CircleShape,
+        color = Color.White,
+        border = androidx.compose.foundation.BorderStroke(borderWidth, borderColor),
+        modifier = modifier
+            .size(size.dp)
+            .clip(CircleShape)
+    ) {
+        val cleanUrl = logoUrl?.trim()?.ifEmpty { null }
+        if (cleanUrl != null) {
+            UniversalAsyncImage(
+                model = cleanUrl,
+                contentDescription = "मंडळ लोगो",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                placeholder = {
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_jayhind_logo),
+                        contentDescription = "मंडळ लोगो",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            )
+        } else {
+            Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_jayhind_logo),
+                contentDescription = "मंडळ लोगो",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 
@@ -467,14 +551,36 @@ fun MemberAvatar(
     }
 
     if (photoUrl.isNotBlank()) {
-        AsyncImage(
+        UniversalAsyncImage(
             model = photoUrl,
             contentDescription = name,
             contentScale = ContentScale.Crop,
             modifier = modifier
                 .size(size.dp)
                 .clip(CircleShape)
-                .then(borderModifier)
+                .then(borderModifier),
+            placeholder = {
+                Box(
+                    modifier = modifier
+                        .size(size.dp)
+                        .clip(CircleShape)
+                        .then(borderModifier)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(SaffronPrimary, SaffronDark)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val initial = name.firstOrNull()?.toString() ?: "ज"
+                    Text(
+                        text = initial,
+                        color = Color.White,
+                        fontSize = (size * 0.4).sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         )
     } else {
         Box(
