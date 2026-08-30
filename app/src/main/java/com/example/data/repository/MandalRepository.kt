@@ -22,7 +22,8 @@ import java.util.Locale
 import java.util.UUID
 
 class MandalRepository(context: Context) {
-    private val db = AppDatabase.getDatabase(context)
+    private val appContext: Context = context.applicationContext
+    private val db = AppDatabase.getDatabase(appContext)
     private val userDao = db.userDao()
     private val postDao = db.postDao()
     private val commentDao = db.commentDao()
@@ -415,8 +416,35 @@ class MandalRepository(context: Context) {
                     if (messages.isNotEmpty()) {
                         chatDao.insertMessages(messages)
                     }
+                    val currentUserId = _currentUser.value?.id
                     for (change in snapshots.documentChanges) {
-                        if (change.type == DocumentChange.Type.REMOVED) {
+                        if (change.type == DocumentChange.Type.ADDED) {
+                            val msg = change.document.toChatMessageEntity()
+                            if (msg != null && msg.senderId != currentUserId && (System.currentTimeMillis() - msg.timestamp) < 60000) {
+                                val isGroup = msg.receiverId == "GROUP_MANDAL" || msg.conversationId == "conv_mandal_group"
+                                if (isGroup) {
+                                    val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन संदेश आला आहे"
+                                    com.example.util.SystemNotificationHelper.showSystemNotification(
+                                        context = appContext,
+                                        title = "🚩 जय हिंद ग्रुप: ${msg.senderName}",
+                                        message = previewText,
+                                        channelId = com.example.util.SystemNotificationHelper.CHANNEL_GROUP_CHAT,
+                                        targetRoute = "CHAT",
+                                        targetId = "GROUP_MANDAL"
+                                    )
+                                } else if (msg.receiverId == currentUserId) {
+                                    val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन मेसेज आला आहे"
+                                    com.example.util.SystemNotificationHelper.showSystemNotification(
+                                        context = appContext,
+                                        title = "${msg.senderName} कडून मेसेज 💬",
+                                        message = previewText,
+                                        channelId = com.example.util.SystemNotificationHelper.CHANNEL_CHAT,
+                                        targetRoute = "CHAT",
+                                        targetId = msg.senderId
+                                    )
+                                }
+                            }
+                        } else if (change.type == DocumentChange.Type.REMOVED) {
                             chatDao.deleteMessage(change.document.id)
                         }
                     }
@@ -557,8 +585,29 @@ class MandalRepository(context: Context) {
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toNotificationEntity() }
                     if (list.isNotEmpty()) notificationDao.insertNotifications(list)
+                    val currentUser = _currentUser.value
                     for (change in snapshots.documentChanges) {
-                        if (change.type == DocumentChange.Type.REMOVED) {
+                        if (change.type == DocumentChange.Type.ADDED) {
+                            val notif = change.document.toNotificationEntity()
+                            if (notif != null && (System.currentTimeMillis() - notif.timestamp) < 90000) {
+                                val isRelevant = when (notif.type) {
+                                    "COMMENT" -> notif.targetUserId == currentUser?.id
+                                    "CHAT" -> notif.targetUserId == currentUser?.id
+                                    "ADMIN" -> currentUser?.isAdmin == true
+                                    else -> notif.targetUserId == null || notif.targetUserId == currentUser?.id || (notif.targetUserId == "ADMIN" && currentUser?.isAdmin == true)
+                                }
+                                if (isRelevant && notif.type != "CHAT") {
+                                    com.example.util.SystemNotificationHelper.showSystemNotification(
+                                        context = appContext,
+                                        title = notif.title,
+                                        message = notif.message,
+                                        channelId = com.example.util.SystemNotificationHelper.CHANNEL_GENERAL,
+                                        targetRoute = notif.targetRoute ?: "ANNOUNCEMENTS",
+                                        targetId = notif.targetId
+                                    )
+                                }
+                            }
+                        } else if (change.type == DocumentChange.Type.REMOVED) {
                             notificationDao.deleteNotification(change.document.id)
                         }
                     }
@@ -1454,6 +1503,12 @@ class MandalRepository(context: Context) {
 
     suspend fun markAllNotificationsAsRead() = withContext(Dispatchers.IO) {
         notificationDao.markAllAsRead()
+        com.example.util.SystemNotificationHelper.cancelAllNotifications(appContext)
+    }
+
+    suspend fun clearAllNotifications() = withContext(Dispatchers.IO) {
+        notificationDao.deleteAllNotifications()
+        com.example.util.SystemNotificationHelper.cancelAllNotifications(appContext)
     }
 
     suspend fun markNotificationAsRead(id: String) = withContext(Dispatchers.IO) {

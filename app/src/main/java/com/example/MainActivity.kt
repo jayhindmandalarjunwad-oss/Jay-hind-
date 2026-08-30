@@ -1,11 +1,16 @@
 package com.example
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -19,10 +24,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.User
 import com.example.ui.components.*
@@ -55,11 +62,17 @@ class MainActivity : ComponentActivity() {
         if (!dataString.isNullOrBlank()) {
             viewModel.handleScannedQrPayload(dataString)
         }
+        val targetRoute = intent?.getStringExtra("EXTRA_TARGET_ROUTE")
+        val targetId = intent?.getStringExtra("EXTRA_TARGET_ID")
+        if (!targetRoute.isNullOrBlank()) {
+            viewModel.handleNotificationRoute(targetRoute, targetId)
+        }
     }
 }
 
 @Composable
 fun MandalApp(viewModel: MandalViewModel) {
+    val context = LocalContext.current
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
@@ -70,10 +83,32 @@ fun MandalApp(viewModel: MandalViewModel) {
     val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
     val fullscreenPhotoUrl by viewModel.fullscreenPhotoUrl.collectAsStateWithLifecycle()
+    val fullscreenViewerState by viewModel.fullscreenViewerState.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreatePostDialog by remember { mutableStateOf(false) }
     var memberForIdCardDialog by remember { mutableStateOf<User?>(null) }
+
+    // Request Notification Permission immediately when app is installed / opened (Android 13+)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.showSnackbar("मंडळाच्या सूचना (Notifications) परवानगी यशस्वीरित्या दिली आहे! 🔔")
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val status = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+            if (status != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     LaunchedEffect(snackbarMsg) {
         snackbarMsg?.let {
@@ -309,11 +344,19 @@ fun MandalApp(viewModel: MandalViewModel) {
                 )
             }
 
-            // Global Fullscreen Photo Viewer Modal with Download functionality
-            FullscreenPhotoDialog(
-                photoUrl = fullscreenPhotoUrl,
-                onDismiss = { viewModel.openFullscreenPhoto(null) }
-            )
+            // Global Fullscreen Photo Viewer Modal with Swipe and Download functionality
+            if (fullscreenViewerState != null) {
+                FullscreenPhotoDialog(
+                    photos = fullscreenViewerState!!.photos,
+                    initialIndex = fullscreenViewerState!!.initialIndex,
+                    onDismiss = { viewModel.closeFullscreenPhoto() }
+                )
+            } else if (!fullscreenPhotoUrl.isNullOrBlank()) {
+                FullscreenPhotoDialog(
+                    photoUrl = fullscreenPhotoUrl,
+                    onDismiss = { viewModel.closeFullscreenPhoto() }
+                )
+            }
         }
     }
 }

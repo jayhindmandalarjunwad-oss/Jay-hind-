@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -232,13 +233,18 @@ fun GalleryScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                items(photos, key = { it.id }) { photo ->
+                                itemsIndexed(photos, key = { _, photo -> photo.id }) { index, photo ->
                                     Box(
                                         modifier = Modifier
                                             .aspectRatio(1f)
                                             .clip(RoundedCornerShape(12.dp))
                                             .border(1.dp, CardBorderColor, RoundedCornerShape(12.dp))
-                                            .clickable { viewModel.openFullscreenPhoto(photo.imageUrl) }
+                                            .clickable {
+                                                viewModel.openFullscreenPhotos(
+                                                    photos = photos.map { it.imageUrl },
+                                                    initialIndex = index
+                                                )
+                                            }
                                     ) {
                                         UniversalAsyncImage(
                                             model = photo.imageUrl,

@@ -9,6 +9,7 @@ class MandalApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         try {
+            com.example.util.SystemNotificationHelper.initNotificationChannels(this)
             if (FirebaseApp.getApps(this).isEmpty()) {
                 val options = FirebaseOptions.Builder()
                     .setApplicationId("1:839410753027:android:cdeafd3dc39c6e0258f836")

@@ -139,28 +139,6 @@ fun HomeScreen(
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                                         )
                                     }
-
-                                    IconButton(
-                                        onClick = { viewModel.navigateTo(AppScreen.NOTIFICATIONS) },
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .background(Color.White.copy(alpha = 0.22f), CircleShape)
-                                    ) {
-                                        BadgedBox(
-                                            badge = {
-                                                if (unreadNotifs > 0) {
-                                                    Badge(containerColor = BloodRed) { Text("$unreadNotifs") }
-                                                }
-                                            }
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Notifications,
-                                                contentDescription = "सूचना",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
                                 }
 
                                 Row(

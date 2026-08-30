@@ -114,7 +114,8 @@ fun PostsScreen(
                         onCommentClick = { viewModel.openComments(post) },
                         onDeleteClick = { viewModel.deletePost(post.id) },
                         onEditClick = { postToEdit = post },
-                        onImageClick = { viewModel.openFullscreenPhoto(it) }
+                        onImageClick = { viewModel.openFullscreenPhoto(it) },
+                        onMultiImageClick = { images, idx -> viewModel.openFullscreenPhotos(images, idx) }
                     )
                 }
             }

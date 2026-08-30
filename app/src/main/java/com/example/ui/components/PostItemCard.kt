@@ -36,6 +36,7 @@ fun PostItemCard(
     onDeleteClick: () -> Unit,
     onEditClick: () -> Unit = {},
     onImageClick: (String) -> Unit = {},
+    onMultiImageClick: (List<String>, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -143,7 +144,8 @@ fun PostItemCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 PostImagesGallery(
                     images = validImages,
-                    onImageClick = onImageClick
+                    onImageClick = onImageClick,
+                    onMultiImageClick = onMultiImageClick
                 )
             }
 
@@ -268,15 +270,21 @@ fun PostItemCard(
 @Composable
 fun PostImagesGallery(
     images: List<String>,
-    onImageClick: (String) -> Unit
+    onImageClick: (String) -> Unit,
+    onMultiImageClick: (List<String>, Int) -> Unit = { _, _ -> }
 ) {
+    val handlePhotoClick: (Int) -> Unit = { index ->
+        onMultiImageClick(images, index)
+        onImageClick(images.getOrElse(index) { "" })
+    }
+
     when (images.size) {
         1 -> {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 180.dp, max = 320.dp)
-                    .clickable { onImageClick(images[0]) }
+                    .clickable { handlePhotoClick(0) }
             ) {
                 UniversalAsyncImage(
                     model = images[0],
@@ -312,12 +320,12 @@ fun PostImagesGallery(
                     .height(180.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                for (img in images.take(2)) {
+                images.take(2).forEachIndexed { index, img ->
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clickable { onImageClick(img) }
+                            .clickable { handlePhotoClick(index) }
                     ) {
                         UniversalAsyncImage(
                             model = img,
@@ -339,7 +347,7 @@ fun PostImagesGallery(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(160.dp)
-                        .clickable { onImageClick(images[0]) }
+                        .clickable { handlePhotoClick(0) }
                 ) {
                     UniversalAsyncImage(
                         model = images[0],
@@ -361,7 +369,7 @@ fun PostImagesGallery(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .clickable { onImageClick(img) }
+                                .clickable { handlePhotoClick(i) }
                         ) {
                             UniversalAsyncImage(
                                 model = img,
@@ -393,7 +401,7 @@ fun PostImagesGallery(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .clickable { onImageClick(img) }
+                                .clickable { handlePhotoClick(i) }
                         ) {
                             UniversalAsyncImage(
                                 model = img,
@@ -415,7 +423,7 @@ fun PostImagesGallery(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clickable { onImageClick(images[2]) }
+                            .clickable { handlePhotoClick(2) }
                     ) {
                         UniversalAsyncImage(
                             model = images[2],
@@ -429,7 +437,7 @@ fun PostImagesGallery(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clickable { onImageClick(images[3]) }
+                            .clickable { handlePhotoClick(3) }
                     ) {
                         UniversalAsyncImage(
                             model = images[3],

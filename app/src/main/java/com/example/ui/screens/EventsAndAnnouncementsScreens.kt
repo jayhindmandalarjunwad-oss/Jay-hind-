@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,11 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.model.Announcement
@@ -717,7 +724,31 @@ fun NotificationsScreen(
     viewModel: MandalViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
+
+    var isNotificationPermissionGranted by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        isNotificationPermissionGranted = granted
+        if (granted) {
+            viewModel.showSnackbar("सूचना (Notifications) परवानगी सक्षम केली आहे! 🔔")
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -728,8 +759,17 @@ fun NotificationsScreen(
                 onBackClick = onBack,
                 actions = {
                     if (notifications.isNotEmpty()) {
-                        TextButton(onClick = { viewModel.markAllNotificationsAsRead() }) {
-                            Text("सर्व वाचले", color = Color.White, fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { viewModel.markAllNotificationsAsRead() }) {
+                                Text("सर्व वाचले", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            IconButton(onClick = { showClearConfirmDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteSweep,
+                                    contentDescription = "सर्व हटवा",
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
                 }
@@ -743,30 +783,98 @@ fun NotificationsScreen(
                 .background(BackgroundWarm)
                 .testTag("notifications_screen_root")
         ) {
-            if (notifications.isEmpty()) {
-                EmptyStateView(
-                    icon = Icons.Default.NotificationsNone,
-                    title = "कोणतीही नवीन नोटिफिकेशन नाही",
-                    subtitle = "नवीन सदस्य, कार्यक्रम, वाढदिवस आणि आपल्या पोस्टवरील कमेंट्स येथे दिसतील."
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp)
-                ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 80.dp)
+            ) {
+                // If notification permission is missing on Android 13+, show a prompt card
+                if (!isNotificationPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SaffronPrimary.copy(alpha = 0.12f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsActive,
+                                    contentDescription = null,
+                                    tint = SaffronPrimary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "मोबाईलवर त्वरित नोटिफिकेशन्स मिळवा",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "नवीन पोस्ट, वाढदिवस व मेसेजचे थेट अलर्ट मिळवण्यासाठी परवानगी द्या.",
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("परवानगी द्या", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (notifications.isEmpty()) {
+                    item {
+                        EmptyStateView(
+                            icon = Icons.Default.NotificationsNone,
+                            title = "कोणतीही नवीन नोटिफिकेशन नाही",
+                            subtitle = "नवीन सदस्य, कार्यक्रम, वाढदिवस आणि आपल्या पोस्टवरील कमेंट्स येथे दिसतील."
+                        )
+                    }
+                } else {
                     item {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = SaffronLight.copy(alpha = 0.25f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                text = "💡 संबंधित कार्यक्रम, सूचना, वाढदिवस, पोस्ट किंवा चॅटवर थेट जाण्यासाठी नोटिफिकेशनवर टॅप करा.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = SaffronDark,
-                                modifier = Modifier.padding(10.dp)
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "💡 संबंधित पानावर जाण्यासाठी नोटिफिकेशनवर टॅप करा.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = SaffronDark,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(
+                                    onClick = { showClearConfirmDialog = true },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = BloodRed, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("सर्व साफ करा", color = BloodRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
 
@@ -890,5 +998,29 @@ fun NotificationsScreen(
                 }
             }
         }
+    }
+
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            title = { Text("सर्व नोटिफिकेशन्स हटवा", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            text = { Text("आपण सर्व सूचना व नोटिफिकेशन्स कायमचे हटवू इच्छिता का?", color = TextPrimary) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearAllNotifications()
+                        showClearConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                ) {
+                    Text("होय, सर्व हटवा")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showClearConfirmDialog = false }) {
+                    Text("रद्द करा", color = TextPrimary)
+                }
+            }
+        )
     }
 }

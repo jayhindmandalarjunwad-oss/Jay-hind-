@@ -163,6 +163,9 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _fullscreenPhotoUrl = MutableStateFlow<String?>(null)
     val fullscreenPhotoUrl: StateFlow<String?> = _fullscreenPhotoUrl.asStateFlow()
 
+    private val _fullscreenViewerState = MutableStateFlow<FullscreenViewerState?>(null)
+    val fullscreenViewerState: StateFlow<FullscreenViewerState?> = _fullscreenViewerState.asStateFlow()
+
     private val _playingVideo = MutableStateFlow<VideoItem?>(null)
     val playingVideo: StateFlow<VideoItem?> = _playingVideo.asStateFlow()
 
@@ -537,7 +540,36 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun openFullscreenPhoto(url: String?) {
-        _fullscreenPhotoUrl.value = url
+        if (url.isNullOrBlank()) {
+            _fullscreenPhotoUrl.value = null
+            _fullscreenViewerState.value = null
+        } else {
+            _fullscreenPhotoUrl.value = url
+            _fullscreenViewerState.value = FullscreenViewerState(
+                photos = listOf(url),
+                initialIndex = 0
+            )
+        }
+    }
+
+    fun openFullscreenPhotos(photos: List<String>, initialIndex: Int = 0) {
+        val valid = photos.filter { it.isNotBlank() }
+        if (valid.isEmpty()) {
+            _fullscreenPhotoUrl.value = null
+            _fullscreenViewerState.value = null
+        } else {
+            val safeIndex = initialIndex.coerceIn(0, valid.size - 1)
+            _fullscreenPhotoUrl.value = valid.getOrNull(safeIndex)
+            _fullscreenViewerState.value = FullscreenViewerState(
+                photos = valid,
+                initialIndex = safeIndex
+            )
+        }
+    }
+
+    fun closeFullscreenPhoto() {
+        _fullscreenPhotoUrl.value = null
+        _fullscreenViewerState.value = null
     }
 
     fun addVideo(title: String, desc: String, category: String, videoUrl: String, thumbUrl: String) {
@@ -617,6 +649,13 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun clearAllNotifications() {
+        viewModelScope.launch {
+            repository.clearAllNotifications()
+            showSnackbar("सर्व नोटिफिकेशन्स हटवले गेले.")
+        }
+    }
+
     fun markNotificationAsRead(notifId: String) {
         viewModelScope.launch {
             repository.markNotificationAsRead(notifId)
@@ -669,6 +708,20 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 _currentScreen.value = AppScreen.MAIN
             }
         }
+    }
+
+    fun handleNotificationRoute(targetRoute: String?, targetId: String?) {
+        if (targetRoute.isNullOrBlank()) return
+        val notif = MandalNotification(
+            id = "",
+            title = "",
+            message = "",
+            targetRoute = targetRoute,
+            targetId = targetId,
+            type = "",
+            timestamp = System.currentTimeMillis()
+        )
+        handleNotificationClick(notif)
     }
 
     fun broadcastNotification(title: String, message: String) {
@@ -841,3 +894,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 }
+
+data class FullscreenViewerState(
+    val photos: List<String> = emptyList(),
+    val initialIndex: Int = 0
+)
