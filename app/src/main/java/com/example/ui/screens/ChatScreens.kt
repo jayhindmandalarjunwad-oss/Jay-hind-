@@ -1213,8 +1213,10 @@ fun ChatDetailScreen(
                             message = msg,
                             isSentByMe = isMe,
                             isGroupChat = isGroupChat,
+                            isAdmin = currentUser?.isAdmin == true,
                             onImageClick = { previewImageUrl = it },
-                            onVideoClick = { playingVideoMessage = it }
+                            onVideoClick = { playingVideoMessage = it },
+                            onDeleteClick = { viewModel.deleteChatMessage(it) }
                         )
                     }
                 }

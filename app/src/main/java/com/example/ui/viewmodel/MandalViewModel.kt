@@ -480,6 +480,26 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun deleteChatMessage(message: ChatMessage) {
+        val user = currentUser.value ?: return
+        val isGroup = message.receiverId == "GROUP_MANDAL" || message.conversationId == "conv_mandal_group"
+        val canDelete = if (isGroup) {
+            message.senderId == user.id || user.isAdmin
+        } else {
+            message.senderId == user.id
+        }
+
+        if (!canDelete) {
+            showSnackbar("आपण हा मेसेज हटवू शकत नाही.")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.deleteChatMessage(message.id)
+            showSnackbar("मेसेज हटवण्यात आला. 🗑️")
+        }
+    }
+
     // GALLERY ACTIONS
     fun openAlbum(album: Album) {
         _selectedAlbum.value = album

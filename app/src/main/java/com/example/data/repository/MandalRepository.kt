@@ -327,6 +327,11 @@ class MandalRepository(context: Context) {
                     if (messages.isNotEmpty()) {
                         chatDao.insertMessages(messages)
                     }
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            chatDao.deleteMessage(change.document.id)
+                        }
+                    }
                 }
             }
 
@@ -969,6 +974,18 @@ class MandalRepository(context: Context) {
             Log.e("FirebaseSync", "Error sending chat message on Firestore", e)
         }
         Result.success(Unit)
+    }
+
+    suspend fun deleteChatMessage(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            chatDao.deleteMessage(messageId)
+            firestore.collection("chat_messages").document(messageId).delete()
+            Log.d("FirebaseSync", "Chat message deleted: $messageId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error deleting chat message on Firestore", e)
+            Result.failure(e)
+        }
     }
 
     fun getConversationSummaries(currentUserId: String): Flow<List<ChatConversationSummary>> {

@@ -2,13 +2,16 @@ package com.example.ui.components
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,7 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,18 +41,27 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatBubble(
     message: ChatMessage,
     isSentByMe: Boolean,
     isGroupChat: Boolean = false,
+    isAdmin: Boolean = false,
     onImageClick: (String) -> Unit = {},
     onVideoClick: ((ChatMessage) -> Unit)? = null,
+    onDeleteClick: ((ChatMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var isDownloadingDoc by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showOptionsMenu by remember { mutableStateOf(false) }
+
+    val canDelete = isSentByMe || (isGroupChat && isAdmin)
+
     val bubbleColor = if (isSentByMe) SaffronContainer else SurfaceWarm
     val textColor = if (isSentByMe) Color(0xFF4A1A00) else TextPrimary
     val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
@@ -55,6 +69,57 @@ fun ChatBubble(
 
     val isVoiceMessage = message.attachmentType == "VOICE" || message.attachmentType == "AUDIO"
     val isPlayingThis = AudioPlayerManager.activePlayingMessageId == message.id && AudioPlayerManager.isPlaying
+
+    // Delete Confirmation Dialog
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteForever,
+                    contentDescription = "Delete",
+                    tint = BloodRed,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "मेसेज हटवा (Delete Message)",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = if (isGroupChat && !isSentByMe && isAdmin) {
+                        "मंडळ ॲडमिन अधिकार: '${message.senderName}' यांचा हा मेसेज ग्रुपमधून सर्वांसाठी कायमचा हटवायचा आहे का?"
+                    } else {
+                        "हा संदेश चॅटमधून सर्वांसाठी कायमचा काढून टाकला जाईल. आपण खात्री केली आहे का?"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteClick?.invoke(message)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("हटवा (Delete)")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("रद्द करा")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -107,18 +172,28 @@ fun ChatBubble(
             }
         }
 
-        Surface(
-            shape = RoundedCornerShape(
-                topStart = 14.dp,
-                topEnd = 14.dp,
-                bottomStart = if (isSentByMe) 14.dp else 2.dp,
-                bottomEnd = if (isSentByMe) 2.dp else 14.dp
-            ),
-            color = bubbleColor,
-            shadowElevation = 1.5.dp,
-            modifier = Modifier.widthIn(max = 300.dp)
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Box {
+            Surface(
+                shape = RoundedCornerShape(
+                    topStart = 14.dp,
+                    topEnd = 14.dp,
+                    bottomStart = if (isSentByMe) 14.dp else 2.dp,
+                    bottomEnd = if (isSentByMe) 2.dp else 14.dp
+                ),
+                color = bubbleColor,
+                shadowElevation = 1.5.dp,
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = {
+                            if (canDelete || message.messageText.isNotBlank()) {
+                                showOptionsMenu = true
+                            }
+                        }
+                    )
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
 
                 // 1. IMAGE ATTACHMENT (Natural Aspect Ratio / Original Size)
                 val imageToDisplay = message.attachmentUrl.takeIf { message.attachmentType == "IMAGE" } ?: message.imageUrl
@@ -411,7 +486,7 @@ fun ChatBubble(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // Timestamp & Delivery status
+                // Timestamp & Delivery status & Options
                 Row(
                     modifier = Modifier.align(Alignment.End),
                     verticalAlignment = Alignment.CenterVertically
@@ -430,10 +505,68 @@ fun ChatBubble(
                             modifier = Modifier.size(13.dp)
                         )
                     }
+                    if (canDelete || message.messageText.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(2.dp))
+                        IconButton(
+                            onClick = { showOptionsMenu = true },
+                            modifier = Modifier.size(18.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Options",
+                                tint = TextSecondary.copy(alpha = 0.6f),
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
+
+        // Dropdown Menu for message actions (Delete, Copy)
+        DropdownMenu(
+            expanded = showOptionsMenu,
+            onDismissRequest = { showOptionsMenu = false }
+        ) {
+            if (message.messageText.isNotBlank()) {
+                DropdownMenuItem(
+                    text = { Text("मजकूर कॉपी करा (Copy)") },
+                    leadingIcon = {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                    onClick = {
+                        showOptionsMenu = false
+                        clipboardManager.setText(AnnotatedString(message.messageText))
+                        Toast.makeText(context, "मेसेज कॉपी केला", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+            if (canDelete) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = if (isGroupChat && !isSentByMe && isAdmin) "ग्रुपमधून हटवा (Admin Delete)" else "मेसेज हटवा (Delete)",
+                            color = BloodRed,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = BloodRed,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    onClick = {
+                        showOptionsMenu = false
+                        showDeleteConfirmDialog = true
+                    }
+                )
+            }
+        }
     }
+}
 }
 
 @Composable
