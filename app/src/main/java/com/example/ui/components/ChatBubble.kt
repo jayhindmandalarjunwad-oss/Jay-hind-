@@ -30,6 +30,8 @@ import coil.compose.AsyncImage
 import com.example.data.model.ChatMessage
 import com.example.ui.theme.*
 import com.example.util.AudioPlayerManager
+import com.example.util.MediaUtils
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -43,6 +45,8 @@ fun ChatBubble(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isDownloadingDoc by remember { mutableStateOf(false) }
     val bubbleColor = if (isSentByMe) SaffronContainer else SurfaceWarm
     val textColor = if (isSentByMe) Color(0xFF4A1A00) else TextPrimary
     val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
@@ -231,6 +235,9 @@ fun ChatBubble(
 
                 // 4. DOCUMENT / PDF ATTACHMENT
                 if (message.attachmentType == "DOCUMENT") {
+                    val docUrl = message.attachmentUrl ?: ""
+                    val docName = message.attachmentName ?: "दस्तावेज.pdf"
+
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surface,
@@ -238,18 +245,10 @@ fun ChatBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                val url = message.attachmentUrl ?: "https://example.com"
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                                        if (url.startsWith("content://") || url.startsWith("file://")) {
-                                            setDataAndType(Uri.parse(url), "application/pdf")
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
+                                if (docUrl.isNotBlank()) {
+                                    scope.launch {
+                                        MediaUtils.openDocumentFile(context, docUrl, docName)
                                     }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(if (url.startsWith("http")) url else "https://jayhindmandal.org"))
-                                    context.startActivity(browserIntent)
                                 }
                             }
                     ) {
@@ -276,7 +275,7 @@ fun ChatBubble(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = message.attachmentName ?: "दस्तावेज.pdf",
+                                    text = docName,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = TextPrimary,
@@ -284,7 +283,7 @@ fun ChatBubble(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = message.attachmentExtra ?: "PDF Document • 1.4 MB",
+                                    text = message.attachmentExtra ?: "PDF Document • उघडण्यासाठी टॅप करा",
                                     fontSize = 11.sp,
                                     color = TextSecondary
                                 )
@@ -292,16 +291,34 @@ fun ChatBubble(
 
                             Surface(
                                 shape = CircleShape,
-                                color = SaffronPrimary.copy(alpha = 0.12f),
-                                modifier = Modifier.size(30.dp)
+                                color = if (isDownloadingDoc) SaffronPrimary.copy(alpha = 0.2f) else SaffronPrimary.copy(alpha = 0.12f),
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clickable {
+                                        if (docUrl.isNotBlank() && !isDownloadingDoc) {
+                                            scope.launch {
+                                                isDownloadingDoc = true
+                                                MediaUtils.saveDocumentToDownloads(context, docUrl, docName)
+                                                isDownloadingDoc = false
+                                            }
+                                        }
+                                    }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = "Download",
-                                        tint = SaffronPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    if (isDownloadingDoc) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = SaffronPrimary
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Download,
+                                            contentDescription = "Download to device",
+                                            tint = SaffronPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

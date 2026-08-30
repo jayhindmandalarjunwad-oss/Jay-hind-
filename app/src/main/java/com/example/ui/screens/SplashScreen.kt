@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
@@ -29,6 +30,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(
     isLoggedIn: Boolean,
+    mandalLogoUrl: String? = null,
     onNavigateNext: () -> Unit
 ) {
     var startAnimation by remember { mutableStateOf(false) }
@@ -78,14 +80,25 @@ fun SplashScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_jayhind_logo),
-                        contentDescription = "मंडळ लोगो",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
+                    if (!mandalLogoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = mandalLogoUrl,
+                            contentDescription = "मंडळ लोगो",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_jayhind_logo),
+                            contentDescription = "मंडळ लोगो",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    }
                 }
             }
 

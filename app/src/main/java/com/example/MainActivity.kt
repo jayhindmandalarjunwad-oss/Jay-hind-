@@ -135,6 +135,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                     title = tabTitle,
                     subtitle = tabSubtitle,
                     showBackButton = false,
+                    logoUrl = mandalLogoUrl,
                     actions = {
                         IconButton(onClick = { viewModel.navigateTo(AppScreen.NOTIFICATIONS) }) {
                             BadgedBox(
@@ -175,6 +176,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                 AppScreen.SPLASH -> {
                     SplashScreen(
                         isLoggedIn = currentUser != null,
+                        mandalLogoUrl = mandalLogoUrl,
                         onNavigateNext = {
                             if (currentUser != null) {
                                 viewModel.navigateTo(AppScreen.MAIN)

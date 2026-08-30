@@ -15,6 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -1368,13 +1370,18 @@ fun PostsModerationAdminTab(posts: List<Post>, viewModel: MandalViewModel) {
     }
 }
 
-// 9. MANAGE LOGO
+// 9. MANAGE LOGO (Overhauled with Immediate Live Preview & App-wide simulation)
 @Composable
 fun ManageLogoAdminTab(
     currentLogoUrl: String?,
     viewModel: MandalViewModel
 ) {
-    var logoInputUrl by remember(currentLogoUrl) { mutableStateOf(currentLogoUrl ?: "") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var selectedLogoInput by remember(currentLogoUrl) { mutableStateOf(currentLogoUrl ?: "") }
+    var isSaving by remember { mutableStateOf(false) }
+    var isResetting by remember { mutableStateOf(false) }
+
+    val hasPendingChanges = selectedLogoInput.trim() != (currentLogoUrl ?: "").trim() && selectedLogoInput.isNotBlank()
 
     val presetLogos = listOf(
         "भगवा ध्वज मानचिन्ह" to "https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&auto=format&fit=crop&q=80",
@@ -1389,7 +1396,7 @@ fun ManageLogoAdminTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Current Logo Preview Card
+        // 1. STATUS & COMPARISON CARD (Current vs Preview)
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
@@ -1400,35 +1407,178 @@ fun ManageLogoAdminTab(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "सध्याचा मंडळ लोगो (Current Mandal Logo)",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "येथे सेट केलेला लोगो थेट लॉगिन स्क्रीनवर (Login Page) व सर्व सभासदांना दिसेल.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "मंडळ लोगो नियंत्रण (Logo Manager)",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary
+                    )
+                    if (hasPendingChanges) {
+                        Surface(
+                            color = SaffronPrimary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = SaffronDark, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("बदल प्रलंबित (Preview)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SaffronDark)
+                            }
+                        }
+                    } else {
+                        Surface(
+                            color = SuccessGreen.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("सक्रीय लोगो", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(14.dp))
 
-                MandalLogoBadge(logoUrl = currentLogoUrl, size = 96)
+                // Side-by-side comparison: Active vs Selected Preview
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Current Active Logo
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("सध्याचा लोगो", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        MandalLogoBadge(logoUrl = currentLogoUrl, size = 80)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (currentLogoUrl.isNullOrBlank()) "डीफॉल्ट मानचिन्ह" else "कस्टम लोगो",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = if (currentLogoUrl.isNullOrBlank()) "डीफॉल्ट मंडळ मानचिन्ह (Default Emblem)" else "कस्टम लोगो सक्रीय आहे",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = if (currentLogoUrl.isNullOrBlank()) TextSecondary else SuccessGreen
-                )
+                    // Arrow Icon
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = if (hasPendingChanges) SaffronPrimary else TextSecondary.copy(alpha = 0.4f),
+                        modifier = Modifier.size(28.dp)
+                    )
+
+                    // New Selected Logo Preview
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("नवीन निवडलेला लोगो", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (hasPendingChanges) SaffronDark else TextSecondary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        MandalLogoBadge(logoUrl = selectedLogoInput.ifBlank { currentLogoUrl }, size = 80)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (hasPendingChanges) "⚡ लाइव्ह प्रिव्ह्यू" else "कोणताही बदल नाही",
+                            fontSize = 11.sp,
+                            fontWeight = if (hasPendingChanges) FontWeight.Bold else FontWeight.Normal,
+                            color = if (hasPendingChanges) SaffronPrimary else TextSecondary
+                        )
+                    }
+                }
             }
         }
 
-        // Add / Edit Logo Card
+        // 2. LIVE APP-WIDE PREVIEWS SIMULATION
+        if (hasPendingChanges) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.4f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Visibility, contentDescription = null, tint = SaffronPrimary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "ॲपमधील थेट देखावा (Live App Simulation):",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = SaffronDark
+                        )
+                    }
+
+                    // Mini Top Bar Header simulation
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(10.dp),
+                        shadowElevation = 1.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MandalLogoBadge(logoUrl = selectedLogoInput, size = 36)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("जय हिंद मंडळ अर्जुनवाड", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("ॲप हेडर / Top Bar प्रिव्ह्यू", fontSize = 10.sp, color = TextSecondary)
+                            }
+                        }
+                    }
+
+                    // Mini ID Card Watermark Simulation
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(10.dp),
+                        shadowElevation = 1.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(70.dp)
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = selectedLogoInput,
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .alpha(0.18f)
+                            )
+                            Text(
+                                text = "डिजिटल ओळखपत्र वॉटरमार्क प्रिव्ह्यू",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. SELECT LOGO & ACTIONS CARD
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
@@ -1443,21 +1593,21 @@ fun ManageLogoAdminTab(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "गॅलरीतून लोगो निवडा (Pick Logo from Gallery):",
+                    text = "नवीन लोगो निवडा (Select New Logo):",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = TextPrimary
                 )
 
                 GalleryImagePicker(
-                    selectedImageUrl = logoInputUrl,
-                    onImageSelected = { logoInputUrl = it },
+                    selectedImageUrl = selectedLogoInput,
+                    onImageSelected = { selectedLogoInput = it },
                     label = "गॅलरीतून मंडळ लोगो निवडा",
-                    helperText = "मोबाईल गॅलरीतून मानचिन्ह / लोगो अपलोड करा",
+                    helperText = "मोबाईल गॅलरीतून मानचिन्ह / लोगो अपलोड करा (Auto Compression)",
                     height = 140.dp
                 )
 
                 Text(
-                    text = "किंवा नमुना लोगो पर्याय (Quick Presets):",
+                    text = "किंवा नमुना मानचिन्ह पर्याय (Quick Presets):",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                     color = TextSecondary
                 )
@@ -1468,8 +1618,8 @@ fun ManageLogoAdminTab(
                 ) {
                     presetLogos.forEach { (name, url) ->
                         FilterChip(
-                            selected = logoInputUrl == url,
-                            onClick = { logoInputUrl = url },
+                            selected = selectedLogoInput == url,
+                            onClick = { selectedLogoInput = url },
                             label = { Text(name, fontSize = 11.sp) }
                         )
                     }
@@ -1477,12 +1627,17 @@ fun ManageLogoAdminTab(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                // CONFIRM & SAVE BUTTON
                 Button(
                     onClick = {
-                        if (logoInputUrl.isNotBlank()) {
-                            viewModel.updateMandalLogo(logoInputUrl.trim())
+                        if (selectedLogoInput.isNotBlank()) {
+                            isSaving = true
+                            viewModel.updateMandalLogo(selectedLogoInput.trim()) { success ->
+                                isSaving = false
+                            }
                         }
                     },
+                    enabled = hasPendingChanges && !isSaving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -1490,28 +1645,67 @@ fun ManageLogoAdminTab(
                     colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("लोगो अद्यतनित करा / जतन करा", fontWeight = FontWeight.Bold)
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("लोगो अपलोड व सिंक होत आहे...", fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("नक्की करा व सेव्ह करा (Confirm & Save)", fontWeight = FontWeight.Bold)
+                    }
                 }
 
-                if (!currentLogoUrl.isNullOrBlank()) {
+                // CANCEL BUTTON (Revert back to current logo)
+                if (hasPendingChanges) {
                     OutlinedButton(
                         onClick = {
-                            viewModel.deleteMandalLogo()
-                            logoInputUrl = ""
+                            selectedLogoInput = currentLogoUrl ?: ""
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(46.dp)
+                            .testTag("admin_cancel_logo_button"),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("रद्द करा (Cancel - जुना लोगो ठेवा)", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                // RESET / DELETE CUSTOM LOGO
+                if (!currentLogoUrl.isNullOrBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            isResetting = true
+                            viewModel.deleteMandalLogo {
+                                isResetting = false
+                                selectedLogoInput = ""
+                            }
+                        },
+                        enabled = !isResetting,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
                             .testTag("admin_delete_logo_button"),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = BloodRed),
                         border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = BloodRed)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("लोगो हटवा (Delete Logo - Reset to Default)", fontWeight = FontWeight.Bold, color = BloodRed)
+                        if (isResetting) {
+                            CircularProgressIndicator(color = BloodRed, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("रीसेट होत आहे...", color = BloodRed)
+                        } else {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = BloodRed)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("डीफॉल्ट लोगो सेट करा (Reset to Default)", fontWeight = FontWeight.Bold, color = BloodRed)
+                        }
                     }
                 }
             }

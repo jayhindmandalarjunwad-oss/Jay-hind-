@@ -162,15 +162,27 @@ fun DigitalIdCardView(
                     .padding(14.dp)
             ) {
                 // Subtle Center Watermark Logo
-                Image(
-                    painter = painterResource(id = R.drawable.ic_jayhind_logo),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .size(160.dp)
-                        .align(Alignment.Center)
-                        .alpha(0.09f)
-                )
+                if (!mandalLogoUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = mandalLogoUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(160.dp)
+                            .align(Alignment.Center)
+                            .alpha(0.09f)
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_jayhind_logo),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(160.dp)
+                            .align(Alignment.Center)
+                            .alpha(0.09f)
+                    )
+                }
 
                 Column(modifier = Modifier.fillMaxWidth()) {
                     // Profile Photo + Details Row

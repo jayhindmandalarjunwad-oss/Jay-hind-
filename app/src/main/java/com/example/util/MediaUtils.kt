@@ -2,6 +2,7 @@ package com.example.util
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -13,6 +14,7 @@ import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -264,6 +266,173 @@ object MediaUtils {
                 Toast.makeText(context, "फोटो सेव्ह अयशस्वी: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             }
             false
+        }
+    }
+
+    /**
+     * Saves a PDF or document file (Base64 data or HTTP URL or Content URI) directly to the device's public Downloads folder.
+     * Complies with Scoped Storage for Android 10+ (Q, R, S, Tiramisu, UpsideDownCake, etc.)
+     */
+    suspend fun saveDocumentToDownloads(
+        context: Context,
+        docUrlOrBase64: String,
+        suggestedFileName: String = "JayHind_Document.pdf",
+        mimeType: String = "application/pdf"
+    ): Uri? = withContext(Dispatchers.IO) {
+        try {
+            val cleanName = if (suggestedFileName.contains(".")) suggestedFileName else "$suggestedFileName.pdf"
+            val timestampedName = "${System.currentTimeMillis()}_$cleanName"
+
+            val fileBytes: ByteArray? = when {
+                docUrlOrBase64.startsWith("data:") -> {
+                    val base64Data = docUrlOrBase64.substringAfter("base64,")
+                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                }
+                docUrlOrBase64.startsWith("http://") || docUrlOrBase64.startsWith("https://") -> {
+                    val url = URL(docUrlOrBase64)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connect()
+                    connection.inputStream.use { it.readBytes() }
+                }
+                docUrlOrBase64.startsWith("content://") || docUrlOrBase64.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(docUrlOrBase64))?.use { it.readBytes() }
+                }
+                else -> {
+                    // Try decoding as raw base64 string
+                    try {
+                        Base64.decode(docUrlOrBase64.trim(), Base64.DEFAULT)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            }
+
+            if (fileBytes == null || fileBytes.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "दस्तऐवज डाऊनलोड करता आले नाही", Toast.LENGTH_SHORT).show()
+                }
+                return@withContext null
+            }
+
+            var savedUri: Uri? = null
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, timestampedName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/JayHindMandal")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+
+                val resolver = context.contentResolver
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { stream ->
+                        stream.write(fileBytes)
+                    }
+                    contentValues.clear()
+                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+                    savedUri = uri
+                }
+            } else {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val mandalDir = File(downloadsDir, "JayHindMandal").apply { if (!exists()) mkdirs() }
+                val docFile = File(mandalDir, timestampedName)
+                FileOutputStream(docFile).use { out ->
+                    out.write(fileBytes)
+                }
+                savedUri = Uri.fromFile(docFile)
+            }
+
+            withContext(Dispatchers.Main) {
+                if (savedUri != null) {
+                    Toast.makeText(context, "✅ $cleanName डाऊनलोड फोल्डरमध्ये सेव्ह झाले! 📥", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "दस्तऐवज सेव्ह करण्यात अडचण आली", Toast.LENGTH_SHORT).show()
+                }
+            }
+            savedUri
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Error saving document: ${e.message}", e)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "डाऊनलोड अयशस्वी: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+            null
+        }
+    }
+
+    /**
+     * Opens a document (PDF, doc, etc.) directly using the default PDF reader or external viewer.
+     */
+    suspend fun openDocumentFile(
+        context: Context,
+        docUrlOrBase64: String,
+        fileName: String = "दस्तावेज.pdf",
+        mimeType: String = "application/pdf"
+    ) = withContext(Dispatchers.IO) {
+        try {
+            // First save or cache the file
+            val cacheFile = File(context.cacheDir, "temp_docs").apply { if (!exists()) mkdirs() }
+            val tempFile = File(cacheFile, fileName)
+
+            val fileBytes: ByteArray? = when {
+                docUrlOrBase64.startsWith("data:") -> {
+                    val base64Data = docUrlOrBase64.substringAfter("base64,")
+                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                }
+                docUrlOrBase64.startsWith("http://") || docUrlOrBase64.startsWith("https://") -> {
+                    val url = URL(docUrlOrBase64)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connect()
+                    connection.inputStream.use { it.readBytes() }
+                }
+                docUrlOrBase64.startsWith("content://") || docUrlOrBase64.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(docUrlOrBase64))?.use { it.readBytes() }
+                }
+                else -> {
+                    try {
+                        Base64.decode(docUrlOrBase64.trim(), Base64.DEFAULT)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
+
+            if (fileBytes != null && fileBytes.isNotEmpty()) {
+                FileOutputStream(tempFile).use { it.write(fileBytes) }
+                val contentUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    tempFile
+                )
+
+                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(contentUri, mimeType)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+
+                withContext(Dispatchers.Main) {
+                    try {
+                        context.startActivity(Intent.createChooser(viewIntent, "दस्तऐवज उघडा"))
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "PDF उघडण्यासाठी योग्य ॲप उपलब्ध नाही.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else if (docUrlOrBase64.startsWith("http")) {
+                withContext(Dispatchers.Main) {
+                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(docUrlOrBase64)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(browserIntent)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Error opening document: ${e.message}", e)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "दस्तऐवज उघडता आले नाही: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

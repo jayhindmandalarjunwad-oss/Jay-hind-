@@ -1453,28 +1453,56 @@ class MandalRepository(context: Context) {
     }
 
     // MANDAL LOGO MANAGEMENT
-    fun updateMandalLogo(url: String?) {
+    suspend fun updateMandalLogo(url: String?): Result<Unit> = withContext(Dispatchers.IO) {
         val cleanUrl = url?.trim()?.ifEmpty { null }
-        prefs.edit().putString("mandal_logo_url", cleanUrl).apply()
-        _mandalLogoUrl.value = cleanUrl
-        repositoryScope.launch {
-            try {
-                firestore.collection("mandal_info").document("mandal_default").set(mapOf("logoUrl" to (cleanUrl ?: "")), SetOptions.merge())
-            } catch (e: Exception) {
-                Log.e("FirebaseSync", "Error updating mandal logo on Firestore", e)
+        try {
+            // 1. Update Firestore
+            firestore.collection("mandal_info").document("mandal_default")
+                .set(mapOf("logoUrl" to (cleanUrl ?: "")), SetOptions.merge())
+                .let { com.google.android.gms.tasks.Tasks.await(it) }
+
+            // 2. Update SharedPreferences for instant restart cache
+            if (cleanUrl != null) {
+                prefs.edit().putString("mandal_logo_url", cleanUrl).apply()
+            } else {
+                prefs.edit().remove("mandal_logo_url").apply()
             }
+
+            // 3. Update StateFlow for immediate in-app reactive UI update
+            _mandalLogoUrl.value = cleanUrl
+
+            // 4. Update Local Room DB
+            val existingInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            mandalInfoDao.saveMandalInfo(existingInfo.copy(logoUrl = cleanUrl ?: "", updatedAt = System.currentTimeMillis()))
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating mandal logo on Firestore: ${e.message}", e)
+            Result.failure(e)
         }
     }
 
-    fun deleteMandalLogo() {
-        prefs.edit().remove("mandal_logo_url").apply()
-        _mandalLogoUrl.value = null
-        repositoryScope.launch {
-            try {
-                firestore.collection("mandal_info").document("mandal_default").set(mapOf("logoUrl" to ""), SetOptions.merge())
-            } catch (e: Exception) {
-                Log.e("FirebaseSync", "Error deleting mandal logo on Firestore", e)
-            }
+    suspend fun deleteMandalLogo(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            // 1. Update Firestore
+            firestore.collection("mandal_info").document("mandal_default")
+                .set(mapOf("logoUrl" to ""), SetOptions.merge())
+                .let { com.google.android.gms.tasks.Tasks.await(it) }
+
+            // 2. Remove from SharedPreferences
+            prefs.edit().remove("mandal_logo_url").apply()
+
+            // 3. Reset StateFlow
+            _mandalLogoUrl.value = null
+
+            // 4. Update Local Room DB
+            val existingInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            mandalInfoDao.saveMandalInfo(existingInfo.copy(logoUrl = "", updatedAt = System.currentTimeMillis()))
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error deleting mandal logo on Firestore: ${e.message}", e)
+            Result.failure(e)
         }
     }
 }

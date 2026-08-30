@@ -73,15 +73,28 @@ object IdCardUtils {
      * When scanned by ANY standard mobile camera (Google Lens, Samsung Camera, Apple Camera, etc.)
      * or by the in-app scanner, this instantly displays the member verification info.
      */
+    /**
+     * Creates plain text digital QR verification payload containing only:
+     * - जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड
+     * - Member ID
+     * - Name
+     * - Blood Group
+     * - Status
+     * No URLs, no phone number, no address, no private UIDs.
+     * Scannable by any camera or Google Lens.
+     */
     fun getVerificationPayload(user: User, mandalInfo: MandalInfo? = null): String {
         val memberId = formatMemberId(user)
-        val roleStr = if (user.designation.isNotBlank()) user.designation else if (user.isAdmin) "कार्यकारिणी सदस्य" else "आजीवन सभासद"
-        val encodedName = Uri.encode(user.fullName)
-        val encodedRole = Uri.encode(roleStr)
-        val encodedBlood = Uri.encode(user.bloodGroup.ifBlank { "माहित नाही" })
-        val encodedAddr = Uri.encode(user.address.ifBlank { "अर्जुनवाड, ता. शिरोळ" })
-        
-        return "https://jayhindmandal.arjunwad.org/verify?mid=$memberId&name=$encodedName&role=$encodedRole&mob=${user.mobileNumber}&bg=$encodedBlood&uid=${user.id}&addr=$encodedAddr"
+        val statusStr = if (user.isApproved) "Active Member" else "Pending Member"
+        val blood = user.bloodGroup.ifBlank { "O+" }
+        return """
+जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड
+
+Member ID: $memberId
+Name: ${user.fullName}
+Blood Group: $blood
+Status: $statusStr
+""".trim()
     }
 
     /**
@@ -89,36 +102,72 @@ object IdCardUtils {
      */
     fun getVerificationDisplaySummary(user: User, mandalInfo: MandalInfo? = null): String {
         val memberId = formatMemberId(user)
-        val roleStr = if (user.designation.isNotBlank()) user.designation else if (user.isAdmin) "कार्यकारिणी सदस्य (Admin)" else "सक्रिय सभासद"
-        val regDate = SimpleDateFormat("dd/MM/yyyy", Locale("mr", "IN")).format(Date(user.createdAt))
+        val statusStr = if (user.isApproved) "Active Member" else "Pending Member"
+        val blood = user.bloodGroup.ifBlank { "O+" }
 
         return """
-🚩 जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड 🚩
-(स्थापना १९९६ | नोंदणीकृत सामाजिक संस्था)
+🚩 जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड 🚩
 ━━━━━━━━━━━━━━━━━━━━━
-🆔 सभासद क्रमांक: $memberId
-👤 नाव: ${user.fullName}
-🎖️ पद/हुद्दा: $roleStr
-🩸 रक्तगट: ${user.bloodGroup}
-📱 मोबाईल: ${user.mobileNumber}
-📍 पत्ता: ${user.address}
-📅 नोंदणी तारीख: $regDate
-✅ पडताळणी स्थिती: अधिकृत व सक्रिय सभासद (Verified)
+🆔 Member ID: $memberId
+👤 Name: ${user.fullName}
+🩸 Blood Group: $blood
+✅ Status: $statusStr
 ━━━━━━━━━━━━━━━━━━━━━
-पडताळणी वेळ: ${SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.getDefault()).format(Date())}
-जय हिंद मंडळ, अर्जुनवाड अधिकृत ओळखपत्र
+डिजिटल ओळखपत्र QR व्हेरिफिकेशन
 """.trimIndent()
     }
 
     /**
-     * Parses any scanned QR payload (URL, deep-link, Member ID, phone number, or text)
+     * Parses any scanned QR payload (Plain text, Member ID, or text)
      * and maps it to verified member information.
      */
     fun parseVerificationQrPayload(raw: String, allMembers: List<User>): QrVerificationResult? {
         val trimmed = raw.trim()
         if (trimmed.isBlank()) return null
 
-        // 1. Check if it is a verification URL (e.g. https://jayhindmandal.arjunwad.org/verify?...)
+        // 1. Check if it matches the standard plain text digital QR format
+        if (trimmed.contains("Member ID:") || trimmed.contains("Name:") || trimmed.contains("Blood Group:") || trimmed.contains("जय हिंद")) {
+            val lines = trimmed.lines()
+            var extractedName = ""
+            var extractedMid = ""
+            var extractedBg = ""
+            var extractedStatus = ""
+            var extractedRole = ""
+
+            for (line in lines) {
+                val clean = line.trim()
+                when {
+                    clean.startsWith("Member ID:", ignoreCase = true) -> extractedMid = clean.substringAfter(":").trim()
+                    clean.startsWith("Name:", ignoreCase = true) -> extractedName = clean.substringAfter(":").trim()
+                    clean.startsWith("Blood Group:", ignoreCase = true) -> extractedBg = clean.substringAfter(":").trim()
+                    clean.startsWith("Status:", ignoreCase = true) -> extractedStatus = clean.substringAfter(":").trim()
+                    clean.contains("सभासद क्रमांक:") || clean.contains("आयडी:") -> extractedMid = clean.substringAfter(":").trim()
+                    clean.contains("नाव:") -> extractedName = clean.substringAfter(":").trim()
+                    clean.contains("रक्तगट:") -> extractedBg = clean.substringAfter(":").trim()
+                    clean.contains("पद:") -> extractedRole = clean.substringAfter(":").trim()
+                }
+            }
+
+            val matchedFromText = allMembers.find {
+                (extractedMid.isNotBlank() && formatMemberId(it).equals(extractedMid, ignoreCase = true)) ||
+                (extractedName.isNotBlank() && it.fullName.equals(extractedName, ignoreCase = true))
+            }
+
+            return QrVerificationResult(
+                memberId = extractedMid.ifBlank { matchedFromText?.let { formatMemberId(it) } ?: "JH-2026-MEMBER" },
+                fullName = matchedFromText?.fullName ?: extractedName.ifBlank { "जय हिंद सभासद" },
+                designation = matchedFromText?.designation?.ifBlank { null } ?: extractedStatus.ifBlank { "Active Member" },
+                mobileNumber = matchedFromText?.mobileNumber ?: "",
+                bloodGroup = matchedFromText?.bloodGroup ?: extractedBg,
+                address = matchedFromText?.address ?: "अर्जुनवाड",
+                userId = matchedFromText?.id,
+                matchedUser = matchedFromText,
+                isOfficialMandal = true,
+                rawContent = trimmed
+            )
+        }
+
+        // 2. Check if URL formatted payload
         if (trimmed.contains("/verify") || trimmed.startsWith("mandal://verify") || trimmed.contains("jayhindmandal")) {
             try {
                 val uri = Uri.parse(trimmed)
@@ -130,7 +179,6 @@ object IdCardUtils {
                 val uid = uri.getQueryParameter("uid") ?: ""
                 val addr = uri.getQueryParameter("addr") ?: uri.getQueryParameter("address") ?: "अर्जुनवाड"
 
-                // Try to find exact matching user from local/cloud list
                 val matched = allMembers.find { 
                     (uid.isNotBlank() && it.id == uid) || 
                     (mob.isNotBlank() && it.mobileNumber == mob) ||
@@ -155,7 +203,7 @@ object IdCardUtils {
             }
         }
 
-        // 2. Check if matching by Member ID or Mobile Number or Name directly
+        // 3. Check if matching by Member ID or Mobile Number or Name directly
         val directMatch = allMembers.find {
             it.mobileNumber == trimmed ||
             it.id.equals(trimmed, ignoreCase = true) ||
@@ -173,46 +221,6 @@ object IdCardUtils {
                 address = directMatch.address,
                 userId = directMatch.id,
                 matchedUser = directMatch,
-                isOfficialMandal = true,
-                rawContent = trimmed
-            )
-        }
-
-        // 3. Check if raw string contains Marathi keywords from legacy text payload
-        if (trimmed.contains("जय हिंद") || trimmed.contains("सभासद") || trimmed.contains("नाव:")) {
-            val lines = trimmed.lines()
-            var extractedName = ""
-            var extractedMob = ""
-            var extractedMid = ""
-            var extractedRole = ""
-            var extractedBg = ""
-            var extractedAddr = ""
-
-            for (line in lines) {
-                when {
-                    line.contains("सभासद क्रमांक:") || line.contains("आयडी:") -> extractedMid = line.substringAfter(":").trim()
-                    line.contains("नाव:") -> extractedName = line.substringAfter(":").trim()
-                    line.contains("पद/हुद्दा:") || line.contains("पद:") -> extractedRole = line.substringAfter(":").trim()
-                    line.contains("रक्तगट:") -> extractedBg = line.substringAfter(":").trim()
-                    line.contains("मोबाईल:") -> extractedMob = line.substringAfter(":").trim()
-                    line.contains("पत्ता:") -> extractedAddr = line.substringAfter(":").trim()
-                }
-            }
-
-            val matchedFromText = allMembers.find {
-                (extractedMob.isNotBlank() && it.mobileNumber == extractedMob) ||
-                (extractedName.isNotBlank() && it.fullName.contains(extractedName, ignoreCase = true))
-            }
-
-            return QrVerificationResult(
-                memberId = extractedMid.ifBlank { matchedFromText?.let { formatMemberId(it) } ?: "JH-2026-MEMBER" },
-                fullName = matchedFromText?.fullName ?: extractedName.ifBlank { "जय हिंद सभासद" },
-                designation = matchedFromText?.designation?.ifBlank { null } ?: extractedRole.ifBlank { "सभासद" },
-                mobileNumber = matchedFromText?.mobileNumber ?: extractedMob,
-                bloodGroup = matchedFromText?.bloodGroup ?: extractedBg,
-                address = matchedFromText?.address ?: extractedAddr.ifBlank { "अर्जुनवाड" },
-                userId = matchedFromText?.id,
-                matchedUser = matchedFromText,
                 isOfficialMandal = true,
                 rawContent = trimmed
             )
@@ -316,9 +324,15 @@ object IdCardUtils {
         }
         canvas.drawLine(20f, headerHeight, width - 20f, headerHeight, goldLinePaint)
 
-        // Header Mandal Logo on left
+        // Header Mandal Logo on left (Dynamic custom logo if present, fallback to ic_jayhind_logo)
         try {
-            val logoResBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.ic_jayhind_logo)
+            var logoResBitmap: Bitmap? = null
+            if (!mandalInfo.logoUrl.isNullOrBlank()) {
+                logoResBitmap = MediaUtils.base64ToBitmap(mandalInfo.logoUrl)
+            }
+            if (logoResBitmap == null) {
+                logoResBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.ic_jayhind_logo)
+            }
             if (logoResBitmap != null) {
                 val logoSize = 160
                 val scaledLogo = Bitmap.createScaledBitmap(logoResBitmap, logoSize, logoSize, true)
@@ -369,9 +383,15 @@ object IdCardUtils {
         }
         canvas.drawText("अधिकृत डिजिटल सभासद ओळखपत्र", 240f, 205f, cardTypePaint)
 
-        // 3. Subtle Central Watermark of Mandal Logo
+        // 3. Subtle Central Watermark of Mandal Logo (Dynamic custom logo if present, fallback to ic_jayhind_logo)
         try {
-            val logoRes = BitmapFactory.decodeResource(context.resources, R.drawable.ic_jayhind_logo)
+            var logoRes: Bitmap? = null
+            if (!mandalInfo.logoUrl.isNullOrBlank()) {
+                logoRes = MediaUtils.base64ToBitmap(mandalInfo.logoUrl)
+            }
+            if (logoRes == null) {
+                logoRes = BitmapFactory.decodeResource(context.resources, R.drawable.ic_jayhind_logo)
+            }
             if (logoRes != null) {
                 val wmSize = 620
                 val wmBitmap = Bitmap.createScaledBitmap(logoRes, wmSize, wmSize, true)

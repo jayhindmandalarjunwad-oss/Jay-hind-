@@ -701,18 +701,45 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // MANDAL LOGO MANAGEMENT
-    fun updateMandalLogo(url: String) {
+    fun updateMandalLogo(url: String, onComplete: ((Boolean) -> Unit)? = null) {
         if (url.isBlank()) {
-            showSnackbar("कृपया वैध लोगो URL टाका.")
+            showSnackbar("कृपया वैध लोगो निवडा.")
+            onComplete?.invoke(false)
             return
         }
-        repository.updateMandalLogo(url)
-        showSnackbar("मंडळ लोगो यशस्वीरित्या अद्यतनित करण्यात आला! 🚩")
+        viewModelScope.launch {
+            try {
+                val result = repository.updateMandalLogo(url)
+                if (result.isSuccess) {
+                    showSnackbar("मंडळ लोगो सर्व ॲपमध्ये यशस्वीरित्या अद्यतनित झाला! 🚩")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ लोगो अपडेट करताना त्रुटी आली. कृपया पुन्हा प्रयत्न करा.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
     }
 
-    fun deleteMandalLogo() {
-        repository.deleteMandalLogo()
-        showSnackbar("मंडळ लोगो हटवला गेला आणि डीफॉल्ट लोगो सेट झाला.")
+    fun deleteMandalLogo(onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            try {
+                val result = repository.deleteMandalLogo()
+                if (result.isSuccess) {
+                    showSnackbar("मंडळ लोगो हटवला गेला आणि डीफॉल्ट लोगो सेट झाला.")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ डीफॉल्ट लोगो सेट करताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
     }
 
     // MANDAL BANNERS MANAGEMENT
