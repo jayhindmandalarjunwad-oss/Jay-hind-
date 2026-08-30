@@ -40,7 +40,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentScreen = MutableStateFlow(AppScreen.SPLASH)
     val currentScreen: StateFlow<AppScreen> = _currentScreen.asStateFlow()
 
-    private val _currentTab = MutableStateFlow(NavigationTab.HOME)
+    private val _currentTab = MutableStateFlow(NavigationTab.POSTS)
     val currentTab: StateFlow<NavigationTab> = _currentTab.asStateFlow()
 
     // Mandal Logo State
@@ -222,6 +222,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             res.onSuccess {
                 showSnackbar("स्वागत आहे, ${it.fullName}!")
                 _currentScreen.value = AppScreen.MAIN
+                _currentTab.value = NavigationTab.POSTS
                 refreshAllData(silent = true)
                 onSuccess()
             }.onFailure {

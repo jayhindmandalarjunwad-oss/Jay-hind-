@@ -55,9 +55,7 @@ fun HomeScreen(
     val todayBirthdays by viewModel.todayBirthdays.collectAsStateWithLifecycle()
     val announcements by viewModel.announcements.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
-    val posts by viewModel.posts.collectAsStateWithLifecycle()
     val unreadNotifs by viewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
-    var postToEdit by remember { mutableStateOf<Post?>(null) }
     var showIdCardDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -444,59 +442,9 @@ fun HomeScreen(
             }
         }
 
-        // 7. RECENT POSTS / FEED HIGHLIGHTS
-        item {
-            Column(modifier = Modifier.padding(horizontal = 14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "नवीन पोस्ट्स व अपडेट्स (Recent Feed)",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = TextPrimary
-                    )
-
-                    TextButton(onClick = { viewModel.setNavigationTab(NavigationTab.POSTS) }) {
-                        Text("फीड पहा", color = SaffronPrimary, fontSize = 13.sp)
-                    }
-                }
-            }
-        }
-
-        // Feed items
-        items(posts.take(3), key = { it.id }) { post ->
-            PostItemCard(
-                post = post,
-                currentUser = currentUser,
-                onLikeClick = { viewModel.toggleLike(post.id) },
-                onCommentClick = { viewModel.openComments(post) },
-                onDeleteClick = { viewModel.deletePost(post.id) },
-                onEditClick = { postToEdit = post },
-                onImageClick = { viewModel.openFullscreenPhoto(it) },
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-        }
-
         item {
             Spacer(modifier = Modifier.height(80.dp))
         }
-    }
-
-    if (postToEdit != null) {
-        CreatePostDialog(
-            currentUser = currentUser,
-            initialPost = postToEdit,
-            onDismiss = { postToEdit = null },
-            onPostCreated = { content, imageUrl, videoUrl ->
-                postToEdit?.let { target ->
-                    viewModel.updatePost(target.id, content, imageUrl, videoUrl) {
-                        postToEdit = null
-                    }
-                }
-            }
-        )
     }
 
     if (showIdCardDialog && currentUser != null) {

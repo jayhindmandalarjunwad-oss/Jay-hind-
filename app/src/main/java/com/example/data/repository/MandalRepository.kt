@@ -40,8 +40,75 @@ class MandalRepository(context: Context) {
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
 
-    // Current logged-in user state (Starts null on fresh download to show Login Panel)
-    private val _currentUser = MutableStateFlow<User?>(null)
+    private fun loadUserFromPrefs(): User? {
+        val id = prefs.getString("logged_user_id", null) ?: return null
+        if (id.isBlank()) return null
+        val name = prefs.getString("logged_user_name", "") ?: ""
+        val mobile = prefs.getString("logged_user_mobile", "") ?: ""
+        val pass = prefs.getString("logged_user_pass", "") ?: ""
+        val role = prefs.getString("logged_user_role", "MEMBER") ?: "MEMBER"
+        val photo = prefs.getString("logged_user_photo", "") ?: ""
+        val status = prefs.getString("logged_user_status", "APPROVED") ?: "APPROVED"
+        val gender = prefs.getString("logged_user_gender", "पुरुष") ?: "पुरुष"
+        val blood = prefs.getString("logged_user_blood", "O+") ?: "O+"
+        val dob = prefs.getString("logged_user_dob", "1998-08-22") ?: "1998-08-22"
+        val address = prefs.getString("logged_user_address", "") ?: ""
+        val designation = prefs.getString("logged_user_designation", "सभासद") ?: "सभासद"
+
+        if (status != "APPROVED") return null
+
+        return User(
+            id = id,
+            fullName = name.ifEmpty { "सभासद" },
+            mobileNumber = mobile,
+            password = pass,
+            profilePhotoUrl = photo,
+            gender = gender,
+            bloodGroup = blood,
+            dateOfBirth = dob,
+            address = address,
+            role = role,
+            designation = designation,
+            status = status
+        )
+    }
+
+    private fun saveUserToPrefs(user: User?) {
+        if (user != null) {
+            prefs.edit()
+                .putString("logged_user_id", user.id)
+                .putString("logged_user_name", user.fullName)
+                .putString("logged_user_mobile", user.mobileNumber)
+                .putString("logged_user_pass", user.password)
+                .putString("logged_user_role", user.role)
+                .putString("logged_user_photo", user.profilePhotoUrl)
+                .putString("logged_user_status", user.status)
+                .putString("logged_user_gender", user.gender)
+                .putString("logged_user_blood", user.bloodGroup)
+                .putString("logged_user_dob", user.dateOfBirth)
+                .putString("logged_user_address", user.address)
+                .putString("logged_user_designation", user.designation)
+                .apply()
+        } else {
+            prefs.edit()
+                .remove("logged_user_id")
+                .remove("logged_user_name")
+                .remove("logged_user_mobile")
+                .remove("logged_user_pass")
+                .remove("logged_user_role")
+                .remove("logged_user_photo")
+                .remove("logged_user_status")
+                .remove("logged_user_gender")
+                .remove("logged_user_blood")
+                .remove("logged_user_dob")
+                .remove("logged_user_address")
+                .remove("logged_user_designation")
+                .apply()
+        }
+    }
+
+    // Current logged-in user state (Persisted across restarts)
+    private val _currentUser = MutableStateFlow<User?>(loadUserFromPrefs())
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
     // Firebase live connection / status tracking
@@ -74,12 +141,14 @@ class MandalRepository(context: Context) {
         repositoryScope.launch {
             seedDatabaseIfEmpty()
             forceSyncFromFirebase()
-            // Check if user previously logged in on this device
+            // Refresh current user from database
             val savedUserId = prefs.getString("logged_user_id", null)
             if (!savedUserId.isNullOrBlank()) {
                 val savedUser = userDao.getUserById(savedUserId)
                 if (savedUser != null && savedUser.status == "APPROVED") {
-                    _currentUser.value = savedUser.toDomain()
+                    val domain = savedUser.toDomain()
+                    _currentUser.value = domain
+                    saveUserToPrefs(domain)
                 }
             }
         }
@@ -205,42 +274,61 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            // Cleanup obsolete dummy banners from local DB
+            // Cleanup obsolete dummy banners, posts, albums, photos, videos, events, announcements, and mock chat messages from local DB
             bannerDao.deleteBanner("banner_1")
             bannerDao.deleteBanner("banner_2")
             bannerDao.deleteBanner("banner_3")
+            postDao.deletePost("post_1")
+            galleryDao.deleteAlbum("album_1")
+            galleryDao.deleteAlbum("album_2")
+            galleryDao.deleteAlbum("album_3")
+            galleryDao.deleteAlbum("album_4")
+            galleryDao.deletePhoto("ph_1")
+            galleryDao.deletePhoto("ph_2")
+            galleryDao.deletePhoto("ph_3")
+            galleryDao.deletePhoto("ph_4")
+            galleryDao.deletePhoto("ph_5")
+            galleryDao.deleteVideo("vid_1")
+            galleryDao.deleteVideo("vid_2")
+            galleryDao.deleteVideo("vid_3")
+            eventDao.deleteEvent("event_1")
+            eventDao.deleteEvent("event_2")
+            eventDao.deleteEvent("event_3")
+            announcementDao.deleteAnnouncement("ann_1")
+            chatDao.deleteMessage("msg_group_1")
+            chatDao.deleteMessage("msg_group_2")
+            chatDao.deleteMessage("msg_group_3")
 
             // Sync default Admin and initial content to Firebase Firestore if not present
             try {
-                // Also purge obsolete banners on Firestore
+                // Also purge obsolete built-ins on Firestore
                 firestore.collection("banners").document("banner_1").delete()
                 firestore.collection("banners").document("banner_2").delete()
                 firestore.collection("banners").document("banner_3").delete()
+                firestore.collection("posts").document("post_1").delete()
+                firestore.collection("albums").document("album_1").delete()
+                firestore.collection("albums").document("album_2").delete()
+                firestore.collection("albums").document("album_3").delete()
+                firestore.collection("albums").document("album_4").delete()
+                firestore.collection("photos").document("ph_1").delete()
+                firestore.collection("photos").document("ph_2").delete()
+                firestore.collection("photos").document("ph_3").delete()
+                firestore.collection("photos").document("ph_4").delete()
+                firestore.collection("photos").document("ph_5").delete()
+                firestore.collection("videos").document("vid_1").delete()
+                firestore.collection("videos").document("vid_2").delete()
+                firestore.collection("videos").document("vid_3").delete()
+                firestore.collection("events").document("event_1").delete()
+                firestore.collection("events").document("event_2").delete()
+                firestore.collection("events").document("event_3").delete()
+                firestore.collection("announcements").document("ann_1").delete()
+                firestore.collection("chat_messages").document("msg_group_1").delete()
+                firestore.collection("chat_messages").document("msg_group_2").delete()
+                firestore.collection("chat_messages").document("msg_group_3").delete()
 
                 val adminDoc = Tasks.await(firestore.collection("users").document("admin_1").get())
                 if (!adminDoc.exists()) {
                     Tasks.await(firestore.collection("users").document("admin_1").set(SeedData.defaultAdmin.toMap(), SetOptions.merge()))
-                    for (post in SeedData.seedPosts) {
-                        firestore.collection("posts").document(post.id).set(post.toMap(), SetOptions.merge())
-                    }
-                    for (banner in SeedData.seedBanners) {
-                        firestore.collection("banners").document(banner.id).set(banner.toMap(), SetOptions.merge())
-                    }
-                    for (album in SeedData.seedAlbums) {
-                        firestore.collection("albums").document(album.id).set(album.toMap(), SetOptions.merge())
-                    }
-                    for (photo in SeedData.seedPhotos) {
-                        firestore.collection("photos").document(photo.id).set(photo.toMap(), SetOptions.merge())
-                    }
-                    for (video in SeedData.seedVideos) {
-                        firestore.collection("videos").document(video.id).set(video.toMap(), SetOptions.merge())
-                    }
-                    for (event in SeedData.seedEvents) {
-                        firestore.collection("events").document(event.id).set(event.toMap(), SetOptions.merge())
-                    }
-                    for (ann in SeedData.seedAnnouncements) {
-                        firestore.collection("announcements").document(ann.id).set(ann.toMap(), SetOptions.merge())
-                    }
                     firestore.collection("mandal_info").document("mandal_default").set(SeedData.defaultMandalInfo.toMap(), SetOptions.merge())
                 }
             } catch (e: Exception) {
@@ -522,13 +610,13 @@ class MandalRepository(context: Context) {
         }
 
         val domainUser = user.toDomain()
-        prefs.edit().putString("logged_user_id", domainUser.id).apply()
+        saveUserToPrefs(domainUser)
         _currentUser.value = domainUser
         Result.success(domainUser)
     }
 
     fun logout() {
-        prefs.edit().remove("logged_user_id").apply()
+        saveUserToPrefs(null)
         _currentUser.value = null
     }
 

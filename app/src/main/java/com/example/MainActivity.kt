@@ -180,6 +180,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                         onNavigateNext = {
                             if (currentUser != null) {
                                 viewModel.navigateTo(AppScreen.MAIN)
+                                viewModel.setNavigationTab(NavigationTab.POSTS)
                             } else {
                                 viewModel.navigateTo(AppScreen.LOGIN)
                             }
