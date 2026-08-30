@@ -209,6 +209,14 @@ fun PendingApprovalsTab(pendingList: List<User>, viewModel: MandalViewModel) {
                                     color = SaffronPrimary,
                                     fontWeight = FontWeight.SemiBold
                                 )
+                                if (user.password.isNotBlank()) {
+                                    Text(
+                                        text = "🔑 पासवर्ड: ${user.password}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF92400E),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 
@@ -902,8 +910,21 @@ fun EditAboutUsAdminTab(mandalInfo: MandalInfo, viewModel: MandalViewModel) {
 // 4. ALL MEMBERS & ADMIN ROLE MANAGEMENT
 @Composable
 fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var memberToManage by remember { mutableStateOf<User?>(null) }
     var memberToChangeRole by remember { mutableStateOf<User?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredMembers = remember(members, searchQuery) {
+        if (searchQuery.isBlank()) {
+            members
+        } else {
+            members.filter {
+                it.fullName.contains(searchQuery, ignoreCase = true) ||
+                it.mobileNumber.contains(searchQuery)
+            }
+        }
+    }
 
     // Dialog for Delete & Transfer
     if (memberToManage != null) {
@@ -1036,7 +1057,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "ॲडमिन बदलणे (Change Admin): तुम्ही कोणत्याही पात्र सभासदाला ॲडमिन बनवू शकता किंवा ॲडमिन बदलू शकता.",
+                        text = "सभासद क्रेडेंशियल्स व ॲडमिन व्यवस्थापन: सदस्यांचा मोबाईल व पासवर्ड पाहू शकता (पासवर्ड विसरल्यास मदत करण्यासाठी).",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF4C1D95),
                         fontWeight = FontWeight.Medium
@@ -1045,15 +1066,37 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
             }
         }
 
+        // Search Bar
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("नाव किंवा मोबाईल नंबरने शोधा...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaffronPrimary) },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         item {
             Text(
-                text = "एकूण नोंदणीकृत सभासद: ${members.size}",
+                text = "एकूण नोंदणीकृत सभासद: ${filteredMembers.size} / ${members.size}",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = TextSecondary
             )
         }
 
-        items(members, key = { it.id }) { member ->
+        items(filteredMembers, key = { it.id }) { member ->
+            var isPasswordVisible by remember { mutableStateOf(false) }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -1083,12 +1126,100 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                                     }
                                 }
                             }
-                            Text(text = "मोबाईल: ${member.mobileNumber}", fontSize = 12.sp, color = TextSecondary)
+                            Text(text = "📱 मोबाईल: ${member.mobileNumber}", fontSize = 12.sp, color = TextSecondary)
                             Spacer(modifier = Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 StatusBadge(status = member.status)
                                 Spacer(modifier = Modifier.width(6.dp))
                                 BloodGroupBadge(bloodGroup = member.bloodGroup)
+                                if (member.dateOfBirth.isNotBlank()) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "🎂 ${member.dateOfBirth}",
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // PASSWORD & CREDENTIALS INFO CARD (FOR ADMIN ASSISTANCE)
+                    Surface(
+                        color = Color(0xFFFFFBEB),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDE68A)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Key,
+                                    contentDescription = "पासवर्ड",
+                                    tint = Color(0xFFD97706),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "लॉगिन पासवर्ड (Password):",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF92400E),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (isPasswordVisible) {
+                                            member.password.ifBlank { "उपलब्ध नाही" }
+                                        } else {
+                                            "•••••••• (${member.password.length} अक्षरे)"
+                                        },
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF78350F),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { isPasswordVisible = !isPasswordVisible },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = "पासवर्ड दाखवा",
+                                        tint = Color(0xFFD97706),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("Password", member.password)
+                                        clipboard?.setPrimaryClip(clip)
+                                        viewModel.showSnackbar("${member.fullName} यांचा पासवर्ड कॉपी केला! 📋")
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "कॉपी",
+                                        tint = Color(0xFFD97706),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1195,10 +1326,13 @@ fun CreateEventAdminTab(events: List<MandalEvent>, viewModel: MandalViewModel) {
                 )
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    MandalDatePickerField(
                         value = date,
                         onValueChange = { date = it },
-                        label = { Text("दिनांक (Date)") },
+                        label = "दिनांक (Date)",
+                        placeholder = "तारीख निवडा",
+                        isIsoFormat = false,
+                        isDob = false,
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(

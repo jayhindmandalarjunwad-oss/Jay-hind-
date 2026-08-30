@@ -345,11 +345,13 @@ fun EditProfileDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
+                MandalDatePickerField(
                     value = dob,
                     onValueChange = { dob = it },
-                    label = { Text("जन्म तारीख (YYYY-MM-DD)") },
-                    singleLine = true,
+                    label = "जन्म तारीख (DOB)",
+                    placeholder = "कॅलेंडरमधून जन्मतारीख निवडा",
+                    isIsoFormat = true,
+                    isDob = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(

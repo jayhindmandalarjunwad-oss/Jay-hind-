@@ -33,9 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.R
-import com.example.ui.components.GalleryImagePicker
-import com.example.ui.components.MandalLogoBadge
-import com.example.ui.components.MemberAvatar
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
 
@@ -346,14 +344,14 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    OutlinedTextField(
+                    MandalDatePickerField(
                         value = regDob,
                         onValueChange = { regDob = it },
-                        label = { Text("जन्म तारीख (YYYY-MM-DD)") },
-                        leadingIcon = { Icon(Icons.Default.Cake, contentDescription = null, tint = SaffronPrimary) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        singleLine = true
+                        label = "जन्म तारीख (DOB)",
+                        placeholder = "कॅलेंडरमधून जन्मतारीख निवडा",
+                        isIsoFormat = true,
+                        isDob = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))

@@ -356,10 +356,13 @@ fun AddEditEventDialog(
                     label = { Text("कार्यक्रमाचे नाव") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
+                MandalDatePickerField(
                     value = date,
                     onValueChange = { date = it },
-                    label = { Text("तारीख (उदा. 15 सप्टेंबर 2026)") },
+                    label = "तारीख (Date)",
+                    placeholder = "कॅलेंडरमधून कार्यक्रमाची तारीख निवडा",
+                    isIsoFormat = false,
+                    isDob = false,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
