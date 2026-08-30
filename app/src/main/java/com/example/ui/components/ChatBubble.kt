@@ -120,18 +120,36 @@ fun ChatBubble(
         ) {
             Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
 
-                // 1. IMAGE ATTACHMENT
+                // 1. IMAGE ATTACHMENT (Natural Aspect Ratio / Original Size)
                 val imageToDisplay = message.attachmentUrl.takeIf { message.attachmentType == "IMAGE" } ?: message.imageUrl
                 if (!imageToDisplay.isNullOrBlank()) {
-                    UniversalAsyncImage(
-                        model = imageToDisplay,
-                        contentDescription = "Chat Image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
+                    val bitmap = remember(imageToDisplay) {
+                        if (imageToDisplay.startsWith("data:") || imageToDisplay.length > 80) {
+                            MediaUtils.base64ToBitmap(imageToDisplay)
+                        } else null
+                    }
+
+                    val imageModifier = if (bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
+                        val rawRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                        val safeRatio = rawRatio.coerceIn(0.45f, 2.5f)
+                        Modifier
                             .fillMaxWidth()
-                            .height(175.dp)
+                            .aspectRatio(safeRatio)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { onImageClick(imageToDisplay) }
+                    } else {
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 140.dp, max = 340.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onImageClick(imageToDisplay) }
+                    }
+
+                    UniversalAsyncImage(
+                        model = bitmap ?: imageToDisplay,
+                        contentDescription = "Chat Image",
+                        contentScale = ContentScale.Fit,
+                        modifier = imageModifier
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                 }

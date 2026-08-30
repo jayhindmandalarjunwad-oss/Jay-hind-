@@ -1743,8 +1743,8 @@ fun ChatDetailScreen(
                     .background(Color.Black.copy(alpha = 0.92f)),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = previewImageUrl,
+                UniversalAsyncImage(
+                    model = previewImageUrl ?: "",
                     contentDescription = "Fullscreen Photo",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
