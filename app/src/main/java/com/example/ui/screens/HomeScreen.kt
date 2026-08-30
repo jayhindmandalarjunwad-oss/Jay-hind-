@@ -532,7 +532,7 @@ fun GroupBannerCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(
+            UniversalAsyncImage(
                 model = banner.imageUrl,
                 contentDescription = banner.title,
                 contentScale = ContentScale.Crop,

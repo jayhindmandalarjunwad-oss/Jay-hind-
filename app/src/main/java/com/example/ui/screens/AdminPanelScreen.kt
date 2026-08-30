@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -285,7 +286,7 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
                         text = "बॅनर फोटो निवडा (Image Selection):",
@@ -300,6 +301,78 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
                         helperText = "मोबाईलमधून किंवा कॅमेऱ्याने बॅनर इमेज निवडा",
                         height = 130.dp
                     )
+
+                    // Real-time Live Preview inside Dialog
+                    if (bannerImageUrl.isNotBlank()) {
+                        Text(
+                            text = "थेट ॲप प्रिव्ह्यू (Live App Preview):",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = SaffronDark
+                        )
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = SaffronPrimary),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                UniversalAsyncImage(
+                                    model = bannerImageUrl,
+                                    contentDescription = "Preview",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color.Black.copy(alpha = 0.25f),
+                                                    SaffronDark.copy(alpha = 0.85f)
+                                                )
+                                            )
+                                        )
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color.White.copy(alpha = 0.25f)
+                                    ) {
+                                        Text(
+                                            text = "🚩 मंडळ बॅनर प्रिव्ह्यू",
+                                            color = Color.White,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            text = if (bannerTitle.isNotBlank()) bannerTitle else "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = if (bannerSubtitle.isNotBlank()) bannerSubtitle else "अर्जुनवाड • एकता, संस्कृती आणि सामाजिक विकास",
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            fontSize = 10.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     OutlinedTextField(
                         value = bannerTitle,
@@ -388,8 +461,9 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
         modifier = Modifier
             .fillMaxSize()
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // Add Button
         item {
             Button(
                 onClick = {
@@ -407,6 +481,100 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("नवीन बॅनर जोडा (+ Add New Banner)", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // Live Real-Time Banner Preview for Admin
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "👀 सभासदांना दिसणारा थेट बॅनर देखावा (Live App Preview)",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = SaffronDark
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val activeBanner = banners.firstOrNull()
+                    val previewImage = activeBanner?.imageUrl ?: "https://images.unsplash.com/photo-1532375810709-75b1da00537c?w=800&auto=format&fit=crop&q=80"
+                    val previewTitle = activeBanner?.title?.ifEmpty { null } ?: "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ"
+                    val previewSubtitle = activeBanner?.subtitle?.ifEmpty { null } ?: "अर्जुनवाड • एकता, संस्कृती आणि सामाजिक विकास"
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SaffronPrimary),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            UniversalAsyncImage(
+                                model = previewImage,
+                                contentDescription = "Active Banner Preview",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Black.copy(alpha = 0.25f),
+                                                SaffronDark.copy(alpha = 0.85f)
+                                            )
+                                        )
+                                    )
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color.White.copy(alpha = 0.25f)
+                                ) {
+                                    Text(
+                                        text = "🚩 होम स्क्रीन थेट बॅनर",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = previewTitle,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = previewSubtitle,
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 11.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -444,7 +612,7 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
                 ) {
                     Column {
                         Box(modifier = Modifier.fillMaxWidth().height(140.dp)) {
-                            AsyncImage(
+                            UniversalAsyncImage(
                                 model = banner.imageUrl,
                                 contentDescription = banner.title,
                                 contentScale = ContentScale.Crop,

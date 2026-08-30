@@ -42,6 +42,7 @@ fun ChatBubble(
     isSentByMe: Boolean,
     isGroupChat: Boolean = false,
     onImageClick: (String) -> Unit = {},
+    onVideoClick: ((ChatMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -70,7 +71,7 @@ fun ChatBubble(
                     .padding(bottom = 3.dp, start = 4.dp)
             ) {
                 if (!message.senderPhotoUrl.isNullOrBlank()) {
-                    AsyncImage(
+                    UniversalAsyncImage(
                         model = message.senderPhotoUrl,
                         contentDescription = message.senderName,
                         contentScale = ContentScale.Crop,
@@ -156,23 +157,10 @@ fun ChatBubble(
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color.Black.copy(alpha = 0.8f))
                             .clickable {
-                                val url = message.attachmentUrl ?: "https://www.youtube.com"
-                                try {
-                                    val uri = Uri.parse(url)
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        if (url.startsWith("content://") || url.startsWith("file://")) {
-                                            setDataAndType(uri, "video/*")
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        } else {
-                                            data = uri
-                                        }
-                                    }
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    try {
-                                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(if (url.startsWith("http")) url else "https://youtube.com"))
-                                        context.startActivity(browserIntent)
-                                    } catch (_: Exception) {}
+                                if (onVideoClick != null) {
+                                    onVideoClick(message)
+                                } else {
+                                    MediaUtils.openVideo(context, message.attachmentUrl ?: "")
                                 }
                             },
                         contentAlignment = Alignment.Center

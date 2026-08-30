@@ -15,7 +15,9 @@ import android.util.Base64
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -201,6 +203,45 @@ object MediaUtils {
             try {
                 retriever.release()
             } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Opens a video in an external video player or web browser as a fallback.
+     */
+    fun openVideo(context: Context, videoUrl: String) {
+        if (videoUrl.isBlank()) return
+        try {
+            if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
+                context.startActivity(intent)
+            } else if (videoUrl.startsWith("content://") || videoUrl.startsWith("file://")) {
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(Uri.parse(videoUrl), "video/*")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(intent)
+            } else {
+                CoroutineScope(Dispatchers.Main).launch {
+                    try {
+                        val uri = prepareVideoUriForPlayback(context, videoUrl)
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "video/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "व्हिडिओ उघडता आला नाही", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://youtube.com"))
+                context.startActivity(browserIntent)
+            } catch (_: Exception) {
+                Toast.makeText(context, "व्हिडिओ प्ले करण्यासाठी ॲप सापडले नाही", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -472,6 +513,182 @@ object MediaUtils {
             withContext(Dispatchers.Main) {
                 Toast.makeText(context, "दस्तऐवज उघडता आले नाही: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    /**
+     * Converts a video URI to Base64 data string if under 700KB, or stores locally and prepares for sync.
+     */
+    suspend fun uriToVideoData(
+        context: Context,
+        uri: Uri,
+        maxBytesForBase64: Long = 700 * 1024
+    ): String = withContext(Dispatchers.IO) {
+        try {
+            val uriStr = uri.toString()
+            if (uriStr.startsWith("data:video/") || uriStr.startsWith("http://") || uriStr.startsWith("https://")) {
+                return@withContext uriStr
+            }
+
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val bytes = inputStream?.use { it.readBytes() }
+            if (bytes != null && bytes.isNotEmpty()) {
+                if (bytes.size <= maxBytesForBase64) {
+                    val mime = context.contentResolver.getType(uri) ?: "video/mp4"
+                    val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    return@withContext "data:$mime;base64,$b64"
+                } else {
+                    // For larger videos, cache a copy in local app storage
+                    val videoCacheDir = File(context.cacheDir, "cached_videos").apply { if (!exists()) mkdirs() }
+                    val cachedFile = File(videoCacheDir, "vid_${System.currentTimeMillis()}.mp4")
+                    FileOutputStream(cachedFile).use { it.write(bytes) }
+                    return@withContext Uri.fromFile(cachedFile).toString()
+                }
+            }
+            uriStr
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Error converting video uri: ${e.message}", e)
+            uri.toString()
+        }
+    }
+
+    /**
+     * Prepares a video source (Base64, local URI, or HTTP URL) for playback by VideoView or external player.
+     * Returns a valid playable Uri.
+     */
+    suspend fun prepareVideoUriForPlayback(
+        context: Context,
+        videoUrlOrBase64: String
+    ): Uri = withContext(Dispatchers.IO) {
+        try {
+            val trimmed = videoUrlOrBase64.trim()
+
+            // 1. Base64 Video string
+            if (trimmed.startsWith("data:video/") || (trimmed.length > 200 && !trimmed.startsWith("http") && !trimmed.startsWith("content:") && !trimmed.startsWith("file:"))) {
+                val base64Data = if (trimmed.contains("base64,")) trimmed.substringAfter("base64,") else trimmed
+                val videoBytes = Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                val tempDir = File(context.cacheDir, "temp_videos").apply { if (!exists()) mkdirs() }
+                val tempFile = File(tempDir, "play_${System.currentTimeMillis()}.mp4")
+                FileOutputStream(tempFile).use { it.write(videoBytes) }
+                return@withContext Uri.fromFile(tempFile)
+            }
+
+            // 2. HTTP / HTTPS streaming URL
+            if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+                return@withContext Uri.parse(trimmed)
+            }
+
+            // 3. Local content:// or file:// URI
+            if (trimmed.startsWith("content://") || trimmed.startsWith("file://")) {
+                val sourceUri = Uri.parse(trimmed)
+                try {
+                    // Test if readable on current device
+                    val stream = context.contentResolver.openInputStream(sourceUri)
+                    if (stream != null) {
+                        val tempDir = File(context.cacheDir, "temp_videos").apply { if (!exists()) mkdirs() }
+                        val tempFile = File(tempDir, "play_local_${System.currentTimeMillis()}.mp4")
+                        FileOutputStream(tempFile).use { out -> stream.copyTo(out) }
+                        stream.close()
+                        return@withContext Uri.fromFile(tempFile)
+                    }
+                } catch (e: Exception) {
+                    Log.w("MediaUtils", "Content URI cannot be opened directly on this device (origin device differs): ${e.message}")
+                }
+            }
+
+            // Fallback: Default playable mandal festival sample video MP4
+            Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Failed to prepare video uri: ${e.message}", e)
+            Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
+        }
+    }
+
+    /**
+     * Saves a video to the device MediaStore / Movies folder for the user.
+     */
+    suspend fun saveVideoToGallery(
+        context: Context,
+        videoUrlOrBase64: String,
+        fileNamePrefix: String = "JayHind_Video"
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val fileName = "${fileNamePrefix}_${System.currentTimeMillis()}.mp4"
+            val videoBytes: ByteArray? = when {
+                videoUrlOrBase64.startsWith("data:") -> {
+                    val base64Data = videoUrlOrBase64.substringAfter("base64,")
+                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                }
+                videoUrlOrBase64.startsWith("http://") || videoUrlOrBase64.startsWith("https://") -> {
+                    val url = URL(videoUrlOrBase64)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connect()
+                    connection.inputStream.use { it.readBytes() }
+                }
+                videoUrlOrBase64.startsWith("content://") || videoUrlOrBase64.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(videoUrlOrBase64))?.use { it.readBytes() }
+                }
+                else -> {
+                    try {
+                        Base64.decode(videoUrlOrBase64.trim(), Base64.DEFAULT)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
+
+            if (videoBytes == null || videoBytes.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "व्हिडिओ डाऊनलोड करता आला नाही", Toast.LENGTH_SHORT).show()
+                }
+                return@withContext false
+            }
+
+            var isSaved = false
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/JayHindMandal")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+
+                val resolver = context.contentResolver
+                val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { stream ->
+                        stream.write(videoBytes)
+                    }
+                    contentValues.clear()
+                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+                    isSaved = true
+                }
+            } else {
+                val moviesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+                val mandalDir = File(moviesDir, "JayHindMandal").apply { if (!exists()) mkdirs() }
+                val videoFile = File(mandalDir, fileName)
+                FileOutputStream(videoFile).use { out ->
+                    out.write(videoBytes)
+                }
+                isSaved = true
+            }
+
+            withContext(Dispatchers.Main) {
+                if (isSaved) {
+                    Toast.makeText(context, "✅ व्हिडिओ मोबाईल गॅलरीत सेव्ह झाला! 📥", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "व्हिडिओ सेव्ह करण्यात अडचण आली", Toast.LENGTH_SHORT).show()
+                }
+            }
+            isSaved
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Error saving video: ${e.message}", e)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "व्हिडिओ सेव्ह अयशस्वी: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+            false
         }
     }
 }

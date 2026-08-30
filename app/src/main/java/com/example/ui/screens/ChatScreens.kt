@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.model.ChatMessage
 import com.example.data.model.ChatConversationSummary
+import com.example.ui.components.VideoPlayerDialog
 import com.example.data.model.User
 import com.example.ui.components.*
 import com.example.ui.theme.*
@@ -803,6 +804,7 @@ fun ChatDetailScreen(
     var showContactDialog by remember { mutableStateOf(false) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var isSavingPhoto by remember { mutableStateOf(false) }
+    var playingVideoMessage by remember { mutableStateOf<ChatMessage?>(null) }
 
     // Direct Gallery Launchers
     val photoGalleryLauncher = rememberLauncherForActivityResult(
@@ -825,12 +827,14 @@ fun ChatDetailScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
+                Toast.makeText(context, "व्हिडिओ तयार होत आहे...", Toast.LENGTH_SHORT).show()
                 val thumbBase64 = MediaUtils.getVideoThumbnailBase64(context, uri) ?: ""
+                val videoData = MediaUtils.uriToVideoData(context, uri)
                 viewModel.sendChatMessage(
                     text = "",
                     attachmentType = "VIDEO",
-                    attachmentUrl = uri.toString(),
-                    attachmentName = "गॅलरी व्हिडिओ",
+                    attachmentUrl = videoData,
+                    attachmentName = "व्हिडिओ",
                     attachmentExtra = thumbBase64
                 )
             }
@@ -1209,7 +1213,8 @@ fun ChatDetailScreen(
                             message = msg,
                             isSentByMe = isMe,
                             isGroupChat = isGroupChat,
-                            onImageClick = { previewImageUrl = it }
+                            onImageClick = { previewImageUrl = it },
+                            onVideoClick = { playingVideoMessage = it }
                         )
                     }
                 }
@@ -1805,6 +1810,18 @@ fun ChatDetailScreen(
                 }
             }
         }
+    }
+
+    // In-App Video Player Dialog (WhatsApp-style)
+    if (playingVideoMessage != null) {
+        val videoMsg = playingVideoMessage!!
+        VideoPlayerDialog(
+            videoUrl = videoMsg.attachmentUrl ?: "",
+            title = videoMsg.attachmentName ?: if (videoMsg.messageText.isNotBlank()) videoMsg.messageText else "व्हिडिओ",
+            senderName = videoMsg.senderName,
+            thumbnailUrl = videoMsg.attachmentExtra,
+            onDismiss = { playingVideoMessage = null }
+        )
     }
 }
 
