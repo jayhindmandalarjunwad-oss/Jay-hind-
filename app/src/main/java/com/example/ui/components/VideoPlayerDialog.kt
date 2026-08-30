@@ -107,6 +107,12 @@ fun VideoPlayerDialog(
         isPreparing = true
         hasError = false
         try {
+            if (videoUrl.contains("youtube.com") || videoUrl.contains("youtu.be")) {
+                // YouTube link: directly open via external intent
+                MediaUtils.openVideo(context, videoUrl)
+                onDismiss()
+                return@LaunchedEffect
+            }
             val uri = MediaUtils.prepareVideoUriForPlayback(context, videoUrl)
             playableUri = uri
         } catch (e: Exception) {

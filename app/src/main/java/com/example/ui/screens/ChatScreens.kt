@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.model.ChatMessage
@@ -57,6 +58,7 @@ import com.example.util.AudioPlayerManager
 import com.example.util.AudioRecorderHelper
 import com.example.util.MediaUtils
 import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -806,7 +808,97 @@ fun ChatDetailScreen(
     var isSavingPhoto by remember { mutableStateOf(false) }
     var playingVideoMessage by remember { mutableStateOf<ChatMessage?>(null) }
 
-    // Direct Gallery Launchers
+    // Camera Capture States
+    var cameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var capturedPhotoUriForPreview by remember { mutableStateOf<Uri?>(null) }
+    var cameraPhotoCaption by remember { mutableStateOf("") }
+    var isSendingCameraPhoto by remember { mutableStateOf(false) }
+
+    // 1. Camera Launcher & Permissions
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraPhotoUri != null) {
+            capturedPhotoUriForPreview = cameraPhotoUri
+            cameraPhotoCaption = ""
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val photoDir = File(context.cacheDir, "camera_photos").apply { if (!exists()) mkdirs() }
+                val photoFile = File(photoDir, "cam_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+                cameraPhotoUri = uri
+                takePictureLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "कॅमेरा सुरू करता आला नाही: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "कॅमेऱ्याचा वापर करण्यासाठी परवानगी आवश्यक आहे", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchCamera() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val photoDir = File(context.cacheDir, "camera_photos").apply { if (!exists()) mkdirs() }
+                val photoFile = File(photoDir, "cam_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+                cameraPhotoUri = uri
+                takePictureLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "कॅमेरा सुरू करता आला नाही: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // 2. Direct Contacts Picker Launcher
+    val contactPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickContact()
+    ) { contactUri: Uri? ->
+        if (contactUri != null) {
+            val details = MediaUtils.getContactDetailsFromUri(context, contactUri)
+            if (details != null) {
+                val (cName, cPhone) = details
+                viewModel.sendChatMessage(
+                    text = "",
+                    attachmentType = "CONTACT",
+                    attachmentName = cName,
+                    attachmentUrl = cPhone,
+                    attachmentExtra = cPhone
+                )
+                Toast.makeText(context, "✅ संपर्क पाठवला: $cName", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "संपर्काची माहिती मिळाली नाही", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            contactPickerLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "मोबाईलमधील संपर्क वाचण्यासाठी परवानगी आवश्यक आहे", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchContactPicker() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+            contactPickerLauncher.launch(null)
+        } else {
+            contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+        }
+    }
+
+    // 3. Direct Gallery Launchers
     val photoGalleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -841,35 +933,32 @@ fun ChatDetailScreen(
         }
     }
 
-    // Direct Document / PDF Launcher
+    // 4. Direct Document / PDF Launcher
     val docPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            var fileName = "दस्तावेज.pdf"
-            var fileSize = "PDF Document"
-            try {
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                    if (cursor.moveToFirst()) {
-                        if (nameIndex != -1) fileName = cursor.getString(nameIndex) ?: fileName
-                        if (sizeIndex != -1) {
-                            val sizeBytes = cursor.getLong(sizeIndex)
-                            val mb = sizeBytes / (1024.0 * 1024.0)
-                            fileSize = if (mb >= 1.0) String.format(Locale.getDefault(), "PDF • %.1f MB", mb) else String.format(Locale.getDefault(), "PDF • %d KB", sizeBytes / 1024)
+            scope.launch {
+                Toast.makeText(context, "दस्तऐवज जोडत आहे...", Toast.LENGTH_SHORT).show()
+                val (docData, fileSize) = MediaUtils.uriToDocumentData(context, uri)
+                var fileName = "दस्तावेज.pdf"
+                try {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (cursor.moveToFirst() && nameIndex != -1) {
+                            fileName = cursor.getString(nameIndex) ?: fileName
                         }
                     }
-                }
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
 
-            viewModel.sendChatMessage(
-                text = "",
-                attachmentType = "DOCUMENT",
-                attachmentUrl = uri.toString(),
-                attachmentName = fileName,
-                attachmentExtra = fileSize
-            )
+                viewModel.sendChatMessage(
+                    text = "",
+                    attachmentType = "DOCUMENT",
+                    attachmentUrl = docData,
+                    attachmentName = fileName,
+                    attachmentExtra = fileSize
+                )
+            }
         }
     }
 
@@ -1097,12 +1186,12 @@ fun ChatDetailScreen(
                                 unfocusedBorderColor = DividerColor
                             ),
                             trailingIcon = {
-                                IconButton(onClick = { showPhotoDialog = true }) {
+                                IconButton(onClick = { launchCamera() }) {
                                     Icon(
                                         imageVector = Icons.Default.CameraAlt,
-                                        contentDescription = "Photo",
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(20.dp)
+                                        contentDescription = "Camera",
+                                        tint = SaffronPrimary,
+                                        modifier = Modifier.size(22.dp)
                                     )
                                 }
                             },
@@ -1233,7 +1322,7 @@ fun ChatDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
             ) {
                 Text(
                     text = "अटॅचमेंट पाठवा (Share & Attach)",
@@ -1246,21 +1335,21 @@ fun ChatDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    // Voice Note
+                    // Camera
                     AttachmentItemOption(
-                        icon = Icons.Default.Mic,
-                        label = "व्हॉईस मेसेज",
+                        icon = Icons.Default.CameraAlt,
+                        label = "कॅमेरा",
                         color = Color(0xFFD97706),
                         onClick = {
                             showAttachmentMenu = false
-                            startVoiceRecording()
+                            launchCamera()
                         }
                     )
 
-                    // Photo
+                    // Photo Gallery
                     AttachmentItemOption(
                         icon = Icons.Default.Image,
-                        label = "गॅलरी फोटो",
+                        label = "गॅलरी",
                         color = Color(0xFFE11D48),
                         onClick = {
                             showAttachmentMenu = false
@@ -1271,7 +1360,7 @@ fun ChatDetailScreen(
                     // Document / PDF
                     AttachmentItemOption(
                         icon = Icons.Default.PictureAsPdf,
-                        label = "दस्तावेज / PDF",
+                        label = "दस्तावेज/PDF",
                         color = Color(0xFF2563EB),
                         onClick = {
                             showAttachmentMenu = false
@@ -1286,7 +1375,7 @@ fun ChatDetailScreen(
                         color = Color(0xFF7C3AED),
                         onClick = {
                             showAttachmentMenu = false
-                            videoGalleryLauncher.launch("video/*")
+                            showVideoDialog = true
                         }
                     )
 
@@ -1303,6 +1392,145 @@ fun ChatDetailScreen(
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
+            }
+        }
+    }
+
+    // Real-Time Camera Photo Preview Dialog (WhatsApp Style)
+    if (capturedPhotoUriForPreview != null) {
+        Dialog(
+            onDismissRequest = {
+                if (!isSendingCameraPhoto) {
+                    capturedPhotoUriForPreview = null
+                }
+            }
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "📸 फोटो प्रिव्ह्यू (Photo Preview)",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                        IconButton(
+                            onClick = { capturedPhotoUriForPreview = null },
+                            enabled = !isSendingCameraPhoto
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Captured Photo Display
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 200.dp, max = 320.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = capturedPhotoUriForPreview,
+                            contentDescription = "Camera Captured Photo",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Caption TextField
+                    OutlinedTextField(
+                        value = cameraPhotoCaption,
+                        onValueChange = { cameraPhotoCaption = it },
+                        placeholder = { Text("फोटोबद्दल काहीतरी लिहा (कॅप्शन)...", fontSize = 13.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SaffronPrimary,
+                            unfocusedBorderColor = DividerColor
+                        ),
+                        singleLine = false,
+                        maxLines = 3
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Action Buttons (Retake / Send)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                capturedPhotoUriForPreview = null
+                                launchCamera()
+                            },
+                            enabled = !isSendingCameraPhoto,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("पुन्हा काढा")
+                        }
+
+                        Button(
+                            onClick = {
+                                val uri = capturedPhotoUriForPreview
+                                if (uri != null && !isSendingCameraPhoto) {
+                                    scope.launch {
+                                        isSendingCameraPhoto = true
+                                        val base64 = MediaUtils.uriToBase64(context, uri) ?: uri.toString()
+                                        viewModel.sendChatMessage(
+                                            text = cameraPhotoCaption.trim(),
+                                            attachmentType = "IMAGE",
+                                            attachmentUrl = base64
+                                        )
+                                        isSendingCameraPhoto = false
+                                        capturedPhotoUriForPreview = null
+                                        Toast.makeText(context, "✅ फोटो पाठवला!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            enabled = !isSendingCameraPhoto,
+                            colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            if (isSendingCameraPhoto) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("पाठवा (Send)", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1620,7 +1848,22 @@ fun ChatDetailScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("मंडळातील सदस्याचा संपर्क निवडा:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = {
+                            showContactDialog = false
+                            launchContactPicker()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.PermContactCalendar, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("📱 मोबाईल संपर्कातून निवडा (Phone Contacts)", fontWeight = FontWeight.Bold)
+                    }
+
+                    HorizontalDivider(color = DividerColor)
+                    Text("किंवा मंडळातील सदस्याचा संपर्क निवडा:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
 
                     OutlinedTextField(
                         value = contactSearch,

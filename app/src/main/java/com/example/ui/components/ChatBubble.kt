@@ -59,6 +59,7 @@ fun ChatBubble(
     var isDownloadingDoc by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
+    var showContactActionDialog by remember { mutableStateOf(false) }
 
     val canDelete = isSentByMe || (isGroupChat && isAdmin)
 
@@ -116,6 +117,132 @@ fun ChatBubble(
             dismissButton = {
                 OutlinedButton(onClick = { showDeleteConfirmDialog = false }) {
                     Text("रद्द करा")
+                }
+            }
+        )
+    }
+
+    // Contact Details & Action Dialog
+    if (showContactActionDialog) {
+        val contactName = message.attachmentName ?: "मंडळ संपर्क"
+        val contactPhone = message.attachmentExtra ?: message.attachmentUrl ?: ""
+
+        AlertDialog(
+            onDismissRequest = { showContactActionDialog = false },
+            icon = {
+                Surface(
+                    shape = CircleShape,
+                    color = SaffronPrimary.copy(alpha = 0.15f),
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Contact",
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = contactName,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = SurfaceWarm,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("मोबाईल नंबर:", fontSize = 11.sp, color = TextSecondary)
+                                Text(contactPhone, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
+                            }
+                            IconButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(contactPhone))
+                                    Toast.makeText(context, "नंबर कॉपी झाला: $contactPhone", Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = SaffronPrimary)
+                            }
+                        }
+                    }
+
+                    // Action Buttons: Call, SMS, Save
+                    Button(
+                        onClick = {
+                            showContactActionDialog = false
+                            if (contactPhone.isNotBlank()) {
+                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$contactPhone"))
+                                context.startActivity(intent)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("कॉल करा (Call $contactPhone)", fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            showContactActionDialog = false
+                            if (contactPhone.isNotBlank()) {
+                                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$contactPhone"))
+                                context.startActivity(intent)
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Message, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("SMS संदेश पाठवा")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            showContactActionDialog = false
+                            try {
+                                val intent = Intent(Intent.ACTION_INSERT).apply {
+                                    type = android.provider.ContactsContract.Contacts.CONTENT_TYPE
+                                    putExtra(android.provider.ContactsContract.Intents.Insert.NAME, contactName)
+                                    putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, contactPhone)
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "संपर्क सेव्ह करता आला नाही", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("मोबाईल संपर्कामध्ये सेव्ह करा")
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showContactActionDialog = false }) {
+                    Text("बंद करा")
                 }
             }
         )
@@ -409,11 +536,14 @@ fun ChatBubble(
 
                 // 5. CONTACT ATTACHMENT
                 if (message.attachmentType == "CONTACT") {
+                    val contactPhone = message.attachmentExtra ?: message.attachmentUrl ?: ""
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.surface,
                         border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.4f)),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showContactActionDialog = true }
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -442,9 +572,21 @@ fun ChatBubble(
                                         color = TextPrimary
                                     )
                                     Text(
-                                        text = message.attachmentExtra ?: message.attachmentUrl ?: "",
+                                        text = contactPhone,
                                         fontSize = 12.sp,
                                         color = TextSecondary
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { showContactActionDialog = true },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = "Contact Details",
+                                        tint = SaffronPrimary,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
@@ -453,22 +595,37 @@ fun ChatBubble(
                             HorizontalDivider(color = DividerColor)
                             Spacer(modifier = Modifier.height(6.dp))
 
-                            val contactPhone = message.attachmentExtra ?: message.attachmentUrl ?: ""
-                            Button(
-                                onClick = {
-                                    if (contactPhone.isNotBlank()) {
-                                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$contactPhone"))
-                                        context.startActivity(intent)
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                                shape = RoundedCornerShape(6.dp),
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(vertical = 4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("कॉल करा (Call)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = {
+                                        if (contactPhone.isNotBlank()) {
+                                            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$contactPhone"))
+                                            context.startActivity(intent)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("कॉल करा", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { showContactActionDialog = true },
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Contacts, contentDescription = null, modifier = Modifier.size(14.dp), tint = SaffronPrimary)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("माहिती पहा", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SaffronPrimary)
+                                }
                             }
                         }
                     }
