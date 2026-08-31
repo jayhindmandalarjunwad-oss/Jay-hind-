@@ -2,15 +2,17 @@ package com.example.ui.components
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.net.Uri
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -107,8 +109,24 @@ fun LiveStreamDialog(
     var typedComment by remember { mutableStateOf("") }
     var viewerCount by remember { mutableIntStateOf(mandalInfo.liveViewerCount.coerceAtLeast(148)) }
 
+    // Custom Player Controls State
+    var isPlaying by remember { mutableStateOf(true) }
+    var isMuted by remember { mutableStateOf(false) }
+    var isPlayerLoading by remember { mutableStateOf(true) }
+    var showControlsOverlay by remember { mutableStateOf(true) }
+    var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var streamKeyOrUrl by remember(mandalInfo.liveStreamUrl) { mutableStateOf(mandalInfo.liveStreamUrl) }
+
     // Floating reaction bubbles list
     var floatingParticles by remember { mutableStateOf<List<FloatingParticle>>(emptyList()) }
+
+    // Auto-hide controls overlay after 4 seconds
+    LaunchedEffect(showControlsOverlay, isPlaying) {
+        if (showControlsOverlay && isPlaying) {
+            delay(4000)
+            showControlsOverlay = false
+        }
+    }
 
     fun triggerFloatingReaction(reactionText: String) {
         val newParticle = FloatingParticle(
@@ -120,7 +138,6 @@ fun LiveStreamDialog(
         viewerCount += 1
         onSendReaction(reactionText)
 
-        // Auto remove particle after animation
         coroutineScope.launch {
             delay(2200)
             floatingParticles = floatingParticles.filter { it.id != newParticle.id }
@@ -142,6 +159,37 @@ fun LiveStreamDialog(
         }
     }
 
+    // Toggle Play/Pause via JavaScript
+    fun togglePlayPause() {
+        if (isPlaying) {
+            webViewInstance?.evaluateJavascript("pauseVideo();", null)
+            isPlaying = false
+            showControlsOverlay = true
+        } else {
+            webViewInstance?.evaluateJavascript("playVideo();", null)
+            isPlaying = true
+            showControlsOverlay = true
+        }
+    }
+
+    // Toggle Mute/Unmute via JavaScript
+    fun toggleMute() {
+        if (isMuted) {
+            webViewInstance?.evaluateJavascript("unMuteVideo();", null)
+            isMuted = false
+        } else {
+            webViewInstance?.evaluateJavascript("muteVideo();", null)
+            isMuted = true
+        }
+        showControlsOverlay = true
+    }
+
+    // Reload stream
+    fun reloadStream() {
+        isPlayerLoading = true
+        webViewInstance?.reload()
+    }
+
     // Restore orientation when dialog closes
     DisposableEffect(Unit) {
         onDispose {
@@ -149,8 +197,8 @@ fun LiveStreamDialog(
         }
     }
 
-    val videoId = remember(mandalInfo.liveStreamUrl) {
-        extractYouTubeId(mandalInfo.liveStreamUrl)
+    val videoId = remember(streamKeyOrUrl) {
+        extractYouTubeId(streamKeyOrUrl)
     }
 
     val streamTitle = mandalInfo.liveStreamTitle.ifEmpty { "श्री गणेश महाआरती थेट प्रक्षेपण" }
@@ -196,7 +244,7 @@ fun LiveStreamDialog(
             } else {
                 Modifier
                     .fillMaxWidth(0.98f)
-                    .fillMaxHeight(0.94f)
+                    .fillMaxHeight(0.95f)
                     .testTag("live_stream_dialog_portrait")
             },
             shape = if (effectiveFullscreen) RoundedCornerShape(0.dp) else RoundedCornerShape(20.dp),
@@ -208,7 +256,7 @@ fun LiveStreamDialog(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surface)
             ) {
-                // Header Bar (Hidden or Compact in Landscape)
+                // Top Custom Header Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -245,7 +293,7 @@ fun LiveStreamDialog(
                                     )
                                 }
                                 Text(
-                                    text = if (isLiveActive) "🔴 LIVE" else "व्हिडिओ",
+                                    text = if (isLiveActive) "🔴 थेट दर्शन" else "मंडळ दर्शन",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp
                                 )
@@ -305,25 +353,49 @@ fun LiveStreamDialog(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black),
+                            .background(Color.Black)
+                            .clickable { showControlsOverlay = !showControlsOverlay },
                         contentAlignment = Alignment.Center
                     ) {
-                        InAppVideoWebView(
+                        // Chromeless Player
+                        ChromelessVideoPlayer(
                             videoId = videoId,
                             streamUrl = mandalInfo.liveStreamUrl,
+                            onWebViewCreated = { webViewInstance = it },
+                            onLoadingChange = { isPlayerLoading = it },
+                            onPlayStateChange = { playing -> isPlaying = playing },
                             modifier = Modifier.fillMaxSize()
                         )
 
                         // Floating Reaction Overlay in Fullscreen
                         FloatingReactionOverlay(particles = floatingParticles)
 
-                        // Compact Reaction Bar on bottom in Landscape
+                        // Custom HUD Overlay for Fullscreen
+                        if (showControlsOverlay || !isPlaying) {
+                            CustomPlayerControlsOverlay(
+                                isPlaying = isPlaying,
+                                isMuted = isMuted,
+                                isLoading = isPlayerLoading,
+                                viewerCount = viewerCount,
+                                isFullscreen = true,
+                                onPlayPauseClick = { togglePlayPause() },
+                                onMuteToggle = { toggleMute() },
+                                onFullscreenToggle = { toggleOrientationFullscreen() },
+                                onReloadClick = { reloadStream() }
+                            )
+                        }
+
+                        // Compact Reaction Bar at bottom in Landscape
                         Row(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .fillMaxWidth()
-                                .background(Color.Black.copy(alpha = 0.65f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                    )
+                                )
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -358,72 +430,40 @@ fun LiveStreamDialog(
                     Column(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // 1. VIDEO PLAYER CONTAINER (16:9 Aspect Ratio)
+                        // 1. BRANDED CHROMELESS VIDEO PLAYER (16:9 Aspect Ratio)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(16f / 9f)
-                                .background(Color.Black),
+                                .background(Color.Black)
+                                .clickable { showControlsOverlay = !showControlsOverlay },
                             contentAlignment = Alignment.Center
                         ) {
-                            InAppVideoWebView(
+                            ChromelessVideoPlayer(
                                 videoId = videoId,
                                 streamUrl = mandalInfo.liveStreamUrl,
+                                onWebViewCreated = { webViewInstance = it },
+                                onLoadingChange = { isPlayerLoading = it },
+                                onPlayStateChange = { playing -> isPlaying = playing },
                                 modifier = Modifier.fillMaxSize()
                             )
 
                             // Floating Reaction Overlay over video
                             FloatingReactionOverlay(particles = floatingParticles)
 
-                            // Overlay viewer badge & rotate hint on top right
-                            Row(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color.Black.copy(alpha = 0.65f)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "👁️ $viewerCount",
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color.Black.copy(alpha = 0.65f),
-                                    modifier = Modifier.clickable { toggleOrientationFullscreen() }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ScreenRotation,
-                                            contentDescription = "Rotate",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Text(
-                                            text = "आडवा करा",
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
+                            // Custom Branded HUD Controls Overlay
+                            if (showControlsOverlay || !isPlaying) {
+                                CustomPlayerControlsOverlay(
+                                    isPlaying = isPlaying,
+                                    isMuted = isMuted,
+                                    isLoading = isPlayerLoading,
+                                    viewerCount = viewerCount,
+                                    isFullscreen = false,
+                                    onPlayPauseClick = { togglePlayPause() },
+                                    onMuteToggle = { toggleMute() },
+                                    onFullscreenToggle = { toggleOrientationFullscreen() },
+                                    onReloadClick = { reloadStream() }
+                                )
                             }
                         }
 
@@ -639,7 +679,7 @@ fun LiveStreamDialog(
                             }
                         }
 
-                        // 5. ACTION BUTTONS: WHATSAPP SHARE & YOUTUBE / COPY
+                        // 5. ACTION BUTTONS: WHATSAPP SHARE
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -661,8 +701,7 @@ fun LiveStreamDialog(
                                             setPackage("com.whatsapp")
                                         }
                                         context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        // Fallback to regular chooser if WhatsApp is not directly matched
+                                    } catch (_: Exception) {
                                         val chooserIntent = Intent(Intent.ACTION_SEND).apply {
                                             type = "text/plain"
                                             putExtra(Intent.EXTRA_TEXT, shareText)
@@ -671,57 +710,23 @@ fun LiveStreamDialog(
                                     }
                                 },
                                 modifier = Modifier
-                                    .weight(1.2f)
-                                    .height(42.dp)
+                                    .fillMaxWidth()
+                                    .height(44.dp)
                                     .testTag("whatsapp_share_live_btn"),
                                 colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Share,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "WhatsApp वर शेअर करा",
-                                    fontSize = 12.sp,
+                                    text = "WhatsApp वर थेट प्रक्षेपण शेअर करा 🟢",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
-                            }
-
-                            // Open in YouTube Button
-                            OutlinedButton(
-                                onClick = {
-                                    val targetUrl = mandalInfo.liveStreamUrl.ifEmpty {
-                                        "https://www.youtube.com/@JayHindMandalArjunwad/live"
-                                    }
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl))
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {}
-                                },
-                                modifier = Modifier
-                                    .weight(0.9f)
-                                    .height(42.dp)
-                                    .testTag("open_youtube_external_btn"),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, BloodRed)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayCircle,
-                                    contentDescription = null,
-                                    tint = BloodRed,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "YouTube",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BloodRed,
                                     maxLines = 1
                                 )
                             }
@@ -733,102 +738,400 @@ fun LiveStreamDialog(
     }
 }
 
-// IN-APP YOUTUBE WEBVIEW COMPONENT
-@SuppressLint("SetJavaScriptEnabled")
+// CUSTOM PLAYER CONTROLS OVERLAY (Overlayed directly over video)
 @Composable
-private fun InAppVideoWebView(
-    videoId: String,
-    streamUrl: String,
-    modifier: Modifier = Modifier
+private fun CustomPlayerControlsOverlay(
+    isPlaying: Boolean,
+    isMuted: Boolean,
+    isLoading: Boolean,
+    viewerCount: Int,
+    isFullscreen: Boolean,
+    onPlayPauseClick: () -> Unit,
+    onMuteToggle: () -> Unit,
+    onFullscreenToggle: () -> Unit,
+    onReloadClick: () -> Unit
 ) {
-    if (videoId.isNotEmpty()) {
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.6f),
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.75f)
                     )
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.mediaPlaybackRequiresUserGesture = false
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.allowContentAccess = true
-                    settings.allowFileAccess = false
-                    webChromeClient = WebChromeClient()
-                    webViewClient = WebViewClient()
-
-                    val embedHtml = """
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                            <style>
-                                body { margin: 0; padding: 0; background-color: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; }
-                                iframe { width: 100%; height: 100%; border: 0; }
-                            </style>
-                        </head>
-                        <body>
-                            <iframe 
-                                src="https://www.youtube-nocookie.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1" 
-                                frameborder="0" 
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                                allowfullscreen>
-                            </iframe>
-                        </body>
-                        </html>
-                    """.trimIndent()
-
-                    loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
-                }
-            },
-            modifier = modifier.testTag("live_webview_player")
-        )
-    } else if (streamUrl.isNotBlank()) {
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.mediaPlaybackRequiresUserGesture = false
-                    webChromeClient = WebChromeClient()
-                    webViewClient = WebViewClient()
-                    loadUrl(streamUrl)
-                }
-            },
-            modifier = modifier
-        )
-    } else {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(16.dp)
+                )
+            )
+            .padding(10.dp)
+    ) {
+        // Top HUD: Branded Live Tag + Viewers Count + Sound button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Videocam,
-                contentDescription = null,
-                tint = SaffronPrimary,
-                modifier = Modifier.size(48.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = BloodRed
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                        Text(
+                            text = "थेट प्रक्षेपण",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.Black.copy(alpha = 0.6f)
+                ) {
+                    Text(
+                        text = "👁️ $viewerCount",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Sound Mute/Unmute
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.65f),
+                    modifier = Modifier.clickable { onMuteToggle() }
+                ) {
+                    Icon(
+                        imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        contentDescription = "Sound",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .size(18.dp)
+                    )
+                }
+
+                // Reload stream
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.65f),
+                    modifier = Modifier.clickable { onReloadClick() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Reload",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .size(18.dp)
+                    )
+                }
+            }
+        }
+
+        // Center HUD: Big Play / Pause / Loading Button
+        Box(
+            modifier = Modifier.align(Alignment.Center),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isLoading) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = SaffronPrimary,
+                        modifier = Modifier.size(40.dp),
+                        strokeWidth = 3.dp
+                    )
+                    Text(
+                        text = "थेट दर्शन जोडत आहे...",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            } else {
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clickable { onPlayPauseClick() }
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .fillMaxSize()
+                    )
+                }
+            }
+        }
+
+        // Bottom HUD: Fullscreen / Rotation Toggle
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = "सध्या कोणतेही थेट प्रक्षेपण चालू नाही.",
-                color = Color.White,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center
+                text = "🚩 जय हिंद मंडळ, अर्जुनवाड",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
             )
-            Text(
-                text = "मंडळाच्या आगामी आरती किंवा उत्सवाची वेळ लवकरच जाहीर केली जाईल.",
-                color = Color.LightGray,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center
-            )
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color.Black.copy(alpha = 0.7f),
+                modifier = Modifier.clickable { onFullscreenToggle() }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                        contentDescription = "Fullscreen",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (isFullscreen) "लहान करा" else "आडवा / Fullscreen",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
+}
+
+// IN-APP CHROMELESS VIDEO PLAYER WEBVIEW
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun ChromelessVideoPlayer(
+    videoId: String,
+    streamUrl: String,
+    onWebViewCreated: (WebView) -> Unit,
+    onLoadingChange: (Boolean) -> Unit,
+    onPlayStateChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val cleanVideoId = videoId.ifEmpty { "live_stream" }
+
+    AndroidView(
+        factory = { ctx ->
+            WebView(ctx).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+
+                // High compatibility Android WebView settings
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.databaseEnabled = true
+                settings.mediaPlaybackRequiresUserGesture = false
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.allowContentAccess = true
+                settings.allowFileAccess = false
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                settings.cacheMode = WebSettings.LOAD_DEFAULT
+
+                // Set Modern Android Chrome Mobile User-Agent to avoid Embed 152 Error
+                settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+
+                addJavascriptInterface(object {
+                    @JavascriptInterface
+                    fun onPlayerReady() {
+                        post {
+                            onLoadingChange(false)
+                            onPlayStateChange(true)
+                        }
+                    }
+
+                    @JavascriptInterface
+                    fun onPlayerStateChange(state: Int) {
+                        post {
+                            when (state) {
+                                1 -> { // Playing
+                                    onLoadingChange(false)
+                                    onPlayStateChange(true)
+                                }
+                                2 -> { // Paused
+                                    onPlayStateChange(false)
+                                }
+                                3 -> { // Buffering
+                                    onLoadingChange(true)
+                                }
+                                else -> {}
+                            }
+                        }
+                    }
+
+                    @JavascriptInterface
+                    fun onPlayerError(errorCode: Int) {
+                        post {
+                            onLoadingChange(false)
+                        }
+                    }
+                }, "AndroidBridge")
+
+                webChromeClient = WebChromeClient()
+                webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        onLoadingChange(true)
+                    }
+
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        onLoadingChange(false)
+                    }
+
+                    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                        super.onReceivedError(view, request, error)
+                        onLoadingChange(false)
+                    }
+                }
+
+                // Chromeless HTML with custom CSS hiding YouTube UI completely
+                val chromelessHtml = """
+                    <!DOCTYPE html>
+                    <html lang="mr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                        <style>
+                            * { margin: 0; padding: 0; box-sizing: border-box; }
+                            html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+                            #player-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+                            iframe { width: 100%; height: 100%; border: 0; pointer-events: auto; }
+                            
+                            /* Hide YouTube brandings and overlays via CSS */
+                            .ytp-chrome-top, .ytp-watermark, .ytp-youtube-button, .ytp-pause-overlay, 
+                            .ytp-show-cards-title, .ytp-share-panel, .ytp-button, .ytp-contextmenu {
+                                display: none !important;
+                                opacity: 0 !important;
+                                pointer-events: none !important;
+                            }
+                        </style>
+                        <script src="https://www.youtube.com/iframe_api"></script>
+                    </head>
+                    <body>
+                        <div id="player-container">
+                            <div id="player"></div>
+                        </div>
+
+                        <script>
+                            var player;
+                            function onYouTubeIframeAPIReady() {
+                                player = new YT.Player('player', {
+                                    width: '100%',
+                                    height: '100%',
+                                    videoId: '$cleanVideoId',
+                                    playerVars: {
+                                        'autoplay': 1,
+                                        'playsinline': 1,
+                                        'controls': 0,
+                                        'modestbranding': 1,
+                                        'rel': 0,
+                                        'showinfo': 0,
+                                        'iv_load_policy': 3,
+                                        'disablekb': 1,
+                                        'fs': 0,
+                                        'origin': 'https://www.youtube.com',
+                                        'enablejsapi': 1
+                                    },
+                                    events: {
+                                        'onReady': onPlayerReady,
+                                        'onStateChange': onPlayerStateChange,
+                                        'onError': onPlayerError
+                                    }
+                                });
+                            }
+
+                            function onPlayerReady(event) {
+                                event.target.playVideo();
+                                if (window.AndroidBridge) {
+                                    window.AndroidBridge.onPlayerReady();
+                                }
+                            }
+
+                            function onPlayerStateChange(event) {
+                                if (window.AndroidBridge) {
+                                    window.AndroidBridge.onPlayerStateChange(event.data);
+                                }
+                            }
+
+                            function onPlayerError(event) {
+                                if (window.AndroidBridge) {
+                                    window.AndroidBridge.onPlayerError(event.data);
+                                }
+                            }
+
+                            function playVideo() {
+                                if (player && player.playVideo) player.playVideo();
+                            }
+
+                            function pauseVideo() {
+                                if (player && player.pauseVideo) player.pauseVideo();
+                            }
+
+                            function muteVideo() {
+                                if (player && player.mute) player.mute();
+                            }
+
+                            function unMuteVideo() {
+                                if (player && player.unMute) player.unMute();
+                            }
+                        </script>
+                    </body>
+                    </html>
+                """.trimIndent()
+
+                loadDataWithBaseURL("https://www.youtube.com", chromelessHtml, "text/html", "UTF-8", null)
+                onWebViewCreated(this)
+            }
+        },
+        update = { webView ->
+            onWebViewCreated(webView)
+        },
+        modifier = modifier.testTag("chromeless_live_player")
+    )
 }
 
 // FLOATING REACTION PARTICLES OVERLAY
@@ -860,7 +1163,7 @@ private fun BoxScope.FloatingReactionOverlay(particles: List<FloatingParticle>) 
             color = Color.Black.copy(alpha = 0.75f * alpha),
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = (particle.startOffsetX * 300).dp)
+                .padding(start = (particle.startOffsetX * 280).dp)
                 .offset(y = offsetY.dp)
         ) {
             Text(
