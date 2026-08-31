@@ -895,12 +895,68 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _showLiveStreamPlayer = MutableStateFlow(false)
     val showLiveStreamPlayer: StateFlow<Boolean> = _showLiveStreamPlayer.asStateFlow()
 
+    private val _liveComments = MutableStateFlow<List<LiveComment>>(
+        listOf(
+            LiveComment(
+                id = "c1",
+                userName = "राहुल पाटील",
+                userPhoto = "",
+                message = "🚩 गणपती बाप्पा मोरया! जय हिंद मंडळ, अर्जुनवाड!",
+                timestamp = System.currentTimeMillis() - 120000
+            ),
+            LiveComment(
+                id = "c2",
+                userName = "सचिन जाधव",
+                userPhoto = "",
+                message = "🙏 खूपच सुंदर आरती व नियोजन! जय हिंद!",
+                timestamp = System.currentTimeMillis() - 60000
+            ),
+            LiveComment(
+                id = "c3",
+                userName = "अमित कांबळे",
+                userPhoto = "",
+                message = "🌸 महाआरती थेट दर्शन! हर हर महादेव!",
+                timestamp = System.currentTimeMillis() - 20000
+            )
+        )
+    )
+    val liveComments: StateFlow<List<LiveComment>> = _liveComments.asStateFlow()
+
     fun openLiveStreamPlayer() {
         _showLiveStreamPlayer.value = true
     }
 
     fun closeLiveStreamPlayer() {
         _showLiveStreamPlayer.value = false
+    }
+
+    fun postLiveComment(message: String) {
+        if (message.isBlank()) return
+        val user = currentUser.value
+        val name = user?.fullName?.ifEmpty { "सभासद" } ?: "जय हिंद सभासद"
+        val photo = user?.profilePhotoUrl ?: ""
+        val newComment = LiveComment(
+            id = "comment_${System.currentTimeMillis()}",
+            userName = name,
+            userPhoto = photo,
+            message = message.trim(),
+            timestamp = System.currentTimeMillis()
+        )
+        _liveComments.value = _liveComments.value + newComment
+    }
+
+    fun sendLiveReaction(reactionText: String) {
+        val user = currentUser.value
+        val name = user?.fullName?.ifEmpty { "सभासद" } ?: "जय हिंद सभासद"
+        val newComment = LiveComment(
+            id = "reaction_${System.currentTimeMillis()}",
+            userName = name,
+            userPhoto = user?.profilePhotoUrl ?: "",
+            message = reactionText,
+            timestamp = System.currentTimeMillis()
+        )
+        _liveComments.value = _liveComments.value + newComment
+        showSnackbar("प्रतिक्रिया नोंदवली: $reactionText 🚩")
     }
 
     fun setLiveStreamStatus(

@@ -85,6 +85,7 @@ fun MandalApp(viewModel: MandalViewModel) {
     val fullscreenPhotoUrl by viewModel.fullscreenPhotoUrl.collectAsStateWithLifecycle()
     val fullscreenViewerState by viewModel.fullscreenViewerState.collectAsStateWithLifecycle()
     val showLiveStreamPlayer by viewModel.showLiveStreamPlayer.collectAsStateWithLifecycle()
+    val liveComments by viewModel.liveComments.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreatePostDialog by remember { mutableStateOf(false) }
@@ -363,9 +364,13 @@ fun MandalApp(viewModel: MandalViewModel) {
             if (showLiveStreamPlayer) {
                 LiveStreamDialog(
                     mandalInfo = mandalInfo,
+                    comments = liveComments,
                     onDismiss = { viewModel.closeLiveStreamPlayer() },
                     onSendReaction = { reaction ->
-                        viewModel.showSnackbar("प्रतिक्रिया नोंदवली: $reaction 🚩")
+                        viewModel.sendLiveReaction(reaction)
+                    },
+                    onPostComment = { commentText ->
+                        viewModel.postLiveComment(commentText)
                     }
                 )
             }

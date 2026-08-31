@@ -176,3 +176,11 @@ data class LiveReaction(
     val emoji: String,
     val label: String
 )
+
+data class LiveComment(
+    val id: String = "",
+    val userName: String = "",
+    val userPhoto: String = "",
+    val message: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
