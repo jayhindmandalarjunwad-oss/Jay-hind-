@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,7 +39,7 @@ import com.example.R
 import com.example.data.model.MandalBanner
 import com.example.data.model.MandalEvent
 import com.example.data.model.MandalInfo
-import com.example.data.model.Post
+import com.example.data.model.User
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppScreen
@@ -56,7 +59,20 @@ fun HomeScreen(
     val announcements by viewModel.announcements.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
     val unreadNotifs by viewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
+    
+    val context = LocalContext.current
     var showIdCardDialog by remember { mutableStateOf(false) }
+    var showBirthdayDialog by remember { mutableStateOf(false) }
+
+    fun openUrlSafely(url: String) {
+        try {
+            val validUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                "https://$url"
+            } else url
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(validUrl))
+            context.startActivity(intent)
+        } catch (_: Exception) {}
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -66,24 +82,26 @@ fun HomeScreen(
         contentPadding = PaddingValues(bottom = 90.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. TOP MANDAL HERO / GROUP BANNERS SECTION
+        // ==========================================
+        // 1. मुख्य बॅनर (HERO BANNER)
+        // ==========================================
         item {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+            ) {
                 if (banners.isNotEmpty()) {
                     // Group Banners Carousel
                     LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp)
                     ) {
                         items(banners, key = { it.id }) { banner ->
                             GroupBannerCard(
                                 banner = banner,
-                                mandalLogoUrl = mandalLogoUrl,
-                                unreadNotifs = unreadNotifs,
-                                onNotifClick = { viewModel.navigateTo(AppScreen.NOTIFICATIONS) }
+                                mandalLogoUrl = mandalLogoUrl
                             )
                         }
                     }
@@ -92,12 +110,16 @@ fun HomeScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(24.dp),
+                            .padding(horizontal = 14.dp),
+                        shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.cardColors(containerColor = SaffronPrimary),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Box(modifier = Modifier.fillMaxWidth().height(165.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(165.dp)
+                        ) {
                             Image(
                                 painter = painterResource(id = R.drawable.mandal_hero_banner),
                                 contentDescription = "Mandal Banner",
@@ -122,23 +144,17 @@ fun HomeScreen(
                                     .padding(16.dp),
                                 verticalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color.White.copy(alpha = 0.22f)
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(50),
-                                        color = Color.White.copy(alpha = 0.22f)
-                                    ) {
-                                        Text(
-                                            text = mandalInfo.locationTitle,
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                                        )
-                                    }
+                                    Text(
+                                        text = mandalInfo.locationTitle,
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                    )
                                 }
 
                                 Row(
@@ -175,12 +191,17 @@ fun HomeScreen(
             }
         }
 
-        // 2. QUICK ACCESS SHORTCUTS
+        // ==========================================
+        // 2. जलद पर्याय (QUICK ACTIONS - 4 ICONS)
+        // ==========================================
         item {
             Column(modifier = Modifier.padding(horizontal = 14.dp)) {
                 Text(
-                    text = "जलद पर्याय (Quick Access)",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    text = "जलद पर्याय (Quick Actions)",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    ),
                     color = TextPrimary
                 )
 
@@ -234,76 +255,61 @@ fun HomeScreen(
             }
         }
 
-        // 3. MANDATORY: "ABOUT US" SECTION PLACED DIRECTLY ABOVE "TODAY'S BIRTHDAYS"
+        // ==========================================
+        // 3. महत्वाच्या सूचना (IMPORTANT NOTICE)
+        // ==========================================
         item {
-            AboutUsHomeSection(
-                mandalInfo = mandalInfo,
-                mandalLogoUrl = mandalLogoUrl,
-                isAdmin = currentUser?.isAdmin == true,
-                onEditClick = { viewModel.navigateTo(AppScreen.ADMIN_PANEL) },
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-        }
-
-        // 4. TODAY'S BIRTHDAY MEMBERS SECTION (STRICTLY ON ACTUAL BIRTHDAY ONLY)
-        if (todayBirthdays.isNotEmpty()) {
-            item {
-                BirthdaySection(
-                    birthdayMembers = todayBirthdays,
-                    onMemberClick = { member -> viewModel.selectMemberForDetail(member) },
-                    onChatClick = { member -> viewModel.openChatWith(member) },
-                    modifier = Modifier.padding(horizontal = 14.dp)
-                )
-            }
-        }
-
-        // 5. IMPORTANT ANNOUNCEMENTS TICKER
-        if (announcements.isNotEmpty()) {
-            item {
-                Column(modifier = Modifier.padding(horizontal = 14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFEE2E2)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Campaign,
-                                    contentDescription = null,
-                                    tint = BloodRed,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "महत्वाच्या सूचना (Notice Board)",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                ),
-                                color = TextPrimary
+            Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFEE2E2)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Campaign,
+                                contentDescription = null,
+                                tint = BloodRed,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-
-                        TextButton(onClick = { viewModel.navigateTo(AppScreen.ANNOUNCEMENTS) }) {
-                            Text("सर्व पहा", color = NavySecondary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "महत्वाच्या सूचना (Notice Board)",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            ),
+                            color = TextPrimary
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(onClick = { viewModel.navigateTo(AppScreen.ANNOUNCEMENTS) }) {
+                        Text(
+                            text = "सर्व पहा",
+                            color = NavySecondary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
 
+                Spacer(modifier = Modifier.height(4.dp))
+
+                if (announcements.isNotEmpty()) {
                     val topAnn = announcements.first()
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { viewModel.navigateTo(AppScreen.ANNOUNCEMENTS) },
+                            .clickable { viewModel.navigateTo(AppScreen.ANNOUNCEMENTS) }
+                            .testTag("notice_board_card"),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
                         border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
@@ -359,71 +365,375 @@ fun HomeScreen(
                             }
                         }
                     }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "सध्या कोणतीही नवीन सूचना नाही.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // 6. UPCOMING EVENTS (आगामी कार्यक्रम)
-        if (events.isNotEmpty()) {
-            item {
-                Column(modifier = Modifier.padding(horizontal = 14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+        // ==========================================
+        // 4. आगामी कार्यक्रम आणि आजचे वाढदिवस (SIDE-BY-SIDE 2 CARDS)
+        // ==========================================
+        item {
+            Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Left Card: आगामी कार्यक्रम
+                    val nextEvent = events.firstOrNull()
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(150.dp)
+                            .clickable { viewModel.navigateTo(AppScreen.EVENTS) }
+                            .testTag("upcoming_events_card"),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(NavyContainer),
-                                contentAlignment = Alignment.Center
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Event,
-                                    contentDescription = null,
-                                    tint = NavySecondary,
-                                    modifier = Modifier.size(16.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(NavyContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Event,
+                                        contentDescription = null,
+                                        tint = NavySecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = NavySecondary.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = "${events.size} कार्यक्रम",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = NavySecondary,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Text(
+                                    text = "आगामी कार्यक्रम",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                if (nextEvent != null) {
+                                    Text(
+                                        text = nextEvent.title,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 11.sp
+                                        ),
+                                        color = SaffronPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "📅 ${nextEvent.date}",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                        color = TextMuted,
+                                        maxLines = 1
+                                    )
+                                } else {
+                                    Text(
+                                        text = "नवे कार्यक्रम लवकरच",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "पहा >",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = NavySecondary
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "आगामी कार्यक्रम (Upcoming Events)",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                ),
-                                color = TextPrimary
-                            )
-                        }
-
-                        TextButton(onClick = { viewModel.navigateTo(AppScreen.EVENTS) }) {
-                            Text("सर्व पहा", color = NavySecondary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    // Right Card: आजचे वाढदिवस
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(150.dp)
+                            .clickable {
+                                if (todayBirthdays.isNotEmpty()) {
+                                    showBirthdayDialog = true
+                                }
+                            }
+                            .testTag("today_birthdays_card"),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        items(events, key = { it.id }) { event ->
-                            EventCardCompact(
-                                event = event,
-                                onRegisterClick = { viewModel.toggleEventRegistration(event) },
-                                onImageClick = { viewModel.openFullscreenPhoto(it) }
-                            )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFCE7F3)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Cake,
+                                        contentDescription = null,
+                                        tint = BirthdayPinkDark,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = if (todayBirthdays.isNotEmpty()) BirthdayPinkDark.copy(alpha = 0.15f) else SurfaceVariantWarm
+                                ) {
+                                    Text(
+                                        text = if (todayBirthdays.isNotEmpty()) "${todayBirthdays.size} वाढदिवस" else "०",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (todayBirthdays.isNotEmpty()) BirthdayPinkDark else TextMuted,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Text(
+                                    text = "आजचे वाढदिवस 🎂",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                if (todayBirthdays.isNotEmpty()) {
+                                    val firstBday = todayBirthdays.first()
+                                    Text(
+                                        text = firstBday.fullName,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp
+                                        ),
+                                        color = BirthdayPinkDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = if (todayBirthdays.size > 1) "आणि इतर ${todayBirthdays.size - 1} जण" else "वाढदिवसाच्या शुभेच्छा!",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                        color = TextMuted,
+                                        maxLines = 1
+                                    )
+                                } else {
+                                    Text(
+                                        text = "आज कोणाचाही वाढदिवस नाही",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (todayBirthdays.isNotEmpty()) "शुभेच्छा द्या >" else "पहा >",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (todayBirthdays.isNotEmpty()) BirthdayPinkDark else TextMuted
+                                )
+                            }
                         }
                     }
                 }
             }
+        }
+
+        // ==========================================
+        // 5. अधिकृत सोशल मीडिया हँडल (4 BUTTONS ROW)
+        // ==========================================
+        item {
+            Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+                Text(
+                    text = "अधिकृत सोशल मीडिया हँडल (Social Media)",
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    ),
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 1. YouTube
+                    SocialHandleButton(
+                        label = "YouTube",
+                        icon = Icons.Default.PlayCircleFilled,
+                        color = Color(0xFFFF0000),
+                        backgroundColor = Color(0xFFFEF2F2),
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            val clean = mandalInfo.youtubeHandle.trim()
+                            val url = if (clean.startsWith("http")) clean else "https://www.youtube.com/${clean}"
+                            openUrlSafely(url)
+                        }
+                    )
+
+                    // 2. Facebook
+                    SocialHandleButton(
+                        label = "Facebook",
+                        icon = Icons.Default.ThumbUp,
+                        color = Color(0xFF1877F2),
+                        backgroundColor = Color(0xFFEFF6FF),
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            val clean = mandalInfo.facebookHandle.trim()
+                            val url = if (clean.startsWith("http")) clean else "https://www.facebook.com/${clean}"
+                            openUrlSafely(url)
+                        }
+                    )
+
+                    // 3. Instagram
+                    SocialHandleButton(
+                        label = "Insta",
+                        icon = Icons.Default.CameraAlt,
+                        color = Color(0xFFE1306C),
+                        backgroundColor = Color(0xFFFDF2F8),
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            val clean = mandalInfo.instagramHandle.trim().removePrefix("@")
+                            val url = if (clean.startsWith("http")) clean else "https://www.instagram.com/${clean}"
+                            openUrlSafely(url)
+                        }
+                    )
+
+                    // 4. Live
+                    SocialHandleButton(
+                        label = "Live",
+                        icon = Icons.Outlined.Videocam,
+                        color = Color(0xFFDC2626),
+                        backgroundColor = Color(0xFFFEF2F2),
+                        isLiveBadge = true,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            val clean = mandalInfo.youtubeHandle.trim()
+                            val url = if (clean.startsWith("http")) {
+                                if (clean.contains("live")) clean else "$clean/live"
+                            } else {
+                                "https://www.youtube.com/${clean}/live"
+                            }
+                            openUrlSafely(url)
+                        }
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // 6. आमच्याबद्दल (ABOUT US)
+        // ==========================================
+        item {
+            AboutUsHomeSection(
+                mandalInfo = mandalInfo,
+                mandalLogoUrl = mandalLogoUrl,
+                isAdmin = currentUser?.isAdmin == true,
+                onEditClick = { viewModel.navigateTo(AppScreen.ADMIN_PANEL) },
+                modifier = Modifier.padding(horizontal = 14.dp)
+            )
         }
 
         item {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
+    }
+
+    // Modal Dialog to wish Birthday members
+    if (showBirthdayDialog && todayBirthdays.isNotEmpty()) {
+        TodayBirthdaysDialog(
+            birthdayMembers = todayBirthdays,
+            onDismiss = { showBirthdayDialog = false },
+            onMemberClick = { member ->
+                showBirthdayDialog = false
+                viewModel.selectMemberForDetail(member)
+            },
+            onChatClick = { member ->
+                showBirthdayDialog = false
+                viewModel.openChatWith(member)
+            }
+        )
     }
 
     if (showIdCardDialog && currentUser != null) {
@@ -439,17 +749,15 @@ fun HomeScreen(
 @Composable
 fun GroupBannerCard(
     banner: MandalBanner,
-    mandalLogoUrl: String?,
-    unreadNotifs: Int,
-    onNotifClick: () -> Unit
+    mandalLogoUrl: String?
 ) {
     Card(
         modifier = Modifier
             .width(340.dp)
-            .height(175.dp),
-        shape = RoundedCornerShape(24.dp),
+            .height(170.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = SaffronPrimary),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             UniversalAsyncImage(
@@ -465,7 +773,7 @@ fun GroupBannerCard(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.3f),
+                                Color.Black.copy(alpha = 0.2f),
                                 SaffronDark.copy(alpha = 0.85f)
                             )
                         )
@@ -476,63 +784,103 @@ fun GroupBannerCard(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(14.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.Bottom
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onNotifClick,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color.White.copy(alpha = 0.22f), CircleShape)
-                    ) {
-                        BadgedBox(
-                            badge = {
-                                if (unreadNotifs > 0) {
-                                    Badge(containerColor = BloodRed) { Text("$unreadNotifs") }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = "सूचना",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
+                if (banner.title.isNotBlank()) {
+                    Text(
+                        text = banner.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp
+                        ),
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
+                if (banner.subtitle.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = banner.subtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = Color.White.copy(alpha = 0.95f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
 
-                Column {
-                    if (banner.title.isNotBlank()) {
-                        Text(
-                            text = banner.title,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp
-                            ),
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (banner.subtitle.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = banner.subtitle,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            ),
-                            color = Color.White.copy(alpha = 0.95f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+@Composable
+fun SocialHandleButton(
+    label: String,
+    icon: ImageVector,
+    color: Color,
+    backgroundColor: Color,
+    modifier: Modifier = Modifier,
+    isLiveBadge: Boolean = false,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .height(68.dp)
+            .clickable { onClick() }
+            .testTag("social_btn_$label"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.25f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(color),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(3.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (isLiveBadge) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color.Red)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
                 }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    ),
+                    color = color,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -548,16 +896,6 @@ fun AboutUsHomeSection(
 ) {
     val context = LocalContext.current
 
-    fun openUrlSafely(url: String) {
-        try {
-            val validUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                "https://$url"
-            } else url
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(validUrl))
-            context.startActivity(intent)
-        } catch (_: Exception) {}
-    }
-
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -565,7 +903,7 @@ fun AboutUsHomeSection(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
         border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -635,77 +973,6 @@ fun AboutUsHomeSection(
                 style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp),
                 color = TextSecondary
             )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // SOCIAL MEDIA HANDLES HUB
-            Text(
-                text = "अधिकृत सोशल मीडिया हँडल्स (Official Handles):",
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = TextPrimary
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Side-by-Side Logo Tabs: YouTube, Facebook, Instagram
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // YouTube Logo Tab
-                SocialLogoTab(
-                    platformName = "YouTube",
-                    icon = Icons.Default.PlayCircleFilled,
-                    brandColor = Color(0xFFFF0000),
-                    containerColor = Color(0xFFFEF2F2),
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        val clean = mandalInfo.youtubeHandle.trim()
-                        val url = if (clean.startsWith("http")) clean else "https://www.youtube.com/${clean}"
-                        openUrlSafely(url)
-                    }
-                )
-
-                // Facebook Logo Tab
-                SocialLogoTab(
-                    platformName = "Facebook",
-                    icon = Icons.Default.ThumbUp,
-                    brandColor = Color(0xFF1877F2),
-                    containerColor = Color(0xFFEFF6FF),
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        val clean = mandalInfo.facebookHandle.trim()
-                        val url = if (clean.startsWith("http")) clean else "https://www.facebook.com/${clean}"
-                        openUrlSafely(url)
-                    }
-                )
-
-                // Instagram Logo Tab
-                SocialLogoTab(
-                    platformName = "Instagram",
-                    icon = Icons.Default.CameraAlt,
-                    brandColor = Color(0xFFE1306C),
-                    containerColor = Color(0xFFFDF2F8),
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        val clean = mandalInfo.instagramHandle.trim().removePrefix("@")
-                        val url = if (clean.startsWith("http")) clean else "https://www.instagram.com/${clean}"
-                        openUrlSafely(url)
-                    }
-                )
-            }
-
-            // Optional Admin Web Link if added
-            if (mandalInfo.adminWebLink.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                SocialLogoTab(
-                    platformName = "Admin Web Portal",
-                    icon = Icons.Default.Link,
-                    brandColor = Color(0xFF0D9488),
-                    containerColor = Color(0xFFF0FDFA),
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { openUrlSafely(mandalInfo.adminWebLink) }
-                )
-            }
 
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = DividerColor)
@@ -816,56 +1083,155 @@ fun AboutUsHomeSection(
 }
 
 @Composable
-fun SocialLogoTab(
-    platformName: String,
-    icon: ImageVector,
-    brandColor: Color,
-    containerColor: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
+fun TodayBirthdaysDialog(
+    birthdayMembers: List<User>,
+    onDismiss: () -> Unit,
+    onMemberClick: (User) -> Unit,
+    onChatClick: (User) -> Unit
 ) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        border = androidx.compose.foundation.BorderStroke(1.dp, brandColor.copy(alpha = 0.28f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(brandColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = platformName,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFCE7F3)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cake,
+                        contentDescription = null,
+                        tint = BirthdayPinkDark,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "आजचे वाढदिवस 🎂 (${birthdayMembers.size})",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = platformName,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                ),
-                color = brandColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 380.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(birthdayMembers, key = { it.id }) { member ->
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = SurfaceWarm,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onMemberClick(member) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                MemberAvatar(
+                                    photoUrl = member.profilePhotoUrl,
+                                    name = member.fullName,
+                                    size = 46,
+                                    showPinkCelebrationRing = true
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = member.fullName,
+                                        style = MaterialTheme.typography.titleSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        ),
+                                        color = TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "रक्तगट: ${member.bloodGroup}",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = BloodRed,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp
+                                        )
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Call Button
+                                IconButton(
+                                    onClick = {
+                                        val intent = Intent(Intent.ACTION_DIAL).apply {
+                                            data = Uri.parse("tel:${member.mobileNumber}")
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = SuccessGreen.copy(alpha = 0.15f),
+                                        contentColor = SuccessGreen
+                                    ) {
+                                        Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Call,
+                                                contentDescription = "Call",
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                // Wish on Chat Button
+                                IconButton(
+                                    onClick = { onChatClick(member) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = SaffronContainer,
+                                        contentColor = SaffronDark
+                                    ) {
+                                        Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Chat,
+                                                contentDescription = "शुभेच्छा द्या",
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("बंद करा", color = NavySecondary, fontWeight = FontWeight.Bold)
+            }
         }
-    }
+    )
 }
 
 @Composable
@@ -879,7 +1245,8 @@ fun QuickButton(
     Card(
         modifier = modifier
             .height(72.dp)
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .testTag("quick_btn_$label"),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
         border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
@@ -917,115 +1284,6 @@ fun QuickButton(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-    }
-}
-
-@Composable
-fun EventCardCompact(
-    event: MandalEvent,
-    onRegisterClick: () -> Unit,
-    onImageClick: (String) -> Unit = {}
-) {
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.width(260.dp)
-    ) {
-        Column {
-            if (event.imageUrl.isNotBlank()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(130.dp)
-                        .clickable { onImageClick(event.imageUrl) }
-                ) {
-                    UniversalAsyncImage(
-                        model = event.imageUrl,
-                        contentDescription = event.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = null,
-                        tint = SaffronPrimary,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = event.date,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = TextMuted,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = event.location,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Button(
-                    onClick = onRegisterClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (event.isRegistered) SuccessGreen else NavySecondary
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Icon(
-                        imageVector = if (event.isRegistered) Icons.Default.Check else Icons.Default.PersonAdd,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (event.isRegistered) "नोंदणी झाली (${event.attendeesCount})" else "उपस्थित राहणार (${event.attendeesCount})",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
         }
     }
 }
