@@ -165,5 +165,10 @@ data class MandalInfoEntity(
     val instagramHandle: String = "jayhind_mandal_arjunwad",
     val adminWebLink: String = "",
     val logoUrl: String = "",
+    val isLiveStreamActive: Boolean = false,
+    val liveStreamTitle: String = "श्री गणेश महाआरती थेट प्रक्षेपण",
+    val liveStreamUrl: String = "https://www.youtube.com/@JayHindMandalArjunwad/live",
+    val liveStreamStartedAt: Long = 0L,
+    val liveViewerCount: Int = 148,
     val updatedAt: Long = System.currentTimeMillis()
 )

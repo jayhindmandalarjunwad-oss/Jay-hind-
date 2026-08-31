@@ -34,6 +34,7 @@ import com.example.ui.viewmodel.MandalViewModel
 
 enum class AdminTab(val title: String) {
     PENDING_APPROVALS("सभासद मंजुरी"),
+    LIVE_STREAM("🔴 थेट प्रक्षेपण (Live)"),
     MANAGE_BANNERS("ग्रुप बॅनर"),
     EDIT_ABOUT_US("आमच्याबद्दल व सोशल"),
     MEMBERS_LIST("सर्व सभासद व ॲडमिन"),
@@ -137,6 +138,7 @@ fun AdminPanelScreen(
             // Tab Content
             when (selectedTab) {
                 AdminTab.PENDING_APPROVALS -> PendingApprovalsTab(pendingMembers, viewModel)
+                AdminTab.LIVE_STREAM -> LiveStreamAdminTab(mandalInfo, viewModel)
                 AdminTab.MANAGE_BANNERS -> ManageBannersAdminTab(banners, viewModel)
                 AdminTab.EDIT_ABOUT_US -> EditAboutUsAdminTab(mandalInfo, viewModel)
                 AdminTab.MEMBERS_LIST -> AllMembersAdminTab(allMembers, viewModel)
@@ -2014,3 +2016,437 @@ fun ManageLogoAdminTab(
         }
     }
 }
+
+// 10. LIVE STREAM MANAGEMENT ADMIN TAB
+@Composable
+fun LiveStreamAdminTab(
+    mandalInfo: MandalInfo,
+    viewModel: MandalViewModel
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var streamTitle by remember(mandalInfo.liveStreamTitle) {
+        mutableStateOf(mandalInfo.liveStreamTitle.ifEmpty { "श्री गणेश महाआरती थेट प्रक्षेपण" })
+    }
+    var streamUrl by remember(mandalInfo.liveStreamUrl) {
+        mutableStateOf(mandalInfo.liveStreamUrl.ifEmpty { "https://www.youtube.com/@JayHindMandalArjunwad/live" })
+    }
+    var notifyMembers by remember { mutableStateOf(true) }
+    var isUpdating by remember { mutableStateOf(false) }
+
+    val isLiveActive = mandalInfo.isLiveStreamActive
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp)
+            .testTag("admin_live_stream_tab"),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Status Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isLiveActive) Color(0xFF8E0E00) else SurfaceWarm
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.5.dp,
+                    if (isLiveActive) Color(0xFFFF5252) else CardBorderColor
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isLiveActive) Color.White else TextMuted)
+                            )
+                            Text(
+                                text = if (isLiveActive) "🔴 थेट प्रक्षेपण चालू आहे (LIVE)" else "⏹️ थेट प्रक्षेपण बंद आहे",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = if (isLiveActive) Color.White else TextPrimary
+                            )
+                        }
+
+                        if (isLiveActive) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.White.copy(alpha = 0.25f)
+                            ) {
+                                Text(
+                                    text = "👁️ ${mandalInfo.liveViewerCount} पाहत आहेत",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = if (isLiveActive)
+                            "सध्या सर्व सभासदांना होम स्क्रीनवर थेट प्रक्षेपण अलर्ट दिसत आहे आणि सभासद ॲपमध्ये थेट व्हिडिओ पाहत आहेत."
+                        else
+                            "येथून आपण YouTube Live लिंक जोडून एका क्लिकवर सर्व सभासदांना थेट प्रक्षेपण दाखवू शकता.",
+                        fontSize = 12.sp,
+                        color = if (isLiveActive) Color.White.copy(alpha = 0.9f) else TextSecondary
+                    )
+                }
+            }
+        }
+
+        // Live Controls Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "⚙️ थेट प्रक्षेपणाचे तपशील (Live Stream Settings)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = TextPrimary
+                    )
+
+                    // Title Field
+                    OutlinedTextField(
+                        value = streamTitle,
+                        onValueChange = { streamTitle = it },
+                        label = { Text("प्रक्षेपणाचे नाव / शीर्षक (Title)") },
+                        placeholder = { Text("उदा. श्री गणेश महाआरती थेट प्रक्षेपण") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_live_title_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SaffronPrimary,
+                            unfocusedBorderColor = CardBorderColor
+                        ),
+                        singleLine = true
+                    )
+
+                    // Stream URL Field
+                    OutlinedTextField(
+                        value = streamUrl,
+                        onValueChange = { streamUrl = it },
+                        label = { Text("YouTube Live लिंक किंवा व्हिडिओ ID") },
+                        placeholder = { Text("https://youtube.com/live/... किंवा youtube.com/@चॅनल/live") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_live_url_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SaffronPrimary,
+                            unfocusedBorderColor = CardBorderColor
+                        ),
+                        trailingIcon = {
+                            if (streamUrl.isNotBlank()) {
+                                IconButton(onClick = { streamUrl = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        singleLine = true
+                    )
+
+                    // Quick Paste Presets
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = SaffronPrimary.copy(alpha = 0.12f),
+                            modifier = Modifier
+                                .clickable {
+                                    val cleanHandle = mandalInfo.youtubeHandle.trim()
+                                    streamUrl = if (cleanHandle.startsWith("http")) {
+                                        if (cleanHandle.contains("live")) cleanHandle else "$cleanHandle/live"
+                                    } else {
+                                        "https://www.youtube.com/$cleanHandle/live"
+                                    }
+                                }
+                        ) {
+                            Text(
+                                text = "🚩 मंडळाचे अधिकृत चॅनल Live",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SaffronPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+
+                    // Push Notification Checkbox (only for starting)
+                    if (!isLiveActive) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { notifyMembers = !notifyMembers }
+                        ) {
+                            Checkbox(
+                                checked = notifyMembers,
+                                onCheckedChange = { notifyMembers = it },
+                                colors = CheckboxDefaults.colors(checkedColor = SaffronPrimary)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Column {
+                                Text(
+                                    text = "सर्व सभासदांना थेट नोटिफिकेशन पाठवा 🔔",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "मोबाईलवर '🔴 थेट आरती/कार्यक्रम सुरू आहे' अशी सूचना जाईल",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Big Toggle Action Button
+                    if (isLiveActive) {
+                        // STOP STREAM BUTTON
+                        Button(
+                            onClick = {
+                                isUpdating = true
+                                viewModel.setLiveStreamStatus(
+                                    isLive = false,
+                                    title = streamTitle,
+                                    url = streamUrl,
+                                    notifyMembers = false
+                                ) {
+                                    isUpdating = false
+                                }
+                            },
+                            enabled = !isUpdating,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("admin_stop_live_btn"),
+                            colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            if (isUpdating) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("अपडेट होत आहे...")
+                            } else {
+                                Icon(Icons.Default.StopCircle, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "⏹️ थेट प्रक्षेपण थांबवा (End Live)",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else {
+                        // START STREAM BUTTON
+                        Button(
+                            onClick = {
+                                isUpdating = true
+                                viewModel.setLiveStreamStatus(
+                                    isLive = true,
+                                    title = streamTitle,
+                                    url = streamUrl,
+                                    notifyMembers = notifyMembers
+                                ) {
+                                    isUpdating = false
+                                }
+                            },
+                            enabled = !isUpdating,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("admin_start_live_btn"),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            if (isUpdating) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("थेट सुरू होत आहे...")
+                            } else {
+                                Icon(Icons.Default.Videocam, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "🔴 थेट प्रक्षेपण सुरू करा (Go Live)",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // Save settings without toggling state
+                    OutlinedButton(
+                        onClick = {
+                            isUpdating = true
+                            viewModel.setLiveStreamStatus(
+                                isLive = isLiveActive,
+                                title = streamTitle,
+                                url = streamUrl,
+                                notifyMembers = false
+                            ) {
+                                isUpdating = false
+                            }
+                        },
+                        enabled = !isUpdating,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("फक्त लिंक व शीर्षक सेव्ह करा", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        // Live Preview Player Button
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "👀 ॲपमधील थेट देखावा (In-App Player Preview)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = TextPrimary
+                    )
+
+                    Text(
+                        text = "सभासदांच्या मोबाईलवर व्हिडिओ कसा दिसेल हे पाहण्यासाठी खालील बटण दाबा:",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.openLiveStreamPlayer() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .testTag("admin_preview_player_btn"),
+                            colors = ButtonDefaults.buttonColors(containerColor = NavySecondary),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.PlayCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("प्लेयर उघडा", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com"))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Launch, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("YouTube ॲप", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Guide Card (कसे वापरावे - Step by step guide)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "📖 मोबाईलवरून थेट प्रक्षेपण (Live Streaming) कसे करावे?",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = SaffronDark
+                    )
+
+                    val steps = listOf(
+                        "१. आपल्या मोबाईलमधील **YouTube App** उघडा आणि खालील **'+' चिन्हावर** क्लिक करून **'Go Live'** निवडा.",
+                        "२. कॅमेऱ्यासमोर आरती किंवा कार्यक्रम सुरू करा. YouTube स्क्रीनवरील **Share (शेअर)** आयकॉनवर क्लिक करून लिंक **Copy Link** करा.",
+                        "३. या ॲडमिन पॅनेलमध्ये येऊन ती लिंक वरील बॉक्समध्ये पेस्ट करा.",
+                        "४. **'🔴 थेट प्रक्षेपण सुरू करा'** हे लाल बटण दाबा. सर्व सभासदांना तात्काळ नोटिफिकेशन जाईल आणि ॲपमध्ये आरती थेट दिसेल!",
+                        "५. कार्यक्रम संपल्यावर **'⏹️ थेट प्रक्षेपण थांबवा'** बटण दाबा. तो व्हिडिओ आपोआप गॅलरीत सेव्ह होईल."
+                    )
+
+                    steps.forEach { step ->
+                        Text(
+                            text = step,
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(30.dp))
+        }
+    }
+}
+

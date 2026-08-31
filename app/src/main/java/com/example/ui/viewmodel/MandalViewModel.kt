@@ -673,6 +673,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                     _currentTab.value = NavigationTab.HOME
                 }
             }
+            "LIVE" -> {
+                _currentScreen.value = AppScreen.MAIN
+                _currentTab.value = NavigationTab.HOME
+                openLiveStreamPlayer()
+            }
             "EVENTS" -> {
                 _currentScreen.value = AppScreen.EVENTS
             }
@@ -883,6 +888,51 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.changeUserRole(userId, newRole)
             showSnackbar("सभासदाचा रोल ($newRole) बदलण्यात आला! ✅")
+        }
+    }
+
+    // LIVE STREAM MANAGEMENT & IN-APP PLAYER
+    private val _showLiveStreamPlayer = MutableStateFlow(false)
+    val showLiveStreamPlayer: StateFlow<Boolean> = _showLiveStreamPlayer.asStateFlow()
+
+    fun openLiveStreamPlayer() {
+        _showLiveStreamPlayer.value = true
+    }
+
+    fun closeLiveStreamPlayer() {
+        _showLiveStreamPlayer.value = false
+    }
+
+    fun setLiveStreamStatus(
+        isLive: Boolean,
+        title: String,
+        url: String,
+        notifyMembers: Boolean = true,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                val result = repository.updateLiveStreamStatus(
+                    isLive = isLive,
+                    title = title,
+                    url = url,
+                    notifyMembers = notifyMembers
+                )
+                if (result.isSuccess) {
+                    if (isLive) {
+                        showSnackbar("🔴 थेट प्रक्षेपण सुरू झाले आणि सर्व सभासदांना नोटिफिकेशन पाठवले! 🚩")
+                    } else {
+                        showSnackbar("⏹️ थेट प्रक्षेपण थांबवले आणि व्हिडिओ गॅलरीमध्ये सेव्ह केले. ✅")
+                    }
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ थेट प्रक्षेपण अपडेट करताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
         }
     }
 

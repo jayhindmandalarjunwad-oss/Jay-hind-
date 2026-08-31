@@ -192,6 +192,99 @@ fun HomeScreen(
         }
 
         // ==========================================
+        // 1.5 थेट प्रक्षेपण अलर्ट बॅनर (LIVE STREAM ACTIVE BANNER)
+        // ==========================================
+        if (mandalInfo.isLiveStreamActive) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .clickable { viewModel.openLiveStreamPlayer() }
+                        .testTag("home_live_stream_active_banner"),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF8E0E00)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White)
+                                    )
+                                    Text(
+                                        text = "LIVE",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = mandalInfo.liveStreamTitle.ifEmpty { "श्री गणेश महाआरती थेट प्रक्षेपण" },
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    ),
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "🔴 थेट प्रक्षेपण सुरू आहे • आत्ताच पहा >",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = Color.White.copy(alpha = 0.9f)
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { viewModel.openLiveStreamPlayer() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF8E0E00)),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "पहा",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
         // 2. जलद पर्याय (QUICK ACTIONS - 4 ICONS)
         // ==========================================
         item {
@@ -682,20 +775,14 @@ fun HomeScreen(
 
                     // 4. Live
                     SocialHandleButton(
-                        label = "Live",
+                        label = if (mandalInfo.isLiveStreamActive) "🔴 Live" else "Live",
                         icon = Icons.Outlined.Videocam,
                         color = Color(0xFFDC2626),
-                        backgroundColor = Color(0xFFFEF2F2),
-                        isLiveBadge = true,
+                        backgroundColor = if (mandalInfo.isLiveStreamActive) Color(0xFFFFE4E6) else Color(0xFFFEF2F2),
+                        isLiveBadge = mandalInfo.isLiveStreamActive,
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            val clean = mandalInfo.youtubeHandle.trim()
-                            val url = if (clean.startsWith("http")) {
-                                if (clean.contains("live")) clean else "$clean/live"
-                            } else {
-                                "https://www.youtube.com/${clean}/live"
-                            }
-                            openUrlSafely(url)
+                            viewModel.openLiveStreamPlayer()
                         }
                     )
                 }

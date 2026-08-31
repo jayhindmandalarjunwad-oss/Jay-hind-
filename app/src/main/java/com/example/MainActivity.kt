@@ -84,6 +84,7 @@ fun MandalApp(viewModel: MandalViewModel) {
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
     val fullscreenPhotoUrl by viewModel.fullscreenPhotoUrl.collectAsStateWithLifecycle()
     val fullscreenViewerState by viewModel.fullscreenViewerState.collectAsStateWithLifecycle()
+    val showLiveStreamPlayer by viewModel.showLiveStreamPlayer.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreatePostDialog by remember { mutableStateOf(false) }
@@ -355,6 +356,17 @@ fun MandalApp(viewModel: MandalViewModel) {
                 FullscreenPhotoDialog(
                     photoUrl = fullscreenPhotoUrl,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
+                )
+            }
+
+            // Global In-App Live Stream Dialog (YouTube Embedded Player)
+            if (showLiveStreamPlayer) {
+                LiveStreamDialog(
+                    mandalInfo = mandalInfo,
+                    onDismiss = { viewModel.closeLiveStreamPlayer() },
+                    onSendReaction = { reaction ->
+                        viewModel.showSnackbar("प्रतिक्रिया नोंदवली: $reaction 🚩")
+                    }
                 )
             }
         }

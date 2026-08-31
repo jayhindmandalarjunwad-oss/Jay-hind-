@@ -1674,6 +1674,96 @@ class MandalRepository(context: Context) {
             Result.failure(e)
         }
     }
+
+    // LIVE STREAM MANAGEMENT
+    suspend fun updateLiveStreamStatus(
+        isLive: Boolean,
+        title: String,
+        url: String,
+        notifyMembers: Boolean = true
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val existingInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            val cleanTitle = title.trim().ifEmpty { "श्री गणेश महाआरती थेट प्रक्षेपण" }
+            val cleanUrl = url.trim()
+
+            val updatedEntity = existingInfo.copy(
+                isLiveStreamActive = isLive,
+                liveStreamTitle = cleanTitle,
+                liveStreamUrl = cleanUrl,
+                liveStreamStartedAt = if (isLive) System.currentTimeMillis() else existingInfo.liveStreamStartedAt,
+                updatedAt = System.currentTimeMillis()
+            )
+
+            // 1. Save to Room
+            mandalInfoDao.saveMandalInfo(updatedEntity)
+
+            // 2. Save to Firestore
+            firestore.collection("mandal_info").document("mandal_default")
+                .set(updatedEntity.toMap(), SetOptions.merge())
+
+            // 3. If Live Started and notification enabled, broadcast notification to all members
+            if (isLive && notifyMembers) {
+                val notifId = "notif_live_" + System.currentTimeMillis()
+                val liveNotif = NotificationEntity(
+                    id = notifId,
+                    title = "🔴 थेट प्रक्षेपण सुरू आहे!",
+                    message = "$cleanTitle थेट सुरू झाले आहे. दर्शनासाठी व सोहळा पाहण्यासाठी आत्ताच येथे क्लिक करा!",
+                    type = "LIVE",
+                    targetRoute = "LIVE",
+                    timestamp = System.currentTimeMillis()
+                )
+                notificationDao.insertNotification(liveNotif)
+                try {
+                    firestore.collection("notifications").document(notifId)
+                        .set(liveNotif.toMap(), SetOptions.merge())
+                } catch (e: Exception) {
+                    Log.e("FirebaseSync", "Error sending live notification", e)
+                }
+
+                // Show local notification immediately on device
+                com.example.util.SystemNotificationHelper.showSystemNotification(
+                    context = appContext,
+                    title = liveNotif.title,
+                    message = liveNotif.message,
+                    notificationId = 8888,
+                    targetRoute = "LIVE"
+                )
+            }
+
+            // 4. If Live stopped and URL is valid, auto-archive to Video Gallery if not already present
+            if (!isLive && cleanUrl.isNotBlank()) {
+                try {
+                    val existingVideos = videoDaoListDirect()
+                    val alreadyArchived = existingVideos.any { it.videoUrl.contains(cleanUrl) }
+                    if (!alreadyArchived) {
+                        addVideo(
+                            title = cleanTitle,
+                            description = "थेट प्रक्षेपणाचे रेकॉर्डिंग (Live Stream Archive)",
+                            category = "थेट प्रक्षेपण (Live)",
+                            videoUrl = cleanUrl,
+                            thumbnailUrl = ""
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.d("LiveStream", "Auto-archive note: ${e.message}")
+                }
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating live stream status: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun videoDaoListDirect(): List<VideoEntity> {
+        return try {
+            galleryDao.getAllVideos().first()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
 
 // Domain Mapping Extensions
@@ -1839,6 +1929,11 @@ fun MandalInfoEntity.toDomain() = MandalInfo(
     instagramHandle = instagramHandle,
     adminWebLink = adminWebLink,
     logoUrl = logoUrl,
+    isLiveStreamActive = isLiveStreamActive,
+    liveStreamTitle = liveStreamTitle,
+    liveStreamUrl = liveStreamUrl,
+    liveStreamStartedAt = liveStreamStartedAt,
+    liveViewerCount = liveViewerCount,
     updatedAt = updatedAt
 )
 
@@ -2173,6 +2268,11 @@ fun MandalInfoEntity.toMap(): Map<String, Any?> = mapOf(
     "instagramHandle" to instagramHandle,
     "adminWebLink" to adminWebLink,
     "logoUrl" to logoUrl,
+    "isLiveStreamActive" to isLiveStreamActive,
+    "liveStreamTitle" to liveStreamTitle,
+    "liveStreamUrl" to liveStreamUrl,
+    "liveStreamStartedAt" to liveStreamStartedAt,
+    "liveViewerCount" to liveViewerCount,
     "updatedAt" to updatedAt
 )
 
@@ -2193,6 +2293,11 @@ fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
         instagramHandle = getString("instagramHandle") ?: SeedData.defaultMandalInfo.instagramHandle,
         adminWebLink = getString("adminWebLink") ?: SeedData.defaultMandalInfo.adminWebLink,
         logoUrl = getString("logoUrl") ?: "",
+        isLiveStreamActive = getBoolean("isLiveStreamActive") ?: false,
+        liveStreamTitle = getString("liveStreamTitle") ?: "श्री गणेश महाआरती थेट प्रक्षेपण",
+        liveStreamUrl = getString("liveStreamUrl") ?: "",
+        liveStreamStartedAt = getLong("liveStreamStartedAt") ?: 0L,
+        liveViewerCount = (getLong("liveViewerCount") ?: 148L).toInt(),
         updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()
     )
 }
