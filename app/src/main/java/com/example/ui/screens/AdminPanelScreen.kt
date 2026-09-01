@@ -1986,242 +1986,7 @@ fun ManageLogoAdminTab(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // =========================================================================
-        // SECTION 1: MANDAL OFFICIAL RUBBER STAMP (मंडळाचा अधिकृत शिक्का)
-        // =========================================================================
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, NavySecondary.copy(alpha = 0.3f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Verified,
-                            contentDescription = null,
-                            tint = NavySecondary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "१. मंडळाचा अधिकृत शिक्का (Official Rubber Stamp)",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = TextPrimary
-                        )
-                    }
-
-                    if (hasPendingStampChanges) {
-                        Surface(
-                            color = SaffronPrimary.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = SaffronDark, modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("बदल प्रलंबित", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SaffronDark)
-                            }
-                        }
-                    } else {
-                        Surface(
-                            color = SuccessGreen.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (mandalInfo.officialStampUrl.isNotBlank()) "अपलोड केलेला शिक्का सक्रीय" else "डिजिटल शिक्का सक्रीय", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
-                            }
-                        }
-                    }
-                }
-
-                // Instructions Box
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFEFF6FF),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = NavySecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "पांढऱ्या कागदावर मारलेल्या मंडळाच्या मूळ गोल शिक्क्याचा (Rubber Stamp) फोटो काढा. ॲप कागदाचा भाग आपोआप पारदर्शक (Transparent) करून शिक्क्याची शाई ओळखपत्रावर बसवेल.",
-                            fontSize = 11.5.sp,
-                            color = Color(0xFF1E3A8A),
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
-
-                // Live Side-by-Side Stamp Comparison
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Current Active Stamp
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("सध्याचा शिक्का", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OfficialMandalStamp(
-                            size = 80,
-                            stampUrl = mandalInfo.officialStampUrl.ifBlank { null },
-                            signatureUrl = null,
-                            showFallbackSignature = false
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (mandalInfo.officialStampUrl.isBlank()) "डीफॉल्ट डिजिटल शिक्का" else "अस्सल रबर शिक्का",
-                            fontSize = 10.sp,
-                            color = TextSecondary
-                        )
-                    }
-
-                    // Arrow Icon
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = null,
-                        tint = if (hasPendingStampChanges) SaffronPrimary else TextSecondary.copy(alpha = 0.4f),
-                        modifier = Modifier.size(24.dp)
-                    )
-
-                    // New Selected Stamp Preview
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("नवीन देखावा (Preview)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (hasPendingStampChanges) SaffronDark else TextSecondary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OfficialMandalStamp(
-                            size = 80,
-                            stampUrl = selectedStampInput.ifBlank { mandalInfo.officialStampUrl.ifBlank { null } },
-                            signatureUrl = null,
-                            showFallbackSignature = false
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (hasPendingStampChanges) "⚡ लाइव्ह प्रिव्ह्यू" else "समान",
-                            fontSize = 10.sp,
-                            fontWeight = if (hasPendingStampChanges) FontWeight.Bold else FontWeight.Normal,
-                            color = if (hasPendingStampChanges) SaffronPrimary else TextSecondary
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = DividerColor)
-
-                // Upload Stamp Photo Button
-                Button(
-                    onClick = {
-                        stampPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    enabled = !isProcessingStampPhoto,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("admin_upload_stamp_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = NavySecondary),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    if (isProcessingStampPhoto) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("शिक्का फोटो पारदर्शक करत आहे...", fontSize = 13.sp)
-                    } else {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("📷 मंडळाचा अधिकृत शिक्का फोटो निवडा / अपलोड करा", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                    }
-                }
-
-                // Save Stamp Button
-                Button(
-                    onClick = {
-                        isSavingStamp = true
-                        viewModel.updateOfficialStamp(selectedStampInput) { success ->
-                            isSavingStamp = false
-                        }
-                    },
-                    enabled = hasPendingStampChanges && !isSavingStamp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("admin_save_stamp_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    if (isSavingStamp) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("शिक्का सेव्ह होत आहे...", fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("अधिकृत शिक्का सेव्ह करा (Save Stamp)", fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                // Reset Stamp to Default
-                if (mandalInfo.officialStampUrl.isNotBlank()) {
-                    OutlinedButton(
-                        onClick = {
-                            isResettingStamp = true
-                            viewModel.deleteOfficialStamp {
-                                isResettingStamp = false
-                                selectedStampInput = ""
-                            }
-                        },
-                        enabled = !isResettingStamp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("admin_delete_stamp_button"),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BloodRed),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        if (isResettingStamp) {
-                            CircularProgressIndicator(color = BloodRed, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("रीसेट होत आहे...", color = BloodRed)
-                        } else {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = BloodRed, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("डीफॉल्ट डिजिटल शिक्का वापरा (Reset to Default Stamp)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = BloodRed)
-                        }
-                    }
-                }
-            }
-        }
-
-        // =========================================================================
-        // SECTION 2: PRESIDENT'S SIGNATURE & DESIGNATION (अध्यक्षांची स्वाक्षरी)
+        // SECTION 1: PRESIDENT'S SIGNATURE & DESIGNATION (अध्यक्षांची स्वाक्षरी व नाव)
         // =========================================================================
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -2251,7 +2016,7 @@ fun ManageLogoAdminTab(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "२. अध्यक्षांची स्वाक्षरी (President Signature)",
+                            text = "१. अध्यक्षांची स्वाक्षरी व नाव (President Signature)",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = TextPrimary
                         )
@@ -2273,22 +2038,22 @@ fun ManageLogoAdminTab(
                         }
                     } else {
                         Surface(
-                            color = SuccessGreen.copy(alpha = 0.15f),
+                            color = if (mandalInfo.presidentSignatureUrl.isNotBlank()) SuccessGreen.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(12.dp))
+                                Icon(if (mandalInfo.presidentSignatureUrl.isNotBlank()) Icons.Default.CheckCircle else Icons.Default.Info, contentDescription = null, tint = if (mandalInfo.presidentSignatureUrl.isNotBlank()) SuccessGreen else TextSecondary, modifier = Modifier.size(12.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("सक्रीय स्वाक्षरी", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
+                                Text(if (mandalInfo.presidentSignatureUrl.isNotBlank()) "अपलोड केलेली स्वाक्षरी सक्रीय" else "स्वाक्षरी सेट नाही", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (mandalInfo.presidentSignatureUrl.isNotBlank()) SuccessGreen else TextSecondary)
                             }
                         }
                     }
                 }
 
-                // Instructions Card
+                // Instructions Box
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFFEFF6FF),
@@ -2307,7 +2072,7 @@ fun ManageLogoAdminTab(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "पांढऱ्या कागदावर अध्यक्षांची स्वाक्षरी करून फोटो काढा. ॲप स्वाक्षरीचा पांढरा भाग पारदर्शक (Transparent) करून तिला अधिकृत निळ्या रंगात रूपांतरित करेल.",
+                            text = "पांढऱ्या कोऱ्या कागदावर अध्यक्षांची स्वाक्षरी करून तिचा फोटो काढा. ॲप स्वाक्षरीचा पांढरा भाग पारदर्शक (Transparent) करून तिला अधिकृत निळ्या रंगात सर्व सभासदांच्या ओळखपत्रावर सेट करेल.",
                             fontSize = 11.5.sp,
                             color = Color(0xFF1E3A8A),
                             lineHeight = 16.sp
@@ -2329,7 +2094,7 @@ fun ManageLogoAdminTab(
                             shape = RoundedCornerShape(8.dp),
                             color = Color.White,
                             border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-                            modifier = Modifier.size(width = 110.dp, height = 56.dp)
+                            modifier = Modifier.size(width = 115.dp, height = 58.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(4.dp)) {
                                 if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
@@ -2340,7 +2105,7 @@ fun ManageLogoAdminTab(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
-                                    Text("✍️ डिजिटल सही", fontSize = 11.sp, color = TextMuted)
+                                    Text("स्वाक्षरी नाही", fontSize = 11.sp, color = TextMuted)
                                 }
                             }
                         }
@@ -2363,13 +2128,13 @@ fun ManageLogoAdminTab(
 
                     // New Selected Signature Preview
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("नवीन स्वाक्षरी دیکھاवा", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (hasPendingSignatureChanges) SaffronDark else TextSecondary)
+                        Text("नवीन देखावा (Preview)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (hasPendingSignatureChanges) SaffronDark else TextSecondary)
                         Spacer(modifier = Modifier.height(8.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color.White,
                             border = androidx.compose.foundation.BorderStroke(1.dp, if (hasPendingSignatureChanges) SaffronPrimary else CardBorderColor),
-                            modifier = Modifier.size(width = 110.dp, height = 56.dp)
+                            modifier = Modifier.size(width = 115.dp, height = 58.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(4.dp)) {
                                 val sigToShow = selectedSignatureInput.ifBlank { mandalInfo.presidentSignatureUrl }
@@ -2381,7 +2146,7 @@ fun ManageLogoAdminTab(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
-                                    Text("✍️ डिजिटल सही", fontSize = 11.sp, color = TextMuted)
+                                    Text("स्वाक्षरी नाही", fontSize = 11.sp, color = TextMuted)
                                 }
                             }
                         }
@@ -2401,8 +2166,8 @@ fun ManageLogoAdminTab(
                 OutlinedTextField(
                     value = presidentNameInput,
                     onValueChange = { presidentNameInput = it },
-                    label = { Text("अध्यक्षांचे नाव / हुद्दा (Designation / Name)") },
-                    placeholder = { Text("उदा. अध्यक्ष किंवा श्री. अध्यक्ष नाव") },
+                    label = { Text("अध्यक्षांचे नाव / हुद्दा (President Name / Designation)") },
+                    placeholder = { Text("उदा. अध्यक्ष किंवा श्री. सचिन पाटील") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
@@ -2461,7 +2226,7 @@ fun ManageLogoAdminTab(
                     }
                 }
 
-                // Reset Signature to Default
+                // Delete / Remove Signature
                 if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
                     OutlinedButton(
                         onClick = {
@@ -2483,11 +2248,11 @@ fun ManageLogoAdminTab(
                         if (isResettingSignature) {
                             CircularProgressIndicator(color = BloodRed, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("रीसेट होत आहे...", color = BloodRed)
+                            Text("काढून टाकत आहे...", color = BloodRed)
                         } else {
                             Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = BloodRed, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("डीफॉल्ट डिजिटल स्वाक्षरी सेट करा (Reset to Default)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = BloodRed)
+                            Text("स्वाक्षरी काढून टाका (Remove Signature)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = BloodRed)
                         }
                     }
                 }
@@ -2495,7 +2260,7 @@ fun ManageLogoAdminTab(
         }
 
         // =========================================================================
-        // SECTION 3: COMBINED LIVE PREVIEW ON DIGITAL ID CARD
+        // SECTION 2: LIVE PREVIEW ON DIGITAL ID CARD (ओळखपत्रावरील स्वाक्षरी देखावा)
         // =========================================================================
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -2523,14 +2288,14 @@ fun ManageLogoAdminTab(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "३. एकत्रित थेट ओळखपत्र देखावा (Live Card Preview)",
+                        text = "२. थेट ओळखपत्र स्वाक्षरी देखावा (Live ID Card Preview)",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = Color(0xFF166534)
                     )
                 }
 
                 Text(
-                    text = "सर्व सदस्यांच्या ओळखपत्रावर खालीलप्रमाणे शिक्का व स्वाक्षरी एकत्रित दिसेल:",
+                    text = "सर्व सभासदांच्या डिजिटल ओळखपत्रावर स्वाक्षरी खालीलप्रमाणे सुबक दिसेल:",
                     fontSize = 11.sp,
                     color = TextSecondary,
                     modifier = Modifier.fillMaxWidth()
@@ -2545,14 +2310,17 @@ fun ManageLogoAdminTab(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 14.dp)
                     ) {
-                        OfficialMandalStamp(
-                            size = 90,
-                            stampUrl = selectedStampInput.ifBlank { mandalInfo.officialStampUrl.ifBlank { null } },
-                            signatureUrl = selectedSignatureInput.ifBlank { mandalInfo.presidentSignatureUrl.ifBlank { null } }
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        val activeSig = selectedSignatureInput.ifBlank { mandalInfo.presidentSignatureUrl.ifBlank { null } }
+                        val activeStamp = selectedStampInput.ifBlank { mandalInfo.officialStampUrl.ifBlank { null } }
+                        if (!activeSig.isNullOrBlank() || !activeStamp.isNullOrBlank()) {
+                            PresidentSignatureSection(
+                                signatureUrl = activeSig,
+                                stampUrl = activeStamp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
                         Text(
                             text = presidentNameInput.ifBlank { mandalInfo.presidentName.ifBlank { "अध्यक्ष" } },
                             fontSize = 11.sp,

@@ -612,22 +612,24 @@ Status: $statusStr
             canvas.drawText("व्हेरिफिकेशन QR कोड (Scan to Verify)", qrLeft + qrSize / 2f, qrTop + qrSize + 40f, qrLabelPaint)
         }
 
-        // 8. Official Mandal Rubber Stamp on Right (अधिकृत डिजिटल निळा शिक्का व अध्यक्षांची स्वाक्षरी)
+        // 8. President's Authorized Signature on Right (अध्यक्षांची स्वाक्षरी)
         val sealCenterX = width - 250f
-        val sealCenterY = qrTop + qrSize / 2f
-        val sealRadius = 145f
+        val hasSignature = mandalInfo.presidentSignatureUrl.isNotBlank() || mandalInfo.officialStampUrl.isNotBlank()
+        val sealCenterY = if (hasSignature) qrTop + qrSize / 2f - 20f else qrTop + qrSize / 2f - 10f
+        val sealRadius = 130f
 
         drawOfficialStamp(context, canvas, sealCenterX, sealCenterY, sealRadius, mandalInfo)
 
-        // Sign text below stamp
+        // Sign text below signature (without any baseline)
         val presName = mandalInfo.presidentName.ifBlank { "अध्यक्ष" }
         val signPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(15, 23, 42)
-            textSize = 24f
+            textSize = 25f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(presName, sealCenterX, qrTop + qrSize + 32f, signPaint)
+        val textY = if (hasSignature) sealCenterY + 70f else sealCenterY + 20f
+        canvas.drawText(presName, sealCenterX, textY, signPaint)
 
         val signSubPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(71, 85, 105)
@@ -635,7 +637,7 @@ Status: $statusStr
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("जय हिंद मंडळ, अर्जुनवाड", sealCenterX, qrTop + qrSize + 56f, signSubPaint)
+        canvas.drawText("जय हिंद मंडळ, अर्जुनवाड", sealCenterX, textY + 28f, signSubPaint)
 
         // 9. Card Bottom Footer
         val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -671,18 +673,17 @@ Status: $statusStr
     }
 
     /**
-     * Draws an authentic official circular blue rubber seal (अधिकृत गोल रबर शिक्का)
-     * and seamlessly overlays the President's signature on top of it.
+     * Draws President's signature and baseline on ID Card canvas.
+     * If an authentic physical stamp was uploaded, it will be subtly rendered behind the signature.
+     * NO default circular stamp is drawn when no custom stamp is uploaded.
      */
     private fun drawOfficialStamp(context: Context, canvas: Canvas, cx: Float, cy: Float, radius: Float, mandalInfo: MandalInfo) {
-        var drawnCustomStamp = false
-
-        // If an authentic physical stamp was uploaded, draw it!
+        // If an authentic physical stamp was uploaded, draw it
         if (mandalInfo.officialStampUrl.isNotBlank()) {
             try {
                 val stampBmp = MediaUtils.loadBitmap(context, mandalInfo.officialStampUrl)
                 if (stampBmp != null) {
-                    val targetDiameter = radius * 2f
+                    val targetDiameter = radius * 1.8f
                     val matrix = Matrix().apply {
                         val s = targetDiameter / maxOf(stampBmp.width, stampBmp.height).toFloat()
                         postScale(s, s)
@@ -691,124 +692,39 @@ Status: $statusStr
                         postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
                     }
                     val stampPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        alpha = 240
+                        alpha = 210
                     }
                     canvas.drawBitmap(stampBmp, matrix, stampPaint)
-                    drawnCustomStamp = true
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
-        if (!drawnCustomStamp) {
-            val stampBlue = Color.rgb(30, 58, 138) // Official Rubber Stamp Blue (#1E3A8A)
-            val stampAlpha = 220
-
-            // 1. Outer solid circle
-            val outerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = 6.5f
-                color = stampBlue
-                alpha = stampAlpha
-            }
-            canvas.drawCircle(cx, cy, radius, outerPaint)
-
-            // 2. Inner fine dashed ring
-            val innerCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = 3f
-                color = stampBlue
-                alpha = stampAlpha
-                pathEffect = DashPathEffect(floatArrayOf(12f, 6f), 0f)
-            }
-            canvas.drawCircle(cx, cy, radius - 13f, innerCirclePaint)
-
-            // 3. Innermost solid circle
-            val innermostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = 2.5f
-                color = stampBlue
-                alpha = stampAlpha
-            }
-            canvas.drawCircle(cx, cy, radius - 24f, innermostPaint)
-
-            // 4. Center texts in Rubber Stamp
-            val stampCenterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = stampBlue
-                alpha = stampAlpha
-                textSize = 21f
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                textAlign = Paint.Align.CENTER
-            }
-            val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = stampBlue
-                alpha = stampAlpha
-                textSize = 18f
-                textAlign = Paint.Align.CENTER
-            }
-
-            canvas.drawText("★ ★ ★", cx, cy - 56f, starPaint)
-            canvas.drawText("जय हिंद मंडळ", cx, cy - 28f, stampCenterPaint)
-
-            val offPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = stampBlue
-                alpha = stampAlpha
-                textSize = 23f
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                textAlign = Paint.Align.CENTER
-            }
-            canvas.drawText("★ अधिकृत शिक्का ★", cx, cy + 4f, offPaint)
-            canvas.drawText("अर्जुनवाड", cx, cy + 34f, stampCenterPaint)
-            canvas.drawText("स्थापना १९९६", cx, cy + 62f, Paint(stampCenterPaint).apply { textSize = 17f })
-        }
-
-        // 5. Overlay President's Signature
-        var drawnSignature = false
+        // Draw President's Signature (Only when uploaded)
         if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
             try {
                 val sigBmp = MediaUtils.loadBitmap(context, mandalInfo.presidentSignatureUrl)
                 if (sigBmp != null) {
-                    val sigWidth = 230f
-                    val sigHeight = 115f
+                    val sigWidth = 240f
+                    val sigHeight = 110f
                     val matrix = Matrix().apply {
                         val scaleX = sigWidth / sigBmp.width.toFloat()
                         val scaleY = sigHeight / sigBmp.height.toFloat()
                         val s = minOf(scaleX, scaleY)
                         postScale(s, s)
-                        postRotate(-5f, (sigBmp.width * s) / 2f, (sigBmp.height * s) / 2f)
                         val scaledW = sigBmp.width * s
                         val scaledH = sigBmp.height * s
-                        postTranslate(cx - scaledW / 2f, cy - scaledH / 2f - 6f)
+                        postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
                     }
                     val sigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        alpha = 245
+                        alpha = 255
                     }
                     canvas.drawBitmap(sigBmp, matrix, sigPaint)
-                    drawnSignature = true
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-        }
-
-        // Fallback cursive signature line if no image uploaded
-        if (!drawnSignature) {
-            val sigLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.rgb(15, 45, 105)
-                strokeWidth = 4f
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-            val sigPath = Path().apply {
-                moveTo(cx - 75f, cy + 8f)
-                cubicTo(cx - 50f, cy - 25f, cx - 25f, cy + 20f, cx, cy - 10f)
-                cubicTo(cx + 20f, cy - 35f, cx + 45f, cy + 15f, cx + 75f, cy - 15f)
-                moveTo(cx - 65f, cy + 18f)
-                lineTo(cx + 65f, cy + 12f)
-            }
-            canvas.drawPath(sigPath, sigLinePaint)
         }
     }
 

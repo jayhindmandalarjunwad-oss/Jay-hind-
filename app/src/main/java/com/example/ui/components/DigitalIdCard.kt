@@ -350,17 +350,21 @@ fun DigitalIdCardView(
                             )
                         }
 
-                        // Right: Official Blue Rubber Stamp with President's Signature Overlay
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            OfficialMandalStamp(
-                                size = 82,
-                                stampUrl = mandalInfo.officialStampUrl.ifBlank { null },
-                                signatureUrl = mandalInfo.presidentSignatureUrl.ifBlank { null }
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
+                        // Right: President's Authorized Signature (अध्यक्षांची स्वाक्षरी)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.widthIn(min = 100.dp)
+                        ) {
+                            if (!mandalInfo.presidentSignatureUrl.isNullOrBlank() || !mandalInfo.officialStampUrl.isNullOrBlank()) {
+                                PresidentSignatureSection(
+                                    signatureUrl = mandalInfo.presidentSignatureUrl.ifBlank { null },
+                                    stampUrl = mandalInfo.officialStampUrl.ifBlank { null }
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
                             Text(
                                 text = mandalInfo.presidentName.ifBlank { "अध्यक्ष" },
-                                fontSize = 10.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFF0F172A)
                             )
@@ -406,136 +410,66 @@ fun DigitalIdCardView(
 }
 
 /**
- * Authentic Official Blue Rubber Stamp Composable (मंडळाचा अधिकृत गोल निळा शिक्का)
- * Supports uploaded physical stamp image OR generated digital vector seal, with signature overlay.
+ * Authentic President's Signature Section Composable (अध्यक्षांची अधिकृत स्वाक्षरी)
+ * Displays the President's signature photo cleanly (without any default circular stamp).
  */
 @Composable
-fun OfficialMandalStamp(
-    size: Int = 82,
-    stampUrl: String? = null,
+fun PresidentSignatureSection(
     signatureUrl: String? = null,
-    showFallbackSignature: Boolean = true,
+    stampUrl: String? = null,
+    showFallbackSignature: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val stampBlue = Color(0xFF1E3A8A) // Official Rubber Stamp Navy/Blue
-
     Box(
         modifier = modifier
-            .size(size.dp)
-            .testTag("official_mandal_stamp"),
+            .width(105.dp)
+            .height(54.dp)
+            .testTag("president_signature_box"),
         contentAlignment = Alignment.Center
     ) {
+        // If an authentic custom physical stamp photo was explicitly uploaded, show it in background
         if (!stampUrl.isNullOrBlank()) {
-            // Display uploaded authentic Mandal rubber seal
             UniversalAsyncImage(
                 model = stampUrl,
-                contentDescription = "मंडळाचा अधिकृत शिक्का",
+                contentDescription = "मंडळाचा शिक्का",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(2.dp)
+                    .size(54.dp)
+                    .alpha(0.85f)
             )
-        } else {
-            // Display crisp digital vector circular seal
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val strokeWidth = 2.dp.toPx()
-                val center = Offset(this.size.width / 2, this.size.height / 2)
-                val radius = (this.size.width / 2) - strokeWidth
-
-                // Outer thick ring
-                drawCircle(
-                    color = stampBlue.copy(alpha = 0.88f),
-                    radius = radius,
-                    center = center,
-                    style = Stroke(width = strokeWidth * 1.2f)
-                )
-
-                // Inner dashed ring
-                drawCircle(
-                    color = stampBlue.copy(alpha = 0.82f),
-                    radius = radius - 4.dp.toPx(),
-                    center = center,
-                    style = Stroke(
-                        width = 1.dp.toPx(),
-                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                            floatArrayOf(6f, 3f), 0f
-                        )
-                    )
-                )
-
-                // Innermost ring
-                drawCircle(
-                    color = stampBlue.copy(alpha = 0.85f),
-                    radius = radius - 8.dp.toPx(),
-                    center = center,
-                    style = Stroke(width = 1.dp.toPx())
-                )
-            }
-
-            // Stamp Typography (Under the signature)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(4.dp)
-            ) {
-                Text(
-                    text = "★ जय हिंद ★",
-                    color = stampBlue.copy(alpha = 0.88f),
-                    fontWeight = FontWeight.Black,
-                    fontSize = (size * 0.10).sp
-                )
-                Text(
-                    text = "अधिकृत शिक्का",
-                    color = stampBlue.copy(alpha = 0.92f),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = (size * 0.12).sp,
-                    letterSpacing = 0.3.sp
-                )
-                Text(
-                    text = "अर्जुनवाड",
-                    color = stampBlue.copy(alpha = 0.88f),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (size * 0.10).sp
-                )
-                Text(
-                    text = "१९९६",
-                    color = stampBlue.copy(alpha = 0.85f),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (size * 0.09).sp
-                )
-            }
         }
 
-        // President's Signature Overlay (Over top of stamp with slight rotation)
+        // President's Signature (Only display when uploaded)
         if (!signatureUrl.isNullOrBlank()) {
             UniversalAsyncImage(
                 model = signatureUrl,
                 contentDescription = "अध्यक्षांची स्वाक्षरी",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxSize(0.92f)
-                    .padding(2.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
             )
-        } else if (showFallbackSignature) {
-            // Elegant digital signature vector stroke representation
-            Canvas(modifier = Modifier.fillMaxSize(0.85f)) {
-                val path = androidx.compose.ui.graphics.Path().apply {
-                    val w = this@Canvas.size.width
-                    val h = this@Canvas.size.height
-                    moveTo(w * 0.15f, h * 0.58f)
-                    cubicTo(w * 0.3f, h * 0.3f, w * 0.45f, h * 0.7f, w * 0.58f, h * 0.45f)
-                    cubicTo(w * 0.68f, h * 0.25f, w * 0.78f, h * 0.65f, w * 0.88f, h * 0.42f)
-                    moveTo(w * 0.2f, h * 0.65f)
-                    lineTo(w * 0.82f, h * 0.60f)
-                }
-                drawPath(
-                    path = path,
-                    color = Color(0xFF0F2D6B).copy(alpha = 0.9f),
-                    style = Stroke(width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                )
-            }
         }
     }
+}
+
+/**
+ * Backward compatibility alias for OfficialMandalStamp without default round stamp.
+ */
+@Composable
+fun OfficialMandalStamp(
+    size: Int = 82,
+    stampUrl: String? = null,
+    signatureUrl: String? = null,
+    showFallbackSignature: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    PresidentSignatureSection(
+        signatureUrl = signatureUrl,
+        stampUrl = stampUrl,
+        showFallbackSignature = showFallbackSignature,
+        modifier = modifier
+    )
 }
 
 /**
