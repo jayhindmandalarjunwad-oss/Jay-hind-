@@ -21,7 +21,8 @@ enum class AppScreen {
     EVENTS,
     ANNOUNCEMENTS,
     NOTIFICATIONS,
-    CHAT_DETAIL
+    CHAT_DETAIL,
+    USER_POSTS
 }
 
 enum class NavigationTab {
@@ -99,6 +100,10 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     // Selected member for detail view sheet
     private val _selectedMemberForDetail = MutableStateFlow<User?>(null)
     val selectedMemberForDetail: StateFlow<User?> = _selectedMemberForDetail.asStateFlow()
+
+    // Selected user for author timeline/posts screen
+    private val _selectedUserForPosts = MutableStateFlow<User?>(null)
+    val selectedUserForPosts: StateFlow<User?> = _selectedUserForPosts.asStateFlow()
 
     // External Verification State (triggered when scanned by device camera deep-link)
     private val _scannedVerificationResult = MutableStateFlow<IdCardUtils.QrVerificationResult?>(null)
@@ -386,6 +391,28 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openComments(post: Post) {
         _activeCommentPost.value = post
+    }
+
+    fun openUserPosts(authorId: String, authorName: String = "", authorPhoto: String = "") {
+        val foundUser = allMembers.value.find { it.id == authorId }
+            ?: approvedMembers.value.find { it.id == authorId }
+            ?: if (currentUser.value?.id == authorId) currentUser.value else null
+
+        val target = foundUser ?: User(
+            id = authorId,
+            fullName = authorName.ifEmpty { "सभासद" },
+            mobileNumber = "",
+            password = "",
+            profilePhotoUrl = authorPhoto,
+            designation = "सभासद"
+        )
+        _selectedUserForPosts.value = target
+        _currentScreen.value = AppScreen.USER_POSTS
+    }
+
+    fun closeUserPosts() {
+        _selectedUserForPosts.value = null
+        _currentScreen.value = AppScreen.MAIN
     }
 
     fun closeComments() {

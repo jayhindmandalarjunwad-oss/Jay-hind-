@@ -37,6 +37,7 @@ fun PostItemCard(
     onEditClick: () -> Unit = {},
     onImageClick: (String) -> Unit = {},
     onMultiImageClick: (List<String>, Int) -> Unit = { _, _ -> },
+    onAuthorClick: ((authorId: String, authorName: String, authorPhoto: String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -63,30 +64,45 @@ fun PostItemCard(
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MemberAvatar(
-                    photoUrl = post.authorPhotoUrl,
-                    name = post.authorName,
-                    size = 44
-                )
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = post.authorName,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(
+                            if (onAuthorClick != null) {
+                                Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onAuthorClick(post.authorId, post.authorName, post.authorPhotoUrl)
+                                    }
+                            } else Modifier
                         ),
-                        color = TextPrimary
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MemberAvatar(
+                        photoUrl = post.authorPhotoUrl,
+                        name = post.authorName,
+                        size = 44
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = formatTimestampToMarathi(post.timestamp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            fontSize = 11.sp
+                            text = post.authorName,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            ),
+                            color = TextPrimary
                         )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formatTimestampToMarathi(post.timestamp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
 

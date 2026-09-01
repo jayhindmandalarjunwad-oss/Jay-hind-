@@ -128,6 +128,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                 }
             }
             AppScreen.CHAT_DETAIL -> viewModel.closeChat()
+            AppScreen.USER_POSTS -> viewModel.closeUserPosts()
             AppScreen.LOGIN, AppScreen.REGISTER -> {
                 // Keep on screen or close
             }
@@ -301,6 +302,19 @@ fun MandalApp(viewModel: MandalViewModel) {
                             viewModel = viewModel,
                             partner = partner!!,
                             onBack = { viewModel.closeChat() }
+                        )
+                    } else {
+                        viewModel.navigateTo(AppScreen.MAIN)
+                    }
+                }
+
+                AppScreen.USER_POSTS -> {
+                    val selectedUser by viewModel.selectedUserForPosts.collectAsStateWithLifecycle()
+                    if (selectedUser != null) {
+                        UserPostsScreen(
+                            user = selectedUser!!,
+                            viewModel = viewModel,
+                            onBack = { viewModel.closeUserPosts() }
                         )
                     } else {
                         viewModel.navigateTo(AppScreen.MAIN)
