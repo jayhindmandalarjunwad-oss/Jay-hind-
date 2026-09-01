@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -2151,12 +2152,12 @@ fun LiveStreamAdminTab(
                         singleLine = true
                     )
 
-                    // Stream URL Field
+                    // Stream URL Field (Universal auto-detection for YouTube, Facebook, Instagram, HLS, RTMP)
                     OutlinedTextField(
                         value = streamUrl,
                         onValueChange = { streamUrl = it },
-                        label = { Text("YouTube Live लिंक किंवा व्हिडिओ ID") },
-                        placeholder = { Text("https://youtube.com/live/... किंवा youtube.com/@चॅनल/live") },
+                        label = { Text("थेट प्रक्षेपण लिंक (YouTube / Facebook / Instagram / HLS / RTMP)") },
+                        placeholder = { Text("कोणतीही लाईव्ह लिंक येथे पेस्ट करा (ऑटो-डिटेक्ट होईल)") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("admin_live_url_input"),
@@ -2175,10 +2176,12 @@ fun LiveStreamAdminTab(
                         singleLine = true
                     )
 
-                    // Quick Paste Presets
+                    // Platform presets indicator
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -2194,10 +2197,46 @@ fun LiveStreamAdminTab(
                                 }
                         ) {
                             Text(
-                                text = "🚩 मंडळाचे अधिकृत चॅनल Live",
+                                text = "▶️ YouTube Live",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SaffronPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF1877F2).copy(alpha = 0.12f),
+                            modifier = Modifier
+                                .clickable {
+                                    val cleanHandle = mandalInfo.facebookHandle.trim()
+                                    streamUrl = if (cleanHandle.startsWith("http")) cleanHandle else "https://www.facebook.com/$cleanHandle/live"
+                                }
+                        ) {
+                            Text(
+                                text = "🔵 Facebook Live",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1877F2),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFE1306C).copy(alpha = 0.12f),
+                            modifier = Modifier
+                                .clickable {
+                                    val cleanHandle = mandalInfo.instagramHandle.trim()
+                                    streamUrl = if (cleanHandle.startsWith("http")) cleanHandle else "https://www.instagram.com/$cleanHandle/live"
+                                }
+                        ) {
+                            Text(
+                                text = "📷 Instagram Live",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE1306C),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                             )
                         }

@@ -20,6 +20,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -39,12 +40,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -54,12 +58,22 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.R
 import com.example.data.model.LiveComment
 import com.example.data.model.MandalInfo
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 import kotlin.random.Random
+
+enum class StreamPlatform(val displayName: String) {
+    YOUTUBE("YouTube"),
+    FACEBOOK("Facebook Live"),
+    INSTAGRAM("Instagram Live"),
+    DIRECT_HLS("Direct Stream / HLS"),
+    CUSTOM("Custom Stream")
+}
 
 fun extractYouTubeId(url: String): String {
     if (url.isBlank()) return ""
@@ -82,6 +96,18 @@ fun extractYouTubeId(url: String): String {
     return ""
 }
 
+fun detectStreamPlatform(url: String): StreamPlatform {
+    val clean = url.trim().lowercase()
+    return when {
+        clean.contains("youtu.be") || clean.contains("youtube.com") || extractYouTubeId(url).isNotEmpty() -> StreamPlatform.YOUTUBE
+        clean.contains("facebook.com") || clean.contains("fb.watch") || clean.contains("fb.me") -> StreamPlatform.FACEBOOK
+        clean.contains("instagram.com") || clean.contains("instagr.am") -> StreamPlatform.INSTAGRAM
+        clean.contains(".m3u8") || clean.contains(".mp4") || clean.contains("rtmp://") || clean.contains(".webm") -> StreamPlatform.DIRECT_HLS
+        clean.startsWith("http://") || clean.startsWith("https://") -> StreamPlatform.CUSTOM
+        else -> StreamPlatform.YOUTUBE
+    }
+}
+
 private data class FloatingParticle(
     val id: Long,
     val text: String,
@@ -93,6 +119,7 @@ private data class FloatingParticle(
 @Composable
 fun LiveStreamDialog(
     mandalInfo: MandalInfo,
+    mandalLogoUrl: String? = null,
     comments: List<LiveComment> = emptyList(),
     onDismiss: () -> Unit,
     onSendReaction: (String) -> Unit = {},
@@ -115,7 +142,7 @@ fun LiveStreamDialog(
     var isPlayerLoading by remember { mutableStateOf(true) }
     var showControlsOverlay by remember { mutableStateOf(true) }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
-    var streamKeyOrUrl by remember(mandalInfo.liveStreamUrl) { mutableStateOf(mandalInfo.liveStreamUrl) }
+    val streamKeyOrUrl by remember(mandalInfo.liveStreamUrl) { mutableStateOf(mandalInfo.liveStreamUrl) }
 
     // Floating reaction bubbles list
     var floatingParticles by remember { mutableStateOf<List<FloatingParticle>>(emptyList()) }
@@ -162,11 +189,11 @@ fun LiveStreamDialog(
     // Toggle Play/Pause via JavaScript
     fun togglePlayPause() {
         if (isPlaying) {
-            webViewInstance?.evaluateJavascript("pauseVideo();", null)
+            webViewInstance?.evaluateJavascript("if(window.pauseVideo) window.pauseVideo();", null)
             isPlaying = false
             showControlsOverlay = true
         } else {
-            webViewInstance?.evaluateJavascript("playVideo();", null)
+            webViewInstance?.evaluateJavascript("if(window.playVideo) window.playVideo();", null)
             isPlaying = true
             showControlsOverlay = true
         }
@@ -175,10 +202,10 @@ fun LiveStreamDialog(
     // Toggle Mute/Unmute via JavaScript
     fun toggleMute() {
         if (isMuted) {
-            webViewInstance?.evaluateJavascript("unMuteVideo();", null)
+            webViewInstance?.evaluateJavascript("if(window.unMuteVideo) window.unMuteVideo();", null)
             isMuted = false
         } else {
-            webViewInstance?.evaluateJavascript("muteVideo();", null)
+            webViewInstance?.evaluateJavascript("if(window.muteVideo) window.muteVideo();", null)
             isMuted = true
         }
         showControlsOverlay = true
@@ -197,12 +224,9 @@ fun LiveStreamDialog(
         }
     }
 
-    val videoId = remember(streamKeyOrUrl) {
-        extractYouTubeId(streamKeyOrUrl)
-    }
-
     val streamTitle = mandalInfo.liveStreamTitle.ifEmpty { "श्री गणेश महाआरती थेट प्रक्षेपण" }
     val isLiveActive = mandalInfo.isLiveStreamActive
+    val platform = remember(streamKeyOrUrl) { detectStreamPlatform(streamKeyOrUrl) }
 
     // Pulse animation for LIVE badge
     val infiniteTransition = rememberInfiniteTransition(label = "live_badge_pulse")
@@ -357,27 +381,47 @@ fun LiveStreamDialog(
                             .clickable { showControlsOverlay = !showControlsOverlay },
                         contentAlignment = Alignment.Center
                     ) {
-                        // Chromeless Player
-                        ChromelessVideoPlayer(
-                            videoId = videoId,
-                            streamUrl = mandalInfo.liveStreamUrl,
+                        // Smart Multi-Platform Live Player
+                        SmartMultiPlatformPlayer(
+                            streamUrl = streamKeyOrUrl,
+                            platform = platform,
                             onWebViewCreated = { webViewInstance = it },
                             onLoadingChange = { isPlayerLoading = it },
                             onPlayStateChange = { playing -> isPlaying = playing },
                             modifier = Modifier.fillMaxSize()
                         )
 
+                        // TV-Style Corner Watermark Logo (न्यूज चॅनेल प्रमाणे कोपऱ्यात लोगो)
+                        TvCornerWatermark(
+                            logoUrl = mandalLogoUrl,
+                            isLive = isLiveActive,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 10.dp, end = 12.dp)
+                        )
+
+                        // Loading / Paused State Overlay with Center Mandal Logo
+                        if (isPlayerLoading || !isPlaying) {
+                            MandalLogoPlayerOverlay(
+                                logoUrl = mandalLogoUrl,
+                                isLoading = isPlayerLoading,
+                                isPlaying = isPlaying,
+                                onPlayClick = { togglePlayPause() }
+                            )
+                        }
+
                         // Floating Reaction Overlay in Fullscreen
                         FloatingReactionOverlay(particles = floatingParticles)
 
                         // Custom HUD Overlay for Fullscreen
-                        if (showControlsOverlay || !isPlaying) {
+                        if (showControlsOverlay) {
                             CustomPlayerControlsOverlay(
                                 isPlaying = isPlaying,
                                 isMuted = isMuted,
                                 isLoading = isPlayerLoading,
                                 viewerCount = viewerCount,
                                 isFullscreen = true,
+                                platform = platform,
                                 onPlayPauseClick = { togglePlayPause() },
                                 onMuteToggle = { toggleMute() },
                                 onFullscreenToggle = { toggleOrientationFullscreen() },
@@ -430,7 +474,7 @@ fun LiveStreamDialog(
                     Column(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // 1. BRANDED CHROMELESS VIDEO PLAYER (16:9 Aspect Ratio)
+                        // 1. BRANDED MULTI-PLATFORM VIDEO PLAYER (16:9 Aspect Ratio)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -439,26 +483,46 @@ fun LiveStreamDialog(
                                 .clickable { showControlsOverlay = !showControlsOverlay },
                             contentAlignment = Alignment.Center
                         ) {
-                            ChromelessVideoPlayer(
-                                videoId = videoId,
-                                streamUrl = mandalInfo.liveStreamUrl,
+                            SmartMultiPlatformPlayer(
+                                streamUrl = streamKeyOrUrl,
+                                platform = platform,
                                 onWebViewCreated = { webViewInstance = it },
                                 onLoadingChange = { isPlayerLoading = it },
                                 onPlayStateChange = { playing -> isPlaying = playing },
                                 modifier = Modifier.fillMaxSize()
                             )
 
+                            // TV-Style Corner Watermark Logo (न्यूज चॅनेल प्रमाणे कोपऱ्यात लोगो)
+                            TvCornerWatermark(
+                                logoUrl = mandalLogoUrl,
+                                isLive = isLiveActive,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 8.dp, end = 8.dp)
+                            )
+
+                            // Loading / Paused Center Mandal Logo Overlay
+                            if (isPlayerLoading || !isPlaying) {
+                                MandalLogoPlayerOverlay(
+                                    logoUrl = mandalLogoUrl,
+                                    isLoading = isPlayerLoading,
+                                    isPlaying = isPlaying,
+                                    onPlayClick = { togglePlayPause() }
+                                )
+                            }
+
                             // Floating Reaction Overlay over video
                             FloatingReactionOverlay(particles = floatingParticles)
 
                             // Custom Branded HUD Controls Overlay
-                            if (showControlsOverlay || !isPlaying) {
+                            if (showControlsOverlay) {
                                 CustomPlayerControlsOverlay(
                                     isPlaying = isPlaying,
                                     isMuted = isMuted,
                                     isLoading = isPlayerLoading,
                                     viewerCount = viewerCount,
                                     isFullscreen = false,
+                                    platform = platform,
                                     onPlayPauseClick = { togglePlayPause() },
                                     onMuteToggle = { toggleMute() },
                                     onFullscreenToggle = { toggleOrientationFullscreen() },
@@ -511,7 +575,7 @@ fun LiveStreamDialog(
                             }
                         }
 
-                        // 3. LIVE CHAT & COMMENTS FEED
+                        // 3. LIVE CHAT & COMMENTS FEED (Zero dummy comments!)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -540,7 +604,7 @@ fun LiveStreamDialog(
                                         color = TextPrimary
                                     )
                                     Text(
-                                        text = "खालील बॉक्समध्ये टाईप करून सर्व सभासदांना आपला संदेश पाठवा.",
+                                        text = "खालील बॉक्समध्ये टाईप करून सर्व सभासदांना आपली प्रतिक्रिया पाठवा.",
                                         fontSize = 11.sp,
                                         color = TextSecondary,
                                         textAlign = TextAlign.Center
@@ -738,6 +802,237 @@ fun LiveStreamDialog(
     }
 }
 
+// TV-STYLE CORNER WATERMARK LOGO (न्यूज चॅनेल प्रमाणे कोपऱ्यात लोगो)
+@Composable
+private fun TvCornerWatermark(
+    logoUrl: String?,
+    isLive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "watermark_pulse")
+    val dotAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "watermark_dot_alpha"
+    )
+
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = Color.Black.copy(alpha = 0.65f),
+        border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.7f)),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Mandal Logo Badge
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .border(1.dp, GoldenTertiary, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!logoUrl.isNullOrBlank()) {
+                    UniversalAsyncImage(
+                        model = logoUrl,
+                        contentDescription = "Mandal Logo Watermark",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = R.drawable.ic_jayhind_logo),
+                        contentDescription = "Mandal Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            Column {
+                Text(
+                    text = "जय हिंद",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    lineHeight = 11.sp
+                )
+                if (isLive) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(BloodRed.copy(alpha = dotAlpha))
+                        )
+                        Text(
+                            text = "LIVE",
+                            color = Color(0xFFFF4D4D),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 9.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MANDAL LOGO PLAYER OVERLAY (व्हिडिओ लोड किंवा पॉज असताना मध्यभागी मंडळाचा लोगो)
+@Composable
+private fun MandalLogoPlayerOverlay(
+    logoUrl: String?,
+    isLoading: Boolean,
+    isPlaying: Boolean,
+    onPlayClick: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "mandal_pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_scale"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.78f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Glowing Circular Mandal Logo Frame
+            Box(
+                modifier = Modifier
+                    .size(90.dp)
+                    .scale(if (isLoading) pulseScale else 1f)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(SaffronPrimary.copy(alpha = 0.4f), Color.Transparent)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                // Outer ring
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(3.dp, GoldenTertiary, CircleShape)
+                        .padding(3.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!logoUrl.isNullOrBlank()) {
+                        UniversalAsyncImage(
+                            model = logoUrl,
+                            contentDescription = "Mandal Logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(id = R.drawable.ic_jayhind_logo),
+                            contentDescription = "Mandal Logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "अर्जुनवाड • थेट प्रक्षेपण",
+                color = GoldenTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isLoading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = SaffronPrimary,
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Text(
+                        text = "🔴 थेट प्रक्षेपण सुरू होत आहे...",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            } else if (!isPlaying) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = SaffronPrimary,
+                    modifier = Modifier.clickable { onPlayClick() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "प्रक्षेपण पुन्हा सुरू करा (Play)",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 // CUSTOM PLAYER CONTROLS OVERLAY (Overlayed directly over video)
 @Composable
 private fun CustomPlayerControlsOverlay(
@@ -746,6 +1041,7 @@ private fun CustomPlayerControlsOverlay(
     isLoading: Boolean,
     viewerCount: Int,
     isFullscreen: Boolean,
+    platform: StreamPlatform,
     onPlayPauseClick: () -> Unit,
     onMuteToggle: () -> Unit,
     onFullscreenToggle: () -> Unit,
@@ -793,7 +1089,7 @@ private fun CustomPlayerControlsOverlay(
                                 .background(Color.White)
                         )
                         Text(
-                            text = "थेट प्रक्षेपण",
+                            text = "थेट प्रक्षेपण (${platform.displayName})",
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -853,29 +1149,12 @@ private fun CustomPlayerControlsOverlay(
             }
         }
 
-        // Center HUD: Big Play / Pause / Loading Button
-        Box(
-            modifier = Modifier.align(Alignment.Center),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isLoading) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    CircularProgressIndicator(
-                        color = SaffronPrimary,
-                        modifier = Modifier.size(40.dp),
-                        strokeWidth = 3.dp
-                    )
-                    Text(
-                        text = "थेट दर्शन जोडत आहे...",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            } else {
+        // Center HUD: Big Play / Pause Button
+        if (!isLoading) {
+            Box(
+                modifier = Modifier.align(Alignment.Center),
+                contentAlignment = Alignment.Center
+            ) {
                 Surface(
                     shape = CircleShape,
                     color = Color.Black.copy(alpha = 0.7f),
@@ -938,18 +1217,19 @@ private fun CustomPlayerControlsOverlay(
     }
 }
 
-// IN-APP CHROMELESS VIDEO PLAYER WEBVIEW
+// IN-APP SMART MULTI-PLATFORM LIVE PLAYER WEBVIEW
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun ChromelessVideoPlayer(
-    videoId: String,
+private fun SmartMultiPlatformPlayer(
     streamUrl: String,
+    platform: StreamPlatform,
     onWebViewCreated: (WebView) -> Unit,
     onLoadingChange: (Boolean) -> Unit,
     onPlayStateChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cleanVideoId = videoId.ifEmpty { "live_stream" }
+    val cleanUrl = streamUrl.trim()
+    val ytVideoId = remember(cleanUrl) { extractYouTubeId(cleanUrl) }
 
     AndroidView(
         factory = { ctx ->
@@ -971,7 +1251,7 @@ private fun ChromelessVideoPlayer(
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 settings.cacheMode = WebSettings.LOAD_DEFAULT
 
-                // Set Modern Android Chrome Mobile User-Agent to avoid Embed 152 Error
+                // Modern Android Chrome User-Agent
                 settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
                 addJavascriptInterface(object {
@@ -1028,110 +1308,211 @@ private fun ChromelessVideoPlayer(
                     }
                 }
 
-                // Chromeless HTML with custom CSS hiding YouTube UI completely
-                val chromelessHtml = """
-                    <!DOCTYPE html>
-                    <html lang="mr">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                        <style>
-                            * { margin: 0; padding: 0; box-sizing: border-box; }
-                            html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-                            #player-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
-                            iframe { width: 100%; height: 100%; border: 0; pointer-events: auto; }
-                            
-                            /* Hide YouTube brandings and overlays via CSS */
-                            .ytp-chrome-top, .ytp-watermark, .ytp-youtube-button, .ytp-pause-overlay, 
-                            .ytp-show-cards-title, .ytp-share-panel, .ytp-button, .ytp-contextmenu {
-                                display: none !important;
-                                opacity: 0 !important;
-                                pointer-events: none !important;
-                            }
-                        </style>
-                        <script src="https://www.youtube.com/iframe_api"></script>
-                    </head>
-                    <body>
-                        <div id="player-container">
-                            <div id="player"></div>
-                        </div>
-
-                        <script>
-                            var player;
-                            function onYouTubeIframeAPIReady() {
-                                player = new YT.Player('player', {
-                                    width: '100%',
-                                    height: '100%',
-                                    videoId: '$cleanVideoId',
-                                    playerVars: {
-                                        'autoplay': 1,
-                                        'playsinline': 1,
-                                        'controls': 0,
-                                        'modestbranding': 1,
-                                        'rel': 0,
-                                        'showinfo': 0,
-                                        'iv_load_policy': 3,
-                                        'disablekb': 1,
-                                        'fs': 0,
-                                        'origin': 'https://www.youtube.com',
-                                        'enablejsapi': 1
-                                    },
-                                    events: {
-                                        'onReady': onPlayerReady,
-                                        'onStateChange': onPlayerStateChange,
-                                        'onError': onPlayerError
-                                    }
-                                });
-                            }
-
-                            function onPlayerReady(event) {
-                                event.target.playVideo();
-                                if (window.AndroidBridge) {
-                                    window.AndroidBridge.onPlayerReady();
-                                }
-                            }
-
-                            function onPlayerStateChange(event) {
-                                if (window.AndroidBridge) {
-                                    window.AndroidBridge.onPlayerStateChange(event.data);
-                                }
-                            }
-
-                            function onPlayerError(event) {
-                                if (window.AndroidBridge) {
-                                    window.AndroidBridge.onPlayerError(event.data);
-                                }
-                            }
-
-                            function playVideo() {
-                                if (player && player.playVideo) player.playVideo();
-                            }
-
-                            function pauseVideo() {
-                                if (player && player.pauseVideo) player.pauseVideo();
-                            }
-
-                            function muteVideo() {
-                                if (player && player.mute) player.mute();
-                            }
-
-                            function unMuteVideo() {
-                                if (player && player.unMute) player.unMute();
-                            }
-                        </script>
-                    </body>
-                    </html>
-                """.trimIndent()
-
-                loadDataWithBaseURL("https://www.youtube.com", chromelessHtml, "text/html", "UTF-8", null)
+                loadSmartPlayerHtml(this, cleanUrl, platform, ytVideoId)
                 onWebViewCreated(this)
             }
         },
         update = { webView ->
             onWebViewCreated(webView)
         },
-        modifier = modifier.testTag("chromeless_live_player")
+        modifier = modifier.testTag("smart_multiplatform_live_player")
     )
+}
+
+private fun loadSmartPlayerHtml(
+    webView: WebView,
+    streamUrl: String,
+    platform: StreamPlatform,
+    ytVideoId: String
+) {
+    val html = when (platform) {
+        StreamPlatform.YOUTUBE -> {
+            val validYtId = ytVideoId.ifEmpty { "live_stream" }
+            """
+            <!DOCTYPE html>
+            <html lang="mr">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+                    #player-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+                    iframe { width: 100%; height: 100%; border: 0; }
+                    .ytp-chrome-top, .ytp-watermark, .ytp-youtube-button, .ytp-pause-overlay, 
+                    .ytp-show-cards-title, .ytp-share-panel, .ytp-button, .ytp-contextmenu {
+                        display: none !important; opacity: 0 !important; pointer-events: none !important;
+                    }
+                </style>
+                <script src="https://www.youtube.com/iframe_api"></script>
+            </head>
+            <body>
+                <div id="player-container">
+                    <div id="player"></div>
+                </div>
+                <script>
+                    var player;
+                    function onYouTubeIframeAPIReady() {
+                        player = new YT.Player('player', {
+                            width: '100%',
+                            height: '100%',
+                            videoId: '$validYtId',
+                            playerVars: {
+                                'autoplay': 1,
+                                'playsinline': 1,
+                                'controls': 0,
+                                'modestbranding': 1,
+                                'rel': 0,
+                                'showinfo': 0,
+                                'iv_load_policy': 3,
+                                'disablekb': 1,
+                                'fs': 0,
+                                'origin': 'https://www.youtube.com',
+                                'enablejsapi': 1
+                            },
+                            events: {
+                                'onReady': onPlayerReady,
+                                'onStateChange': onPlayerStateChange,
+                                'onError': onPlayerError
+                            }
+                        });
+                    }
+                    function onPlayerReady(event) {
+                        event.target.playVideo();
+                        if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
+                    }
+                    function onPlayerStateChange(event) {
+                        if (window.AndroidBridge) window.AndroidBridge.onPlayerStateChange(event.data);
+                    }
+                    function onPlayerError(event) {
+                        if (window.AndroidBridge) window.AndroidBridge.onPlayerError(event.data);
+                    }
+                    window.playVideo = function() { if (player && player.playVideo) player.playVideo(); };
+                    window.pauseVideo = function() { if (player && player.pauseVideo) player.pauseVideo(); };
+                    window.muteVideo = function() { if (player && player.mute) player.mute(); };
+                    window.unMuteVideo = function() { if (player && player.unMute) player.unMute(); };
+                </script>
+            </body>
+            </html>
+            """.trimIndent()
+        }
+
+        StreamPlatform.FACEBOOK -> {
+            val encodedFb = try { URLEncoder.encode(streamUrl, "UTF-8") } catch (_: Exception) { streamUrl }
+            val fbEmbedUrl = "https://www.facebook.com/plugins/video.php?href=$encodedFb&show_text=false&autoplay=true&mute=0"
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+                    iframe { width: 100vw; height: 100vh; border: 0; }
+                </style>
+            </head>
+            <body>
+                <iframe src="$fbEmbedUrl" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true"></iframe>
+                <script>
+                    setTimeout(function() {
+                        if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
+                    }, 1200);
+                </script>
+            </body>
+            </html>
+            """.trimIndent()
+        }
+
+        StreamPlatform.INSTAGRAM -> {
+            val igUrl = if (streamUrl.endsWith("/")) streamUrl else "$streamUrl/"
+            val igEmbed = if (igUrl.contains("/embed/")) igUrl else "${igUrl}embed/"
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+                    iframe { width: 100vw; height: 100vh; border: 0; }
+                </style>
+            </head>
+            <body>
+                <iframe src="$igEmbed" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowtransparency="true" frameborder="0" scrolling="no"></iframe>
+                <script>
+                    setTimeout(function() {
+                        if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
+                    }, 1200);
+                </script>
+            </body>
+            </html>
+            """.trimIndent()
+        }
+
+        StreamPlatform.DIRECT_HLS, StreamPlatform.CUSTOM -> {
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+                    video { width: 100vw; height: 100vh; object-fit: contain; background: #000; }
+                </style>
+                <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+            </head>
+            <body>
+                <video id="videoPlayer" playsinline autoplay controls></video>
+                <script>
+                    var video = document.getElementById('videoPlayer');
+                    var videoSrc = '$streamUrl';
+                    if (Hls.isSupported() && videoSrc.includes('.m3u8')) {
+                        var hls = new Hls();
+                        hls.loadSource(videoSrc);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                            video.play();
+                            if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = videoSrc;
+                        video.addEventListener('loadedmetadata', function() {
+                            video.play();
+                            if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
+                        });
+                    } else {
+                        video.src = videoSrc;
+                        video.play();
+                        if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
+                    }
+
+                    video.onplaying = function() { if (window.AndroidBridge) window.AndroidBridge.onPlayerStateChange(1); };
+                    video.onpause = function() { if (window.AndroidBridge) window.AndroidBridge.onPlayerStateChange(2); };
+                    video.onwaiting = function() { if (window.AndroidBridge) window.AndroidBridge.onPlayerStateChange(3); };
+
+                    window.playVideo = function() { video.play(); };
+                    window.pauseVideo = function() { video.pause(); };
+                    window.muteVideo = function() { video.muted = true; };
+                    window.unMuteVideo = function() { video.muted = false; };
+                </script>
+            </body>
+            </html>
+            """.trimIndent()
+        }
+    }
+
+    val baseUrl = when (platform) {
+        StreamPlatform.YOUTUBE -> "https://www.youtube.com"
+        StreamPlatform.FACEBOOK -> "https://www.facebook.com"
+        StreamPlatform.INSTAGRAM -> "https://www.instagram.com"
+        else -> "https://localhost"
+    }
+
+    webView.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
 }
 
 // FLOATING REACTION PARTICLES OVERLAY
@@ -1179,8 +1560,7 @@ private fun BoxScope.FloatingReactionOverlay(particles: List<FloatingParticle>) 
 
 private fun formatTimeAgoShort(timestamp: Long): String {
     val diff = System.currentTimeMillis() - timestamp
-    val seconds = diff / 1000
-    val minutes = seconds / 60
+    val minutes = (diff / 1000) / 60
     val hours = minutes / 60
 
     return when {

@@ -36,8 +36,8 @@ object MediaUtils {
     suspend fun uriToBase64(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 600,
-        quality: Int = 80
+        maxDimension: Int = 1280,
+        quality: Int = 88
     ): String? = withContext(Dispatchers.IO) {
         try {
             val uriStr = uri.toString()

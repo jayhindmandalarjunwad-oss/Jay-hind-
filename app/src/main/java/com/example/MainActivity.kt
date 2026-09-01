@@ -381,10 +381,11 @@ fun MandalApp(viewModel: MandalViewModel) {
                 )
             }
 
-            // Global In-App Live Stream Dialog (YouTube Embedded Player)
+            // Global In-App Live Stream Dialog (Smart Multi-Platform Player with Watermark & Logo)
             if (showLiveStreamPlayer) {
                 LiveStreamDialog(
                     mandalInfo = mandalInfo,
+                    mandalLogoUrl = mandalLogoUrl,
                     comments = liveComments,
                     onDismiss = { viewModel.closeLiveStreamPlayer() },
                     onSendReaction = { reaction ->

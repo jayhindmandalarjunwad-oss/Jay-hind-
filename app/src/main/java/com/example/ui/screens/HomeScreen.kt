@@ -101,7 +101,12 @@ fun HomeScreen(
                         items(banners, key = { it.id }) { banner ->
                             GroupBannerCard(
                                 banner = banner,
-                                mandalLogoUrl = mandalLogoUrl
+                                mandalLogoUrl = mandalLogoUrl,
+                                onClick = {
+                                    val urls = banners.map { it.imageUrl }.filter { it.isNotBlank() }
+                                    val idx = urls.indexOf(banner.imageUrl).coerceAtLeast(0)
+                                    viewModel.openFullscreenPhotos(urls, idx)
+                                }
                             )
                         }
                     }
@@ -836,12 +841,15 @@ fun HomeScreen(
 @Composable
 fun GroupBannerCard(
     banner: MandalBanner,
-    mandalLogoUrl: String?
+    mandalLogoUrl: String?,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier
             .width(340.dp)
-            .height(170.dp),
+            .height(170.dp)
+            .clickable { onClick() }
+            .testTag("group_banner_card_${banner.id}"),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = SaffronPrimary),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -866,6 +874,34 @@ fun GroupBannerCard(
                         )
                     )
             )
+
+            // Top-right Zoom Badge
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Color.Black.copy(alpha = 0.55f),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ZoomIn,
+                        contentDescription = "Zoom Banner",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "HD झूम",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Column(
                 modifier = Modifier

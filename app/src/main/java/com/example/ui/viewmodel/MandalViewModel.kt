@@ -927,31 +927,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _showLiveStreamPlayer = MutableStateFlow(false)
     val showLiveStreamPlayer: StateFlow<Boolean> = _showLiveStreamPlayer.asStateFlow()
 
-    private val _liveComments = MutableStateFlow<List<LiveComment>>(
-        listOf(
-            LiveComment(
-                id = "c1",
-                userName = "राहुल पाटील",
-                userPhoto = "",
-                message = "🚩 गणपती बाप्पा मोरया! जय हिंद मंडळ, अर्जुनवाड!",
-                timestamp = System.currentTimeMillis() - 120000
-            ),
-            LiveComment(
-                id = "c2",
-                userName = "सचिन जाधव",
-                userPhoto = "",
-                message = "🙏 खूपच सुंदर आरती व नियोजन! जय हिंद!",
-                timestamp = System.currentTimeMillis() - 60000
-            ),
-            LiveComment(
-                id = "c3",
-                userName = "अमित कांबळे",
-                userPhoto = "",
-                message = "🌸 महाआरती थेट दर्शन! हर हर महादेव!",
-                timestamp = System.currentTimeMillis() - 20000
-            )
-        )
-    )
+    private val _liveComments = MutableStateFlow<List<LiveComment>>(emptyList())
     val liveComments: StateFlow<List<LiveComment>> = _liveComments.asStateFlow()
 
     fun openLiveStreamPlayer() {
