@@ -514,23 +514,101 @@ object MediaUtils {
 
     /**
      * Converts a Base64 image data string or raw Base64 string into an Android Bitmap.
+     * Supports multiple Base64 encodings, line breaks, and prefixes.
      */
     fun base64ToBitmap(data: String?): Bitmap? {
         if (data.isNullOrBlank()) return null
         return try {
             val trimmed = data.trim()
             val base64Clean = if (trimmed.contains("base64,")) {
-                trimmed.substringAfter("base64,")
+                trimmed.substringAfter("base64,").trim()
             } else {
                 trimmed
+            }.replace("\n", "").replace("\r", "").replace(" ", "")
+
+            var decodedBytes: ByteArray? = try {
+                Base64.decode(base64Clean, Base64.DEFAULT)
+            } catch (_: Exception) {
+                try {
+                    Base64.decode(base64Clean, Base64.NO_WRAP)
+                } catch (_: Exception) {
+                    try {
+                        Base64.decode(base64Clean, Base64.URL_SAFE)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
             }
-            val decodedBytes = Base64.decode(base64Clean.trim(), Base64.DEFAULT)
+
+            if (decodedBytes == null || decodedBytes.isEmpty()) return null
+
             val options = BitmapFactory.Options().apply {
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
             BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size, options)
         } catch (e: Exception) {
             Log.e("MediaUtils", "Failed to decode base64 to bitmap: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Universally loads a Bitmap from any string source:
+     * - Base64 data string (data:image/...) or raw Base64
+     * - content:// or file:// URI
+     * - Direct local file path
+     * - http:// or https:// URL (with network stream)
+     */
+    fun loadBitmap(context: Context, source: String?): Bitmap? {
+        if (source.isNullOrBlank()) return null
+        val trimmed = source.trim()
+        return try {
+            when {
+                trimmed.startsWith("data:") || trimmed.contains("base64,") || trimmed.startsWith("/9j/") || trimmed.startsWith("iVBOR") -> {
+                    base64ToBitmap(trimmed)
+                }
+                trimmed.startsWith("content://") || trimmed.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(trimmed))?.use { stream ->
+                        val options = BitmapFactory.Options().apply {
+                            inPreferredConfig = Bitmap.Config.ARGB_8888
+                        }
+                        BitmapFactory.decodeStream(stream, null, options)
+                    }
+                }
+                trimmed.startsWith("/") -> {
+                    val file = File(trimmed)
+                    if (file.exists()) {
+                        val options = BitmapFactory.Options().apply {
+                            inPreferredConfig = Bitmap.Config.ARGB_8888
+                        }
+                        BitmapFactory.decodeFile(trimmed, options)
+                    } else null
+                }
+                trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
+                    try {
+                        val url = URL(trimmed)
+                        val conn = url.openConnection() as HttpURLConnection
+                        conn.connectTimeout = 5000
+                        conn.readTimeout = 5000
+                        conn.connect()
+                        conn.inputStream.use { stream ->
+                            val options = BitmapFactory.Options().apply {
+                                inPreferredConfig = Bitmap.Config.ARGB_8888
+                            }
+                            BitmapFactory.decodeStream(stream, null, options)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MediaUtils", "Failed to load bitmap from URL: ${e.message}")
+                        null
+                    }
+                }
+                else -> {
+                    // Try Base64 decoding as fallback
+                    base64ToBitmap(trimmed)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Failed to load bitmap: ${e.message}")
             null
         }
     }

@@ -2093,7 +2093,8 @@ fun ManageLogoAdminTab(
                         OfficialMandalStamp(
                             size = 80,
                             stampUrl = mandalInfo.officialStampUrl.ifBlank { null },
-                            signatureUrl = null
+                            signatureUrl = null,
+                            showFallbackSignature = false
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -2118,7 +2119,8 @@ fun ManageLogoAdminTab(
                         OfficialMandalStamp(
                             size = 80,
                             stampUrl = selectedStampInput.ifBlank { mandalInfo.officialStampUrl.ifBlank { null } },
-                            signatureUrl = null
+                            signatureUrl = null,
+                            showFallbackSignature = false
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(

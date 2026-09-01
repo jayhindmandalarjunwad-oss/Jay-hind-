@@ -342,7 +342,7 @@ Status: $statusStr
         try {
             var logoResBitmap: Bitmap? = null
             if (!mandalInfo.logoUrl.isNullOrBlank()) {
-                logoResBitmap = MediaUtils.base64ToBitmap(mandalInfo.logoUrl)
+                logoResBitmap = MediaUtils.loadBitmap(context, mandalInfo.logoUrl)
             }
             if (logoResBitmap == null) {
                 logoResBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.ic_jayhind_logo)
@@ -401,7 +401,7 @@ Status: $statusStr
         try {
             var logoRes: Bitmap? = null
             if (!mandalInfo.logoUrl.isNullOrBlank()) {
-                logoRes = MediaUtils.base64ToBitmap(mandalInfo.logoUrl)
+                logoRes = MediaUtils.loadBitmap(context, mandalInfo.logoUrl)
             }
             if (logoRes == null) {
                 logoRes = BitmapFactory.decodeResource(context.resources, R.drawable.ic_jayhind_logo)
@@ -435,7 +435,7 @@ Status: $statusStr
         // Default avatar or photo
         var memberPhotoDrawn = false
         if (!user.profilePhotoUrl.isNullOrBlank()) {
-            val bmp = MediaUtils.base64ToBitmap(user.profilePhotoUrl)
+            val bmp = MediaUtils.loadBitmap(context, user.profilePhotoUrl)
             if (bmp != null) {
                 val scaled = Bitmap.createScaledBitmap(bmp, photoSize.toInt(), photoSize.toInt(), true)
                 val roundedPhoto = Bitmap.createBitmap(photoSize.toInt(), photoSize.toInt(), Bitmap.Config.ARGB_8888)
@@ -617,7 +617,7 @@ Status: $statusStr
         val sealCenterY = qrTop + qrSize / 2f
         val sealRadius = 145f
 
-        drawOfficialStamp(canvas, sealCenterX, sealCenterY, sealRadius, mandalInfo)
+        drawOfficialStamp(context, canvas, sealCenterX, sealCenterY, sealRadius, mandalInfo)
 
         // Sign text below stamp
         val presName = mandalInfo.presidentName.ifBlank { "अध्यक्ष" }
@@ -674,13 +674,13 @@ Status: $statusStr
      * Draws an authentic official circular blue rubber seal (अधिकृत गोल रबर शिक्का)
      * and seamlessly overlays the President's signature on top of it.
      */
-    private fun drawOfficialStamp(canvas: Canvas, cx: Float, cy: Float, radius: Float, mandalInfo: MandalInfo) {
+    private fun drawOfficialStamp(context: Context, canvas: Canvas, cx: Float, cy: Float, radius: Float, mandalInfo: MandalInfo) {
         var drawnCustomStamp = false
 
         // If an authentic physical stamp was uploaded, draw it!
         if (mandalInfo.officialStampUrl.isNotBlank()) {
             try {
-                val stampBmp = MediaUtils.base64ToBitmap(mandalInfo.officialStampUrl)
+                val stampBmp = MediaUtils.loadBitmap(context, mandalInfo.officialStampUrl)
                 if (stampBmp != null) {
                     val targetDiameter = radius * 2f
                     val matrix = Matrix().apply {
@@ -767,7 +767,7 @@ Status: $statusStr
         var drawnSignature = false
         if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
             try {
-                val sigBmp = MediaUtils.base64ToBitmap(mandalInfo.presidentSignatureUrl)
+                val sigBmp = MediaUtils.loadBitmap(context, mandalInfo.presidentSignatureUrl)
                 if (sigBmp != null) {
                     val sigWidth = 230f
                     val sigHeight = 115f

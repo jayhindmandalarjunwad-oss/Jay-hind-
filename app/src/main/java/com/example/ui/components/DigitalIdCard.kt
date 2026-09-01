@@ -414,6 +414,7 @@ fun OfficialMandalStamp(
     size: Int = 82,
     stampUrl: String? = null,
     signatureUrl: String? = null,
+    showFallbackSignature: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val stampBlue = Color(0xFF1E3A8A) // Official Rubber Stamp Navy/Blue
@@ -515,7 +516,7 @@ fun OfficialMandalStamp(
                     .fillMaxSize(0.92f)
                     .padding(2.dp)
             )
-        } else {
+        } else if (showFallbackSignature) {
             // Elegant digital signature vector stroke representation
             Canvas(modifier = Modifier.fillMaxSize(0.85f)) {
                 val path = androidx.compose.ui.graphics.Path().apply {
