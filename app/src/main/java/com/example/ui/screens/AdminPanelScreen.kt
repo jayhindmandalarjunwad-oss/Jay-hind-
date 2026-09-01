@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -32,6 +35,8 @@ import com.example.data.model.*
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
+import com.example.util.MediaUtils
+import kotlinx.coroutines.launch
 
 enum class AdminTab(val title: String) {
     PENDING_APPROVALS("सभासद मंजुरी"),
@@ -39,7 +44,7 @@ enum class AdminTab(val title: String) {
     MANAGE_BANNERS("ग्रुप बॅनर"),
     EDIT_ABOUT_US("आमच्याबद्दल व सोशल"),
     MEMBERS_LIST("सर्व सभासद व ॲडमिन"),
-    MANAGE_LOGO("मंडळ लोगो"),
+    MANAGE_LOGO("लोगो व स्वाक्षरी"),
     CREATE_EVENT("नवीन कार्यक्रम"),
     CREATE_ANNOUNCEMENT("सूचना / Broadcast"),
     MANAGE_GALLERY("फोटो व व्हिडिओ"),
@@ -143,7 +148,7 @@ fun AdminPanelScreen(
                 AdminTab.MANAGE_BANNERS -> ManageBannersAdminTab(banners, viewModel)
                 AdminTab.EDIT_ABOUT_US -> EditAboutUsAdminTab(mandalInfo, viewModel)
                 AdminTab.MEMBERS_LIST -> AllMembersAdminTab(allMembers, viewModel)
-                AdminTab.MANAGE_LOGO -> ManageLogoAdminTab(mandalLogoUrl, viewModel)
+                AdminTab.MANAGE_LOGO -> ManageLogoAdminTab(mandalInfo, mandalLogoUrl, viewModel)
                 AdminTab.CREATE_EVENT -> CreateEventAdminTab(events, viewModel)
                 AdminTab.CREATE_ANNOUNCEMENT -> CreateAnnouncementAdminTab(viewModel)
                 AdminTab.MANAGE_GALLERY -> ManageGalleryAdminTab(albums, videos, viewModel)
@@ -1900,18 +1905,21 @@ fun PostsModerationAdminTab(posts: List<Post>, viewModel: MandalViewModel) {
     }
 }
 
-// 9. MANAGE LOGO (Overhauled with Immediate Live Preview & App-wide simulation)
+// 9. MANAGE LOGO & OFFICIAL SIGNATURE (Overhauled with Immediate Live Preview & App-wide simulation)
 @Composable
 fun ManageLogoAdminTab(
+    mandalInfo: MandalInfo,
     currentLogoUrl: String?,
     viewModel: MandalViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var selectedLogoInput by remember(currentLogoUrl) { mutableStateOf(currentLogoUrl ?: "") }
-    var isSaving by remember { mutableStateOf(false) }
-    var isResetting by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
-    val hasPendingChanges = selectedLogoInput.trim() != (currentLogoUrl ?: "").trim() && selectedLogoInput.isNotBlank()
+    // --- LOGO STATE ---
+    var selectedLogoInput by remember(currentLogoUrl) { mutableStateOf(currentLogoUrl ?: "") }
+    var isSavingLogo by remember { mutableStateOf(false) }
+    var isResettingLogo by remember { mutableStateOf(false) }
+    val hasPendingLogoChanges = selectedLogoInput.trim() != (currentLogoUrl ?: "").trim() && selectedLogoInput.isNotBlank()
 
     val presetLogos = listOf(
         "भगवा ध्वज मानचिन्ह" to "https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&auto=format&fit=crop&q=80",
@@ -1919,14 +1927,296 @@ fun ManageLogoAdminTab(
         "क्रीडा व सांस्कृतिक" to "https://images.unsplash.com/photo-1532375810709-75b1da00537c?w=600&auto=format&fit=crop&q=80"
     )
 
+    // --- SIGNATURE STATE ---
+    var selectedSignatureInput by remember(mandalInfo.presidentSignatureUrl) { mutableStateOf(mandalInfo.presidentSignatureUrl) }
+    var presidentNameInput by remember(mandalInfo.presidentName) { mutableStateOf(mandalInfo.presidentName.ifBlank { "अध्यक्ष" }) }
+    var isSavingSignature by remember { mutableStateOf(false) }
+    var isProcessingSignaturePhoto by remember { mutableStateOf(false) }
+    var isResettingSignature by remember { mutableStateOf(false) }
+    val hasPendingSignatureChanges = selectedSignatureInput.trim() != mandalInfo.presidentSignatureUrl.trim() || presidentNameInput.trim() != mandalInfo.presidentName.trim()
+
+    val signaturePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                isProcessingSignaturePhoto = true
+                val base64 = MediaUtils.uriToSignatureBase64(context, uri)
+                isProcessingSignaturePhoto = false
+                if (!base64.isNullOrBlank()) {
+                    selectedSignatureInput = base64
+                    viewModel.showSnackbar("स्वाक्षरी फोटो यशस्वीरित्या प्रोसेस झाला! खाली 'स्वाक्षरी सेव्ह करा' दाबा. ✍️")
+                } else {
+                    viewModel.showSnackbar("❌ स्वाक्षरी प्रोसेस करताना त्रुटी आली. कृपया स्वच्छ पांढऱ्या कागदावरील स्वाक्षरीचा फोटो निवडा.")
+                }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // 1. STATUS & COMPARISON CARD (Current vs Preview)
+        // =========================================================================
+        // SECTION A: PRESIDENT'S OFFICIAL SIGNATURE & RUBBER STAMP
+        // =========================================================================
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, NavySecondary.copy(alpha = 0.3f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Draw,
+                            contentDescription = null,
+                            tint = NavySecondary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "अध्यक्षांची स्वाक्षरी व अधिकृत शिक्का",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                    }
+
+                    if (hasPendingSignatureChanges) {
+                        Surface(
+                            color = SaffronPrimary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = SaffronDark, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("बदल प्रलंबित", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SaffronDark)
+                            }
+                        }
+                    } else {
+                        Surface(
+                            color = SuccessGreen.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("सक्रीय स्वाक्षरी", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
+                            }
+                        }
+                    }
+                }
+
+                // Instructions Card
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFEFF6FF),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = NavySecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "पांढऱ्या कागदावर अध्यक्षांची स्वाक्षरी करून फोटो काढा. ॲप आपोआप बॅकग्राउंड पारदर्शक (Transparent) करून 'जय हिंद मंडळ, अर्जुनवाड' च्या अधिकृत निळ्या रबर शिक्क्यावर सेट करेल व सर्व ओळखपत्रांवर दिसेल.",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFF1E3A8A),
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+
+                // Live Side-by-Side Stamp Comparison
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Current Active Stamp
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("सध्याचा शिक्का व स्वाक्षरी", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OfficialMandalStamp(
+                            size = 84,
+                            signatureUrl = mandalInfo.presidentSignatureUrl
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (mandalInfo.presidentSignatureUrl.isBlank()) "डिजिटल स्वाक्षरी" else "अपलोड स्वाक्षरी",
+                            fontSize = 10.sp,
+                            color = TextSecondary
+                        )
+                        Text(
+                            text = mandalInfo.presidentName.ifBlank { "अध्यक्ष" },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SaffronDark
+                        )
+                    }
+
+                    // Arrow Icon
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = if (hasPendingSignatureChanges) SaffronPrimary else TextSecondary.copy(alpha = 0.4f),
+                        modifier = Modifier.size(24.dp)
+                    )
+
+                    // New Selected Stamp Preview
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("नवीन देखावा (Preview)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (hasPendingSignatureChanges) SaffronDark else TextSecondary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OfficialMandalStamp(
+                            size = 84,
+                            signatureUrl = selectedSignatureInput.ifBlank { mandalInfo.presidentSignatureUrl }
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (hasPendingSignatureChanges) "⚡ लाइव्ह प्रिव्ह्यू" else "समान",
+                            fontSize = 10.sp,
+                            fontWeight = if (hasPendingSignatureChanges) FontWeight.Bold else FontWeight.Normal,
+                            color = if (hasPendingSignatureChanges) SaffronPrimary else TextSecondary
+                        )
+                        Text(
+                            text = presidentNameInput.ifBlank { "अध्यक्ष" },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SaffronDark
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = DividerColor)
+
+                // President Title / Name input
+                OutlinedTextField(
+                    value = presidentNameInput,
+                    onValueChange = { presidentNameInput = it },
+                    label = { Text("अध्यक्षांचे नाव / हुद्दा (Designation / Name)") },
+                    placeholder = { Text("उदा. अध्यक्ष किंवा अध्यक्ष - जय हिंद मंडळ") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                // Upload Signature Photo Button
+                Button(
+                    onClick = {
+                        signaturePickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    enabled = !isProcessingSignaturePhoto,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("admin_upload_signature_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = NavySecondary),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    if (isProcessingSignaturePhoto) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("स्वाक्षरी फोटो पारदर्शक करत आहे...", fontSize = 13.sp)
+                    } else {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("📷 अध्यक्षांची स्वाक्षरी फोटो अपलोड करा (Upload Sign)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+
+                // Save Signature Button
+                Button(
+                    onClick = {
+                        isSavingSignature = true
+                        viewModel.updatePresidentSignature(selectedSignatureInput, presidentNameInput) { success ->
+                            isSavingSignature = false
+                        }
+                    },
+                    enabled = hasPendingSignatureChanges && !isSavingSignature,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("admin_save_signature_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    if (isSavingSignature) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("स्वाक्षरी सेव्ह होत आहे...", fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("स्वाक्षरी व शिक्का सेव्ह करा (Save Signature)", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Reset Signature to Default
+                if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            isResettingSignature = true
+                            viewModel.deletePresidentSignature {
+                                isResettingSignature = false
+                                selectedSignatureInput = ""
+                            }
+                        },
+                        enabled = !isResettingSignature,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("admin_delete_signature_button"),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BloodRed),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        if (isResettingSignature) {
+                            CircularProgressIndicator(color = BloodRed, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("रीसेट होत आहे...", color = BloodRed)
+                        } else {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = BloodRed, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("डीफॉल्ट डिजिटल स्वाक्षरी सेट करा (Reset to Default)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = BloodRed)
+                        }
+                    }
+                }
+            }
+        }
+
+        // =========================================================================
+        // SECTION B: MANDAL OFFICIAL LOGO
+        // =========================================================================
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
@@ -1945,12 +2235,16 @@ fun ManageLogoAdminTab(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "मंडळ लोगो नियंत्रण (Logo Manager)",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = TextPrimary
-                    )
-                    if (hasPendingChanges) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Verified, contentDescription = null, tint = SaffronPrimary, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "मंडळ मानचिन्ह / लोगो (Official Logo)",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                    }
+                    if (hasPendingLogoChanges) {
                         Surface(
                             color = SaffronPrimary.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(8.dp)
@@ -1961,7 +2255,7 @@ fun ManageLogoAdminTab(
                             ) {
                                 Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = SaffronDark, modifier = Modifier.size(12.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("बदल प्रलंबित (Preview)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SaffronDark)
+                                Text("बदल प्रलंबित", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SaffronDark)
                             }
                         }
                     } else {
@@ -2006,29 +2300,29 @@ fun ManageLogoAdminTab(
                     Icon(
                         imageVector = Icons.Default.ArrowForward,
                         contentDescription = null,
-                        tint = if (hasPendingChanges) SaffronPrimary else TextSecondary.copy(alpha = 0.4f),
+                        tint = if (hasPendingLogoChanges) SaffronPrimary else TextSecondary.copy(alpha = 0.4f),
                         modifier = Modifier.size(28.dp)
                     )
 
                     // New Selected Logo Preview
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("नवीन निवडलेला लोगो", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (hasPendingChanges) SaffronDark else TextSecondary)
+                        Text("नवीन निवडलेला लोगो", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (hasPendingLogoChanges) SaffronDark else TextSecondary)
                         Spacer(modifier = Modifier.height(8.dp))
                         MandalLogoBadge(logoUrl = selectedLogoInput.ifBlank { currentLogoUrl }, size = 80)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = if (hasPendingChanges) "⚡ लाइव्ह प्रिव्ह्यू" else "कोणताही बदल नाही",
+                            text = if (hasPendingLogoChanges) "⚡ लाइव्ह प्रिव्ह्यू" else "कोणताही बदल नाही",
                             fontSize = 11.sp,
-                            fontWeight = if (hasPendingChanges) FontWeight.Bold else FontWeight.Normal,
-                            color = if (hasPendingChanges) SaffronPrimary else TextSecondary
+                            fontWeight = if (hasPendingLogoChanges) FontWeight.Bold else FontWeight.Normal,
+                            color = if (hasPendingLogoChanges) SaffronPrimary else TextSecondary
                         )
                     }
                 }
             }
         }
 
-        // 2. LIVE APP-WIDE PREVIEWS SIMULATION
-        if (hasPendingChanges) {
+        // Live Logo Simulation Card
+        if (hasPendingLogoChanges) {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
@@ -2073,42 +2367,11 @@ fun ManageLogoAdminTab(
                             }
                         }
                     }
-
-                    // Mini ID Card Watermark Simulation
-                    Surface(
-                        color = Color.White,
-                        shape = RoundedCornerShape(10.dp),
-                        shadowElevation = 1.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(70.dp)
-                                .padding(8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            UniversalAsyncImage(
-                                model = selectedLogoInput,
-                                contentDescription = null,
-                                contentScale = ContentScale.Fit,
-                                alpha = 0.18f,
-                                modifier = Modifier
-                                    .size(54.dp)
-                            )
-                            Text(
-                                text = "डिजिटल ओळखपत्र वॉटरमार्क प्रिव्ह्यू",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                        }
-                    }
                 }
             }
         }
 
-        // 3. SELECT LOGO & ACTIONS CARD
+        // Select Logo & Actions Card
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
@@ -2157,17 +2420,17 @@ fun ManageLogoAdminTab(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // CONFIRM & SAVE BUTTON
+                // CONFIRM & SAVE LOGO BUTTON
                 Button(
                     onClick = {
                         if (selectedLogoInput.isNotBlank()) {
-                            isSaving = true
+                            isSavingLogo = true
                             viewModel.updateMandalLogo(selectedLogoInput.trim()) { success ->
-                                isSaving = false
+                                isSavingLogo = false
                             }
                         }
                     },
-                    enabled = hasPendingChanges && !isSaving,
+                    enabled = hasPendingLogoChanges && !isSavingLogo,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -2175,7 +2438,7 @@ fun ManageLogoAdminTab(
                     colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    if (isSaving) {
+                    if (isSavingLogo) {
                         CircularProgressIndicator(
                             color = Color.White,
                             modifier = Modifier.size(20.dp),
@@ -2186,12 +2449,12 @@ fun ManageLogoAdminTab(
                     } else {
                         Icon(imageVector = Icons.Default.Check, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("नक्की करा व सेव्ह करा (Confirm & Save)", fontWeight = FontWeight.Bold)
+                        Text("नक्की करा व लोगो सेव्ह करा (Confirm & Save Logo)", fontWeight = FontWeight.Bold)
                     }
                 }
 
                 // CANCEL BUTTON (Revert back to current logo)
-                if (hasPendingChanges) {
+                if (hasPendingLogoChanges) {
                     OutlinedButton(
                         onClick = {
                             selectedLogoInput = currentLogoUrl ?: ""
@@ -2212,13 +2475,13 @@ fun ManageLogoAdminTab(
                 if (!currentLogoUrl.isNullOrBlank()) {
                     OutlinedButton(
                         onClick = {
-                            isResetting = true
+                            isResettingLogo = true
                             viewModel.deleteMandalLogo {
-                                isResetting = false
+                                isResettingLogo = false
                                 selectedLogoInput = ""
                             }
                         },
-                        enabled = !isResetting,
+                        enabled = !isResettingLogo,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(46.dp)
@@ -2227,7 +2490,7 @@ fun ManageLogoAdminTab(
                         border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        if (isResetting) {
+                        if (isResettingLogo) {
                             CircularProgressIndicator(color = BloodRed, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("रीसेट होत आहे...", color = BloodRed)

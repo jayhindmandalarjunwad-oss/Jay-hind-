@@ -853,6 +853,48 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // MANDAL PRESIDENT SIGNATURE MANAGEMENT
+    fun updatePresidentSignature(signatureUrl: String, presidentName: String = "अध्यक्ष", onComplete: ((Boolean) -> Unit)? = null) {
+        if (signatureUrl.isBlank()) {
+            showSnackbar("कृपया स्वाक्षरीचा फोटो किंवा इमेज निवडा.")
+            onComplete?.invoke(false)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val result = repository.updatePresidentSignature(signatureUrl, presidentName)
+                if (result.isSuccess) {
+                    showSnackbar("अध्यक्षांची स्वाक्षरी सर्व ओळखपत्रांवर यशस्वीरित्या अद्यतनित झाली! ✍️✅")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ स्वाक्षरी अपडेट करताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
+    fun deletePresidentSignature(onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            try {
+                val result = repository.deletePresidentSignature()
+                if (result.isSuccess) {
+                    showSnackbar("अध्यक्षांची स्वाक्षरी हटवण्यात आली आणि डीफॉल्ट डिजिटल स्वाक्षरी सेट झाली.")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ स्वाक्षरी हटवताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
     // MANDAL BANNERS MANAGEMENT
     fun addBanner(imageUrl: String, title: String = "", subtitle: String = "", actionUrl: String = "") {
         if (imageUrl.isBlank()) {

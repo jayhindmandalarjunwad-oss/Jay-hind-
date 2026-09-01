@@ -28,7 +28,8 @@ fun MemberCard(
     member: User,
     onCardClick: () -> Unit,
     onChatClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAvatarClick: ((User) -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -50,12 +51,18 @@ fun MemberCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            MemberAvatar(
-                photoUrl = member.profilePhotoUrl,
-                name = member.fullName,
-                size = 52,
-                showBlueRing = member.isAdmin
-            )
+            Box(
+                modifier = Modifier.clickable(enabled = onAvatarClick != null) {
+                    onAvatarClick?.invoke(member)
+                }
+            ) {
+                MemberAvatar(
+                    photoUrl = member.profilePhotoUrl,
+                    name = member.fullName,
+                    size = 52,
+                    showBlueRing = member.isAdmin
+                )
+            }
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -191,7 +198,8 @@ fun MemberDetailSheet(
     member: User?,
     onDismiss: () -> Unit,
     onChatClick: (User) -> Unit,
-    onViewIdCard: ((User) -> Unit)? = null
+    onViewIdCard: ((User) -> Unit)? = null,
+    onAvatarClick: ((String) -> Unit)? = null
 ) {
     if (member == null) return
     val context = LocalContext.current
@@ -208,11 +216,19 @@ fun MemberDetailSheet(
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            MemberAvatar(
-                photoUrl = member.profilePhotoUrl,
-                name = member.fullName,
-                size = 80
-            )
+            Box(
+                modifier = Modifier.clickable(enabled = onAvatarClick != null && member.profilePhotoUrl.isNotBlank()) {
+                    if (member.profilePhotoUrl.isNotBlank()) {
+                        onAvatarClick?.invoke(member.profilePhotoUrl)
+                    }
+                }
+            ) {
+                MemberAvatar(
+                    photoUrl = member.profilePhotoUrl,
+                    name = member.fullName,
+                    size = 80
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 

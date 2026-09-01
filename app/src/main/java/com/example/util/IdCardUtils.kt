@@ -29,27 +29,41 @@ import java.util.*
 object IdCardUtils {
 
     /**
-     * Formats a professional and attractive Member ID (e.g., JH-2026-001, JH-2026-002)
+     * Formats a professional and attractive Member ID (e.g., JHM - 26 - 001, JHM - 26 - 002)
+     * Admin is strictly fixed to "JHM - 26 - 001".
+     * Sequential member numbering is strictly maintained without skipping.
      */
     fun formatMemberId(user: User, memberIndex: Int? = null): String {
-        val cal = Calendar.getInstance().apply { timeInMillis = user.createdAt }
-        val regYear = cal.get(Calendar.YEAR).coerceAtLeast(2026)
-
         val serialNum = when {
-            user.id == "admin_1" || user.id.contains("admin", ignoreCase = true) -> "001"
+            user.id == "admin_1" || user.id.contains("admin", ignoreCase = true) || user.role.equals("ADMIN", ignoreCase = true) -> "001"
             memberIndex != null && memberIndex > 0 -> String.format(Locale.US, "%03d", memberIndex)
             else -> {
                 val digits = user.id.filter { it.isDigit() }
                 if (digits.isNotEmpty()) {
                     val n = digits.toIntOrNull() ?: (Math.abs(user.id.hashCode()) % 890 + 10)
-                    String.format(Locale.US, "%03d", (n % 999).coerceAtLeast(1))
+                    String.format(Locale.US, "%03d", (n % 999).coerceAtLeast(2))
                 } else {
-                    val hash = Math.abs(user.id.hashCode() % 890) + 2
+                    val hash = (Math.abs(user.id.hashCode()) % 890) + 2
                     String.format(Locale.US, "%03d", hash)
                 }
             }
         }
-        return "JH-$regYear-$serialNum"
+        return "JHM - 26 - $serialNum"
+    }
+
+    /**
+     * Formats Member ID with strict sequential order from members list
+     */
+    fun formatMemberIdWithList(user: User, allMembers: List<User>): String {
+        if (user.id == "admin_1" || user.id.contains("admin", ignoreCase = true) || user.role.equals("ADMIN", ignoreCase = true)) {
+            return "JHM - 26 - 001"
+        }
+        val sortedMembers = allMembers
+            .filterNot { it.id == "admin_1" || it.id.contains("admin", ignoreCase = true) || it.role.equals("ADMIN", ignoreCase = true) }
+            .sortedBy { it.createdAt }
+        val idx = sortedMembers.indexOfFirst { it.id == user.id }
+        val seqNumber = if (idx >= 0) idx + 2 else 2
+        return String.format(Locale.US, "JHM - 26 - %03d", seqNumber)
     }
 
     /**
@@ -598,21 +612,30 @@ Status: $statusStr
             canvas.drawText("व्हेरिफिकेशन QR कोड (Scan to Verify)", qrLeft + qrSize / 2f, qrTop + qrSize + 40f, qrLabelPaint)
         }
 
-        // 8. Official Mandal Rubber Stamp on Right (अधिकृत डिजिटल गोल शिक्का)
+        // 8. Official Mandal Rubber Stamp on Right (अधिकृत डिजिटल निळा शिक्का व अध्यक्षांची स्वाक्षरी)
         val sealCenterX = width - 250f
         val sealCenterY = qrTop + qrSize / 2f
         val sealRadius = 145f
 
-        drawOfficialStamp(canvas, sealCenterX, sealCenterY, sealRadius)
+        drawOfficialStamp(canvas, sealCenterX, sealCenterY, sealRadius, mandalInfo)
 
         // Sign text below stamp
+        val presName = mandalInfo.presidentName.ifBlank { "अध्यक्ष" }
         val signPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(185, 28, 28)
-            textSize = 22f
+            color = Color.rgb(15, 23, 42)
+            textSize = 24f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("अधिकृत स्वाक्षरी व शिक्का", sealCenterX, qrTop + qrSize + 40f, signPaint)
+        canvas.drawText(presName, sealCenterX, qrTop + qrSize + 32f, signPaint)
+
+        val signSubPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(71, 85, 105)
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("जय हिंद मंडळ, अर्जुनवाड", sealCenterX, qrTop + qrSize + 56f, signSubPaint)
 
         // 9. Card Bottom Footer
         val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -648,61 +671,117 @@ Status: $statusStr
     }
 
     /**
-     * Draws an authentic official circular red seal (अधिकृत डिजिटल गोल शिक्का)
+     * Draws an authentic official circular blue rubber seal (अधिकृत डिजिटल गोल निळा शिक्का)
+     * and seamlessly overlays the President's signature on top of it.
      */
-    private fun drawOfficialStamp(canvas: Canvas, cx: Float, cy: Float, radius: Float) {
-        val stampColor = Color.rgb(185, 28, 28) // Official Seal Red
+    private fun drawOfficialStamp(canvas: Canvas, cx: Float, cy: Float, radius: Float, mandalInfo: MandalInfo) {
+        val stampBlue = Color.rgb(30, 58, 138) // Official Rubber Stamp Blue (#1E3A8A)
+        val stampAlpha = 220
 
-        // Outer solid circle
+        // 1. Outer solid circle
         val outerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 6f
-            color = stampColor
+            strokeWidth = 6.5f
+            color = stampBlue
+            alpha = stampAlpha
         }
         canvas.drawCircle(cx, cy, radius, outerPaint)
 
-        // Inner dashed/fine circle
+        // 2. Inner fine dashed ring
         val innerCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 3f
-            color = stampColor
+            color = stampBlue
+            alpha = stampAlpha
             pathEffect = DashPathEffect(floatArrayOf(12f, 6f), 0f)
         }
-        canvas.drawCircle(cx, cy, radius - 14f, innerCirclePaint)
+        canvas.drawCircle(cx, cy, radius - 13f, innerCirclePaint)
 
-        // Innermost solid circle
+        // 3. Innermost solid circle
         val innermostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2.5f
-            color = stampColor
+            color = stampBlue
+            alpha = stampAlpha
         }
-        canvas.drawCircle(cx, cy, radius - 26f, innermostPaint)
+        canvas.drawCircle(cx, cy, radius - 24f, innermostPaint)
 
-        // Center texts
+        // 4. Center texts in Rubber Stamp
         val stampCenterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = stampColor
-            textSize = 23f
+            color = stampBlue
+            alpha = stampAlpha
+            textSize = 21f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
         val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = stampColor
-            textSize = 20f
+            color = stampBlue
+            alpha = stampAlpha
+            textSize = 18f
             textAlign = Paint.Align.CENTER
         }
 
-        canvas.drawText("★ ★ ★", cx, cy - 50f, starPaint)
-        canvas.drawText("जय हिंद मंडळ", cx, cy - 20f, stampCenterPaint)
+        canvas.drawText("★ ★ ★", cx, cy - 56f, starPaint)
+        canvas.drawText("जय हिंद मंडळ", cx, cy - 28f, stampCenterPaint)
 
         val offPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = stampColor
-            textSize = 25f
+            color = stampBlue
+            alpha = stampAlpha
+            textSize = 23f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("★ अधिकृत ★", cx, cy + 12f, offPaint)
-        canvas.drawText("अर्जुनवाड", cx, cy + 42f, stampCenterPaint)
-        canvas.drawText("स्थापना १९९६", cx, cy + 70f, Paint(stampCenterPaint).apply { textSize = 19f })
+        canvas.drawText("★ अधिकृत शिक्का ★", cx, cy + 4f, offPaint)
+        canvas.drawText("अर्जुनवाड", cx, cy + 34f, stampCenterPaint)
+        canvas.drawText("स्थापना १९९६", cx, cy + 62f, Paint(stampCenterPaint).apply { textSize = 17f })
+
+        // 5. Overlay President's Signature
+        var drawnSignature = false
+        if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
+            try {
+                val sigBmp = MediaUtils.base64ToBitmap(mandalInfo.presidentSignatureUrl)
+                if (sigBmp != null) {
+                    val sigWidth = 230f
+                    val sigHeight = 115f
+                    val matrix = Matrix().apply {
+                        val scaleX = sigWidth / sigBmp.width.toFloat()
+                        val scaleY = sigHeight / sigBmp.height.toFloat()
+                        val s = minOf(scaleX, scaleY)
+                        postScale(s, s)
+                        postRotate(-5f, (sigBmp.width * s) / 2f, (sigBmp.height * s) / 2f)
+                        val scaledW = sigBmp.width * s
+                        val scaledH = sigBmp.height * s
+                        postTranslate(cx - scaledW / 2f, cy - scaledH / 2f - 6f)
+                    }
+                    val sigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        alpha = 245
+                    }
+                    canvas.drawBitmap(sigBmp, matrix, sigPaint)
+                    drawnSignature = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Fallback cursive signature line if no image uploaded
+        if (!drawnSignature) {
+            val sigLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(15, 45, 105)
+                strokeWidth = 4f
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            val sigPath = Path().apply {
+                moveTo(cx - 75f, cy + 8f)
+                cubicTo(cx - 50f, cy - 25f, cx - 25f, cy + 20f, cx, cy - 10f)
+                cubicTo(cx + 20f, cy - 35f, cx + 45f, cy + 15f, cx + 75f, cy - 15f)
+                moveTo(cx - 65f, cy + 18f)
+                lineTo(cx + 65f, cy + 12f)
+            }
+            canvas.drawPath(sigPath, sigLinePaint)
+        }
     }
 
     /**

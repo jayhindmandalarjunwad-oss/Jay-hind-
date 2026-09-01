@@ -44,6 +44,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showIdCardFullDialog by remember { mutableStateOf(false) }
+    var showFullscreenPhoto by remember { mutableStateOf(false) }
     var isSavingIdCard by remember { mutableStateOf(false) }
 
     if (currentUser == null) {
@@ -78,7 +79,12 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showIdCardFullDialog = true },
-                onQrClick = { showIdCardFullDialog = true }
+                onQrClick = { showIdCardFullDialog = true },
+                onAvatarClick = {
+                    if (user.profilePhotoUrl.isNotBlank()) {
+                        showFullscreenPhoto = true
+                    }
+                }
             )
 
             // Two Quick Action Buttons: Save HD & WhatsApp Share
@@ -187,13 +193,6 @@ fun ProfileScreen(viewModel: MandalViewModel) {
         ) {
             Column {
                 ProfileOptionRow(
-                    icon = Icons.Default.Badge,
-                    title = "माझे डिजिटल ओळखपत्र (Full View)",
-                    subtitle = "QR कोड, शिक्का व सेव्ह पर्याय",
-                    onClick = { showIdCardFullDialog = true }
-                )
-                HorizontalDivider(color = DividerColor)
-                ProfileOptionRow(
                     icon = Icons.Default.Edit,
                     title = "प्रोफाइल माहिती व फोटो बदला",
                     subtitle = "नाव, फोटो, रक्तगट, जन्म तारीख, पत्ता",
@@ -258,6 +257,14 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 viewModel.changePassword(oldP, newP)
                 showChangePasswordDialog = false
             }
+        )
+    }
+
+    // Fullscreen Profile Photo Viewer
+    if (showFullscreenPhoto && user.profilePhotoUrl.isNotBlank()) {
+        FullscreenPhotoDialog(
+            photos = listOf(user.profilePhotoUrl),
+            onDismiss = { showFullscreenPhoto = false }
         )
     }
 }

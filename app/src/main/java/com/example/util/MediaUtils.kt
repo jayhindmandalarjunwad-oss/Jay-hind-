@@ -165,6 +165,137 @@ object MediaUtils {
     }
 
     /**
+     * Converts a photo or image of a signature on paper into a clean transparent PNG Base64 string.
+     * Automatically removes white/light paper background and enhances the signature ink strokes.
+     */
+    suspend fun uriToSignatureBase64(
+        context: Context,
+        uri: Uri,
+        maxDimension: Int = 800
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            var inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext null
+            val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
+            val originalBitmap = BitmapFactory.decodeStream(inputStream, null, options)
+            inputStream.close()
+            if (originalBitmap == null) return@withContext null
+
+            // Handle rotation
+            var rotationAngle = 0
+            try {
+                val exifStream = context.contentResolver.openInputStream(uri)
+                if (exifStream != null) {
+                    val exif = ExifInterface(exifStream)
+                    val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                    rotationAngle = when (orientation) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                        ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                        ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                        else -> 0
+                    }
+                    exifStream.close()
+                }
+            } catch (_: Exception) {}
+
+            var rotatedBmp = originalBitmap
+            if (rotationAngle != 0) {
+                val matrix = Matrix().apply { postRotate(rotationAngle.toFloat()) }
+                rotatedBmp = Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+            }
+
+            // Downscale if huge
+            val w = rotatedBmp.width
+            val h = rotatedBmp.height
+            val scale = if (w > maxDimension || h > maxDimension) {
+                maxDimension.toFloat() / maxOf(w, h).toFloat()
+            } else 1.0f
+
+            val scaledBmp = if (scale < 1.0f) {
+                Bitmap.createScaledBitmap(rotatedBmp, (w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1), true)
+            } else rotatedBmp
+
+            // Process pixels: make white/bright paper transparent and ink crisp
+            val processedBmp = processSignatureBitmap(scaledBmp)
+
+            val outputStream = ByteArrayOutputStream()
+            processedBmp.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            val byteArray = outputStream.toByteArray()
+            val base64Str = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            "data:image/png;base64,$base64Str"
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Failed to convert signature uri: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Extracts signature strokes and eliminates background paper
+     */
+    fun processSignatureBitmap(src: Bitmap): Bitmap {
+        val width = src.width
+        val height = src.height
+        val pixels = IntArray(width * height)
+        src.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        var minX = width
+        var minY = height
+        var maxX = 0
+        var maxY = 0
+        var hasInk = false
+
+        val outPixels = IntArray(width * height)
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val index = y * width + x
+                val pixel = pixels[index]
+                val a = android.graphics.Color.alpha(pixel)
+                val r = android.graphics.Color.red(pixel)
+                val g = android.graphics.Color.green(pixel)
+                val b = android.graphics.Color.blue(pixel)
+
+                if (a < 30) {
+                    outPixels[index] = android.graphics.Color.TRANSPARENT
+                    continue
+                }
+
+                // Luminance (0 = black, 255 = white)
+                val lum = (0.299f * r + 0.587f * g + 0.114f * b).toInt()
+
+                if (lum > 205) {
+                    // White or light grey paper -> transparent
+                    outPixels[index] = android.graphics.Color.TRANSPARENT
+                } else {
+                    // Ink stroke: calculate stroke alpha based on darkness
+                    val strokeAlpha = (((230 - lum).toFloat() / 230f) * 255f).toInt().coerceIn(100, 255)
+                    // Deep official blue-black ink color (RGB: 15, 45, 105)
+                    outPixels[index] = android.graphics.Color.argb(strokeAlpha, 15, 45, 105)
+
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                    hasInk = true
+                }
+            }
+        }
+
+        val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        resultBitmap.setPixels(outPixels, 0, width, 0, 0, width, height)
+
+        if (hasInk && maxX > minX && maxY > minY) {
+            val cropX = (minX - 10).coerceAtLeast(0)
+            val cropY = (minY - 10).coerceAtLeast(0)
+            val cropW = (maxX - minX + 20).coerceAtMost(width - cropX)
+            val cropH = (maxY - minY + 20).coerceAtMost(height - cropY)
+            if (cropW > 10 && cropH > 10) {
+                return Bitmap.createBitmap(resultBitmap, cropX, cropY, cropW, cropH)
+            }
+        }
+        return resultBitmap
+    }
+
+    /**
      * Extracts a frame from a local video URI and converts it to a Base64 JPEG string thumbnail.
      */
     suspend fun getVideoThumbnailBase64(

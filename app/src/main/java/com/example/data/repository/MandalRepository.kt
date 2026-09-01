@@ -1765,6 +1765,55 @@ class MandalRepository(context: Context) {
         }
     }
 
+    // PRESIDENT SIGNATURE MANAGEMENT
+    suspend fun updatePresidentSignature(signatureUrl: String?, presidentName: String = "अध्यक्ष"): Result<Unit> = withContext(Dispatchers.IO) {
+        val cleanUrl = signatureUrl?.trim()?.ifEmpty { null }
+        try {
+            // 1. Update Firestore
+            firestore.collection("mandal_info").document("mandal_default")
+                .set(mapOf("presidentSignatureUrl" to (cleanUrl ?: ""), "presidentName" to presidentName.trim()), SetOptions.merge())
+                .let { com.google.android.gms.tasks.Tasks.await(it) }
+
+            // 2. Update Local Room DB
+            val existingInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            mandalInfoDao.saveMandalInfo(existingInfo.copy(
+                presidentSignatureUrl = cleanUrl ?: "",
+                presidentName = presidentName.trim().ifBlank { "अध्यक्ष" },
+                updatedAt = System.currentTimeMillis()
+            ))
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating president signature on Firestore: ${e.message}", e)
+            // Still update local DB so offline works
+            val existingInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            mandalInfoDao.saveMandalInfo(existingInfo.copy(
+                presidentSignatureUrl = cleanUrl ?: "",
+                presidentName = presidentName.trim().ifBlank { "अध्यक्ष" },
+                updatedAt = System.currentTimeMillis()
+            ))
+            Result.success(Unit)
+        }
+    }
+
+    suspend fun deletePresidentSignature(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            firestore.collection("mandal_info").document("mandal_default")
+                .set(mapOf("presidentSignatureUrl" to ""), SetOptions.merge())
+                .let { com.google.android.gms.tasks.Tasks.await(it) }
+
+            val existingInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            mandalInfoDao.saveMandalInfo(existingInfo.copy(presidentSignatureUrl = "", updatedAt = System.currentTimeMillis()))
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error deleting president signature on Firestore: ${e.message}", e)
+            val existingInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            mandalInfoDao.saveMandalInfo(existingInfo.copy(presidentSignatureUrl = "", updatedAt = System.currentTimeMillis()))
+            Result.success(Unit)
+        }
+    }
+
     // LIVE STREAM MANAGEMENT
     suspend fun updateLiveStreamStatus(
         isLive: Boolean,
@@ -2020,6 +2069,8 @@ fun MandalInfoEntity.toDomain() = MandalInfo(
     instagramHandle = instagramHandle,
     adminWebLink = adminWebLink,
     logoUrl = logoUrl,
+    presidentSignatureUrl = presidentSignatureUrl,
+    presidentName = presidentName,
     isLiveStreamActive = isLiveStreamActive,
     liveStreamTitle = liveStreamTitle,
     liveStreamUrl = liveStreamUrl,
@@ -2361,6 +2412,8 @@ fun MandalInfoEntity.toMap(): Map<String, Any?> = mapOf(
     "instagramHandle" to instagramHandle,
     "adminWebLink" to adminWebLink,
     "logoUrl" to logoUrl,
+    "presidentSignatureUrl" to presidentSignatureUrl,
+    "presidentName" to presidentName,
     "isLiveStreamActive" to isLiveStreamActive,
     "liveStreamTitle" to liveStreamTitle,
     "liveStreamUrl" to liveStreamUrl,
@@ -2386,6 +2439,8 @@ fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
         instagramHandle = getString("instagramHandle") ?: SeedData.defaultMandalInfo.instagramHandle,
         adminWebLink = getString("adminWebLink") ?: SeedData.defaultMandalInfo.adminWebLink,
         logoUrl = getString("logoUrl") ?: "",
+        presidentSignatureUrl = getString("presidentSignatureUrl") ?: "",
+        presidentName = getString("presidentName") ?: "अध्यक्ष",
         isLiveStreamActive = getBoolean("isLiveStreamActive") ?: false,
         liveStreamTitle = getString("liveStreamTitle") ?: "श्री गणेश महाआरती थेट प्रक्षेपण",
         liveStreamUrl = getString("liveStreamUrl") ?: "",

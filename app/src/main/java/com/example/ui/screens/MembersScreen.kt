@@ -21,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.User
 import com.example.ui.components.DigitalIdCardDialog
 import com.example.ui.components.EmptyStateView
+import com.example.ui.components.FullscreenPhotoDialog
 import com.example.ui.components.MemberCard
 import com.example.ui.components.MemberDetailSheet
 import com.example.ui.theme.*
@@ -37,6 +38,7 @@ fun MembersScreen(viewModel: MandalViewModel) {
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
 
     var memberForIdCard by remember { mutableStateOf<User?>(null) }
+    var fullscreenPhotoUrl by remember { mutableStateOf<String?>(null) }
 
     val bloodGroups = listOf("सर्व", "A+", "B+", "AB+", "O+", "A-", "B-", "AB-", "O-")
 
@@ -167,7 +169,12 @@ fun MembersScreen(viewModel: MandalViewModel) {
                         MemberCard(
                             member = member,
                             onCardClick = { viewModel.selectMemberForDetail(member) },
-                            onChatClick = { viewModel.openChatWith(member) }
+                            onChatClick = { viewModel.openChatWith(member) },
+                            onAvatarClick = { m ->
+                                if (m.profilePhotoUrl.isNotBlank()) {
+                                    fullscreenPhotoUrl = m.profilePhotoUrl
+                                }
+                            }
                         )
                     }
                 }
@@ -185,6 +192,9 @@ fun MembersScreen(viewModel: MandalViewModel) {
                 },
                 onViewIdCard = { targetMember ->
                     memberForIdCard = targetMember
+                },
+                onAvatarClick = { photoUrl ->
+                    fullscreenPhotoUrl = photoUrl
                 }
             )
         }
@@ -196,6 +206,14 @@ fun MembersScreen(viewModel: MandalViewModel) {
                 mandalInfo = mandalInfo,
                 mandalLogoUrl = mandalLogoUrl,
                 onDismiss = { memberForIdCard = null }
+            )
+        }
+
+        // Fullscreen Photo Viewer Dialog
+        if (!fullscreenPhotoUrl.isNullOrBlank()) {
+            FullscreenPhotoDialog(
+                photos = listOf(fullscreenPhotoUrl!!),
+                onDismiss = { fullscreenPhotoUrl = null }
             )
         }
     }

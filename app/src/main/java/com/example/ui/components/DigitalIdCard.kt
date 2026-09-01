@@ -49,7 +49,8 @@ fun DigitalIdCardView(
     mandalInfo: MandalInfo,
     mandalLogoUrl: String? = null,
     modifier: Modifier = Modifier,
-    onQrClick: (() -> Unit)? = null
+    onQrClick: (() -> Unit)? = null,
+    onAvatarClick: (() -> Unit)? = null
 ) {
     val memberId = remember(user.id, user.createdAt) { IdCardUtils.formatMemberId(user) }
     val qrBitmap = remember(user, mandalInfo) {
@@ -111,7 +112,7 @@ fun DigitalIdCardView(
                         )
                     }
 
-                    // Formatted Member ID Badge (JH-2026-001)
+                    // Formatted Member ID Badge (JHM - 26 - 001)
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = Color.White,
@@ -202,7 +203,12 @@ fun DigitalIdCardView(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Top
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickable(enabled = onAvatarClick != null) {
+                                onAvatarClick?.invoke()
+                            }
+                        ) {
                             MemberAvatar(
                                 photoUrl = user.profilePhotoUrl,
                                 name = user.fullName,
@@ -275,6 +281,7 @@ fun DigitalIdCardView(
                                     modifier = Modifier
                                         .size(12.dp)
                                         .padding(top = 2.dp)
+                                        .align(Alignment.Top)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
@@ -293,7 +300,7 @@ fun DigitalIdCardView(
                     HorizontalDivider(color = DividerColor, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 3. BOTTOM ROW: QR CODE (Left) & OFFICIAL DIGITAL STAMP (Right)
+                    // 3. BOTTOM ROW: QR CODE (Left) & OFFICIAL DIGITAL BLUE STAMP + SIGNATURE (Right)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -343,15 +350,23 @@ fun DigitalIdCardView(
                             )
                         }
 
-                        // Right: Official Mandal Stamp (अधिकृत डिजिटल शिक्का)
+                        // Right: Official Blue Rubber Stamp with President's Signature Overlay
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            OfficialMandalStamp(size = 78)
+                            OfficialMandalStamp(
+                                size = 82,
+                                signatureUrl = mandalInfo.presidentSignatureUrl.ifBlank { null }
+                            )
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
-                                text = "अधिकृत शिक्का व स्वाक्षरी",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BloodRed
+                                text = mandalInfo.presidentName.ifBlank { "अध्यक्ष" },
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "जय हिंद मंडळ, अर्जुनवाड",
+                                fontSize = 8.sp,
+                                color = TextMuted
                             )
                         }
                     }
@@ -390,11 +405,16 @@ fun DigitalIdCardView(
 }
 
 /**
- * Authentic Official Red/Gold Rubber Stamp Composable (अधिकृत डिजिटल गोल शिक्का)
+ * Authentic Official Blue Rubber Stamp Composable (अधिकृत डिजिटल गोल निळा शिक्का)
+ * with President Signature Overlay.
  */
 @Composable
-fun OfficialMandalStamp(size: Int = 80, modifier: Modifier = Modifier) {
-    val stampRed = Color(0xFFB91C1C) // Deep Official Stamp Red
+fun OfficialMandalStamp(
+    size: Int = 82,
+    signatureUrl: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val stampBlue = Color(0xFF1E3A8A) // Official Rubber Stamp Navy/Blue
 
     Box(
         modifier = modifier
@@ -407,17 +427,17 @@ fun OfficialMandalStamp(size: Int = 80, modifier: Modifier = Modifier) {
             val center = Offset(this.size.width / 2, this.size.height / 2)
             val radius = (this.size.width / 2) - strokeWidth
 
-            // Outer ring
+            // Outer thick ring
             drawCircle(
-                color = stampRed,
+                color = stampBlue.copy(alpha = 0.88f),
                 radius = radius,
                 center = center,
-                style = Stroke(width = strokeWidth)
+                style = Stroke(width = strokeWidth * 1.2f)
             )
 
             // Inner dashed ring
             drawCircle(
-                color = stampRed,
+                color = stampBlue.copy(alpha = 0.82f),
                 radius = radius - 4.dp.toPx(),
                 center = center,
                 style = Stroke(
@@ -430,13 +450,14 @@ fun OfficialMandalStamp(size: Int = 80, modifier: Modifier = Modifier) {
 
             // Innermost ring
             drawCircle(
-                color = stampRed,
+                color = stampBlue.copy(alpha = 0.85f),
                 radius = radius - 8.dp.toPx(),
                 center = center,
                 style = Stroke(width = 1.dp.toPx())
             )
         }
 
+        // Stamp Typography (Under the signature)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -444,29 +465,59 @@ fun OfficialMandalStamp(size: Int = 80, modifier: Modifier = Modifier) {
         ) {
             Text(
                 text = "★ जय हिंद ★",
-                color = stampRed,
+                color = stampBlue.copy(alpha = 0.88f),
                 fontWeight = FontWeight.Black,
-                fontSize = (size * 0.11).sp
+                fontSize = (size * 0.10).sp
             )
             Text(
-                text = "अधिकृत",
-                color = stampRed,
+                text = "अधिकृत शिक्का",
+                color = stampBlue.copy(alpha = 0.92f),
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = (size * 0.13).sp,
-                letterSpacing = 0.5.sp
+                fontSize = (size * 0.12).sp,
+                letterSpacing = 0.3.sp
             )
             Text(
                 text = "अर्जुनवाड",
-                color = stampRed,
+                color = stampBlue.copy(alpha = 0.88f),
                 fontWeight = FontWeight.Bold,
                 fontSize = (size * 0.10).sp
             )
             Text(
                 text = "१९९६",
-                color = stampRed,
+                color = stampBlue.copy(alpha = 0.85f),
                 fontWeight = FontWeight.Bold,
                 fontSize = (size * 0.09).sp
             )
+        }
+
+        // President's Signature Overlay (Over top of stamp with slight rotation)
+        if (!signatureUrl.isNullOrBlank()) {
+            UniversalAsyncImage(
+                model = signatureUrl,
+                contentDescription = "अध्यक्षांची स्वाक्षरी",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize(0.92f)
+                    .padding(2.dp)
+            )
+        } else {
+            // Elegant digital signature vector stroke representation
+            Canvas(modifier = Modifier.fillMaxSize(0.85f)) {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    val w = this@Canvas.size.width
+                    val h = this@Canvas.size.height
+                    moveTo(w * 0.15f, h * 0.58f)
+                    cubicTo(w * 0.3f, h * 0.3f, w * 0.45f, h * 0.7f, w * 0.58f, h * 0.45f)
+                    cubicTo(w * 0.68f, h * 0.25f, w * 0.78f, h * 0.65f, w * 0.88f, h * 0.42f)
+                    moveTo(w * 0.2f, h * 0.65f)
+                    lineTo(w * 0.82f, h * 0.60f)
+                }
+                drawPath(
+                    path = path,
+                    color = Color(0xFF0F2D6B).copy(alpha = 0.9f),
+                    style = Stroke(width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                )
+            }
         }
     }
 }
