@@ -16,6 +16,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -33,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -58,6 +60,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.example.R
 import com.example.data.model.LiveComment
 import com.example.data.model.MandalInfo
@@ -140,12 +145,40 @@ fun LiveStreamDialog(
     var isPlaying by remember { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(false) }
     var isPlayerLoading by remember { mutableStateOf(true) }
+    var playbackErrorMsg by remember { mutableStateOf<String?>(null) }
     var showControlsOverlay by remember { mutableStateOf(true) }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     val streamKeyOrUrl by remember(mandalInfo.liveStreamUrl) { mutableStateOf(mandalInfo.liveStreamUrl) }
 
     // Floating reaction bubbles list
     var floatingParticles by remember { mutableStateOf<List<FloatingParticle>>(emptyList()) }
+
+    val effectiveFullscreen = isLandscape || isManualFullscreen
+
+    fun setFullscreenMode(enable: Boolean) {
+        isManualFullscreen = enable
+        if (activity != null) {
+            val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            if (enable) {
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                insetsController.hide(WindowInsetsCompat.Type.systemBars())
+                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    // Toggle Landscape / Fullscreen
+    fun toggleOrientationFullscreen() {
+        setFullscreenMode(!effectiveFullscreen)
+    }
+
+    // Handle Hardware Back Press in Fullscreen to exit fullscreen first
+    BackHandler(enabled = effectiveFullscreen) {
+        setFullscreenMode(false)
+    }
 
     // Auto-hide controls overlay after 4 seconds
     LaunchedEffect(showControlsOverlay, isPlaying) {
@@ -168,21 +201,6 @@ fun LiveStreamDialog(
         coroutineScope.launch {
             delay(2200)
             floatingParticles = floatingParticles.filter { it.id != newParticle.id }
-        }
-    }
-
-    // Toggle Landscape / Fullscreen
-    fun toggleOrientationFullscreen() {
-        if (activity != null) {
-            if (isLandscape || isManualFullscreen) {
-                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                isManualFullscreen = false
-            } else {
-                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                isManualFullscreen = true
-            }
-        } else {
-            isManualFullscreen = !isManualFullscreen
         }
     }
 
@@ -213,14 +231,34 @@ fun LiveStreamDialog(
 
     // Reload stream
     fun reloadStream() {
+        playbackErrorMsg = null
         isPlayerLoading = true
         webViewInstance?.reload()
     }
 
-    // Restore orientation when dialog closes
+    // Open stream in external app (YouTube app, Facebook, Browser)
+    fun openInExternalApp() {
+        try {
+            val ytId = extractYouTubeId(streamKeyOrUrl)
+            val targetUrl = if (ytId.isNotEmpty()) {
+                "https://www.youtube.com/watch?v=$ytId"
+            } else {
+                streamKeyOrUrl.ifEmpty { "https://www.youtube.com" }
+            }
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) { }
+    }
+
+    // Restore orientation & system bars when dialog closes
     DisposableEffect(Unit) {
         onDispose {
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            activity?.let { act ->
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                WindowCompat.getInsetsController(act.window, act.window.decorView).show(WindowInsetsCompat.Type.systemBars())
+            }
         }
     }
 
@@ -247,16 +285,15 @@ fun LiveStreamDialog(
         }
     }
 
-    val effectiveFullscreen = isLandscape || isManualFullscreen
-
     Dialog(
         onDismissRequest = {
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            setFullscreenMode(false)
             onDismiss()
         },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            dismissOnBackPress = true,
+            decorFitsSystemWindows = !effectiveFullscreen,
+            dismissOnBackPress = !effectiveFullscreen,
             dismissOnClickOutside = !effectiveFullscreen
         )
     ) {
@@ -280,100 +317,102 @@ fun LiveStreamDialog(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surface)
             ) {
-                // Top Custom Header Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFF8E0E00), Color(0xFF1F1C18))
-                            )
-                        )
-                        .padding(horizontal = 14.dp, vertical = if (effectiveFullscreen) 6.dp else 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                // Top Header Bar (Only visible in Portrait Mode to maximize landscape video area)
+                if (!effectiveFullscreen) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF8E0E00), Color(0xFF1F1C18))
+                                )
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isLiveActive) BloodRed.copy(alpha = alphaAnim) else SaffronPrimary,
-                            contentColor = Color.White
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isLiveActive) BloodRed.copy(alpha = alphaAnim) else SaffronPrimary,
+                                contentColor = Color.White
                             ) {
-                                if (isLiveActive) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(7.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.White)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    if (isLiveActive) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White)
+                                        )
+                                    }
+                                    Text(
+                                        text = if (isLiveActive) "🔴 थेट दर्शन" else "मंडळ दर्शन",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
                                     )
                                 }
-                                Text(
-                                    text = if (isLiveActive) "🔴 थेट दर्शन" else "मंडळ दर्शन",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                            }
+
+                            Text(
+                                text = streamTitle,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Fullscreen / Rotate Toggle Button
+                            IconButton(
+                                onClick = { toggleOrientationFullscreen() },
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .testTag("live_fullscreen_toggle_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Fullscreen,
+                                    contentDescription = "Fullscreen",
+                                    tint = Color.White
                                 )
                             }
-                        }
 
-                        Text(
-                            text = streamTitle,
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // Fullscreen / Rotate Toggle Button
-                        IconButton(
-                            onClick = { toggleOrientationFullscreen() },
-                            modifier = Modifier
-                                .size(34.dp)
-                                .testTag("live_fullscreen_toggle_btn")
-                        ) {
-                            Icon(
-                                imageVector = if (effectiveFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                contentDescription = if (effectiveFullscreen) "Exit Fullscreen" else "Fullscreen",
-                                tint = Color.White
-                            )
-                        }
-
-                        // Close Dialog Button
-                        IconButton(
-                            onClick = {
-                                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                onDismiss()
-                            },
-                            modifier = Modifier
-                                .size(34.dp)
-                                .testTag("close_live_stream_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "बंद करा",
-                                tint = Color.White
-                            )
+                            // Close Dialog Button
+                            IconButton(
+                                onClick = {
+                                    setFullscreenMode(false)
+                                    onDismiss()
+                                },
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .testTag("close_live_stream_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "बंद करा",
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
                 }
 
                 // Main Content Body: Video Player + Chat / Controls
                 if (effectiveFullscreen) {
-                    // Fullscreen Video View (Landscape Mode)
+                    // True Fullscreen Immersive Video View (Landscape Mode)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -388,6 +427,7 @@ fun LiveStreamDialog(
                             onWebViewCreated = { webViewInstance = it },
                             onLoadingChange = { isPlayerLoading = it },
                             onPlayStateChange = { playing -> isPlaying = playing },
+                            onErrorChange = { error -> playbackErrorMsg = error },
                             modifier = Modifier.fillMaxSize()
                         )
 
@@ -400,8 +440,16 @@ fun LiveStreamDialog(
                                 .padding(top = 10.dp, end = 12.dp)
                         )
 
-                        // Loading / Paused State Overlay with Center Mandal Logo
-                        if (isPlayerLoading || !isPlaying) {
+                        // Playback Error Fallback Overlay
+                        if (playbackErrorMsg != null) {
+                            PlaybackErrorOverlay(
+                                errorMessage = playbackErrorMsg!!,
+                                platform = platform,
+                                onOpenExternal = { openInExternalApp() },
+                                onRetry = { reloadStream() }
+                            )
+                        } else if (isPlayerLoading || !isPlaying) {
+                            // Loading / Paused State Overlay with Center Mandal Logo
                             MandalLogoPlayerOverlay(
                                 logoUrl = mandalLogoUrl,
                                 isLoading = isPlayerLoading,
@@ -413,15 +461,18 @@ fun LiveStreamDialog(
                         // Floating Reaction Overlay in Fullscreen
                         FloatingReactionOverlay(particles = floatingParticles)
 
-                        // Custom HUD Overlay for Fullscreen
+                        // Custom HUD Overlay for Fullscreen (with Back, Title, Controls)
                         if (showControlsOverlay) {
                             CustomPlayerControlsOverlay(
+                                streamTitle = streamTitle,
                                 isPlaying = isPlaying,
                                 isMuted = isMuted,
                                 isLoading = isPlayerLoading,
                                 viewerCount = viewerCount,
                                 isFullscreen = true,
                                 platform = platform,
+                                onBackClick = { setFullscreenMode(false) },
+                                onOpenExternalClick = { openInExternalApp() },
                                 onPlayPauseClick = { togglePlayPause() },
                                 onMuteToggle = { toggleMute() },
                                 onFullscreenToggle = { toggleOrientationFullscreen() },
@@ -489,10 +540,11 @@ fun LiveStreamDialog(
                                 onWebViewCreated = { webViewInstance = it },
                                 onLoadingChange = { isPlayerLoading = it },
                                 onPlayStateChange = { playing -> isPlaying = playing },
+                                onErrorChange = { error -> playbackErrorMsg = error },
                                 modifier = Modifier.fillMaxSize()
                             )
 
-                            // TV-Style Corner Watermark Logo (न्यूज चॅनेल प्रमाणे कोपऱ्यात लोगो)
+                            // TV-Style Corner Watermark Logo
                             TvCornerWatermark(
                                 logoUrl = mandalLogoUrl,
                                 isLive = isLiveActive,
@@ -501,8 +553,16 @@ fun LiveStreamDialog(
                                     .padding(top = 8.dp, end = 8.dp)
                             )
 
-                            // Loading / Paused Center Mandal Logo Overlay
-                            if (isPlayerLoading || !isPlaying) {
+                            // Playback Error Fallback Overlay
+                            if (playbackErrorMsg != null) {
+                                PlaybackErrorOverlay(
+                                    errorMessage = playbackErrorMsg!!,
+                                    platform = platform,
+                                    onOpenExternal = { openInExternalApp() },
+                                    onRetry = { reloadStream() }
+                                )
+                            } else if (isPlayerLoading || !isPlaying) {
+                                // Loading / Paused Center Mandal Logo Overlay
                                 MandalLogoPlayerOverlay(
                                     logoUrl = mandalLogoUrl,
                                     isLoading = isPlayerLoading,
@@ -517,12 +577,18 @@ fun LiveStreamDialog(
                             // Custom Branded HUD Controls Overlay
                             if (showControlsOverlay) {
                                 CustomPlayerControlsOverlay(
+                                    streamTitle = streamTitle,
                                     isPlaying = isPlaying,
                                     isMuted = isMuted,
                                     isLoading = isPlayerLoading,
                                     viewerCount = viewerCount,
                                     isFullscreen = false,
                                     platform = platform,
+                                    onBackClick = {
+                                        setFullscreenMode(false)
+                                        onDismiss()
+                                    },
+                                    onOpenExternalClick = { openInExternalApp() },
                                     onPlayPauseClick = { togglePlayPause() },
                                     onMuteToggle = { toggleMute() },
                                     onFullscreenToggle = { toggleOrientationFullscreen() },
@@ -1033,15 +1099,107 @@ private fun MandalLogoPlayerOverlay(
     }
 }
 
+// PLAYBACK ERROR FALLBACK OVERLAY (For restricted YouTube embeds or network errors)
+@Composable
+private fun PlaybackErrorOverlay(
+    errorMessage: String,
+    platform: StreamPlatform,
+    onOpenExternal: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.92f))
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth(0.92f)
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = BloodRed.copy(alpha = 0.2f),
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.PlayCircleFilled,
+                            contentDescription = "Live",
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "थेट प्रक्षेपण उपलब्ध आहे",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "हे थेट प्रक्षेपण YouTube/प्लॅटफॉर्मवर थेट सुरू आहे. सर्वोत्तम अनुभवासाठी खालील बटनावर क्लिक करून थेट ॲपमध्ये पहा.",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 17.sp
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onRetry,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("पुन्हा प्रयत्न करा", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Button(
+                        onClick = onOpenExternal,
+                        modifier = Modifier.weight(1.3f),
+                        colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = "Open", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("ॲपमध्ये उघडा", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // CUSTOM PLAYER CONTROLS OVERLAY (Overlayed directly over video)
 @Composable
 private fun CustomPlayerControlsOverlay(
+    streamTitle: String,
     isPlaying: Boolean,
     isMuted: Boolean,
     isLoading: Boolean,
     viewerCount: Int,
     isFullscreen: Boolean,
     platform: StreamPlatform,
+    onBackClick: () -> Unit,
+    onOpenExternalClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
     onMuteToggle: () -> Unit,
     onFullscreenToggle: () -> Unit,
@@ -1053,15 +1211,15 @@ private fun CustomPlayerControlsOverlay(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color.Black.copy(alpha = 0.6f),
+                        Color.Black.copy(alpha = 0.75f),
                         Color.Transparent,
-                        Color.Black.copy(alpha = 0.75f)
+                        Color.Black.copy(alpha = 0.82f)
                     )
                 )
             )
-            .padding(10.dp)
+            .padding(if (isFullscreen) 14.dp else 8.dp)
     ) {
-        // Top HUD: Branded Live Tag + Viewers Count + Sound button
+        // Top HUD: Back button (if Fullscreen) + Title + Live Badge + Viewers Count + Sound button + External button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1071,8 +1229,26 @@ private fun CustomPlayerControlsOverlay(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f, fill = false)
             ) {
+                if (isFullscreen) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.65f),
+                        modifier = Modifier.clickable { onBackClick() }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .size(20.dp)
+                        )
+                    }
+                }
+
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = BloodRed
@@ -1089,12 +1265,23 @@ private fun CustomPlayerControlsOverlay(
                                 .background(Color.White)
                         )
                         Text(
-                            text = "थेट प्रक्षेपण (${platform.displayName})",
+                            text = "LIVE",
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+
+                if (isFullscreen) {
+                    Text(
+                        text = streamTitle,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
                 Surface(
@@ -1115,6 +1302,27 @@ private fun CustomPlayerControlsOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Open in Native YouTube/Platform App
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.65f),
+                    modifier = Modifier.clickable { onOpenExternalClick() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = "Open External",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text("YouTube", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 // Sound Mute/Unmute
                 Surface(
                     shape = CircleShape,
@@ -1226,6 +1434,7 @@ private fun SmartMultiPlatformPlayer(
     onWebViewCreated: (WebView) -> Unit,
     onLoadingChange: (Boolean) -> Unit,
     onPlayStateChange: (Boolean) -> Unit,
+    onErrorChange: (String?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val cleanUrl = streamUrl.trim()
@@ -1258,6 +1467,7 @@ private fun SmartMultiPlatformPlayer(
                     @JavascriptInterface
                     fun onPlayerReady() {
                         post {
+                            onErrorChange(null)
                             onLoadingChange(false)
                             onPlayStateChange(true)
                         }
@@ -1268,6 +1478,7 @@ private fun SmartMultiPlatformPlayer(
                         post {
                             when (state) {
                                 1 -> { // Playing
+                                    onErrorChange(null)
                                     onLoadingChange(false)
                                     onPlayStateChange(true)
                                 }
@@ -1286,6 +1497,11 @@ private fun SmartMultiPlatformPlayer(
                     fun onPlayerError(errorCode: Int) {
                         post {
                             onLoadingChange(false)
+                            if (errorCode == 101 || errorCode == 150 || errorCode == 152) {
+                                onErrorChange("YouTube सुरक्षा निर्बंधामुळे हे थेट प्रक्षेपण थेट YouTube ॲपमध्ये पहा.")
+                            } else if (errorCode == 100) {
+                                onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
+                            }
                         }
                     }
                 }, "AndroidBridge")
@@ -1305,6 +1521,21 @@ private fun SmartMultiPlatformPlayer(
                     override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                         super.onReceivedError(view, request, error)
                         onLoadingChange(false)
+                    }
+
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                        val targetUrl = request?.url?.toString() ?: return false
+                        if (targetUrl == "about:blank" || targetUrl.startsWith("data:") || targetUrl.contains("youtube.com/embed/")) {
+                            return false
+                        }
+                        // Open external link in system browser / YouTube app instead of hijacking the embedded webview
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) { }
+                        return true
                     }
                 }
 
