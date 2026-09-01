@@ -57,6 +57,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
     // Auth & User State
     val currentUser: StateFlow<User?> = repository.currentUser
+    val sessionSecurityNotice: StateFlow<String?> = repository.sessionSecurityNotice
+
+    fun clearSessionSecurityNotice() {
+        repository.clearSessionSecurityNotice()
+    }
 
     // UI Feedback Message
     private val _snackbarMessage = MutableStateFlow<String?>(null)

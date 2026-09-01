@@ -86,6 +86,7 @@ fun MandalApp(viewModel: MandalViewModel) {
     val fullscreenViewerState by viewModel.fullscreenViewerState.collectAsStateWithLifecycle()
     val showLiveStreamPlayer by viewModel.showLiveStreamPlayer.collectAsStateWithLifecycle()
     val liveComments by viewModel.liveComments.collectAsStateWithLifecycle()
+    val sessionSecurityNotice by viewModel.sessionSecurityNotice.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreatePostDialog by remember { mutableStateOf(false) }
@@ -116,6 +117,12 @@ fun MandalApp(viewModel: MandalViewModel) {
         snackbarMsg?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearSnackbar()
+        }
+    }
+
+    LaunchedEffect(sessionSecurityNotice) {
+        if (!sessionSecurityNotice.isNullOrBlank()) {
+            viewModel.navigateTo(AppScreen.LOGIN)
         }
     }
 
@@ -386,6 +393,48 @@ fun MandalApp(viewModel: MandalViewModel) {
                     onPostComment = { commentText ->
                         viewModel.postLiveComment(commentText)
                     }
+                )
+            }
+
+            // Single Device Active Session Security Alert Dialog
+            if (!sessionSecurityNotice.isNullOrBlank()) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.clearSessionSecurityNotice() },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = "सुरक्षा सूचना",
+                            tint = BloodRed,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    },
+                    title = {
+                        Text(
+                            text = "सुरक्षा सूचना (Security Alert)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = TextPrimary
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = sessionSecurityNotice ?: "आपले खाते दुसऱ्या मोबाईलमध्ये लॉगिन झाल्यामुळे या मोबाईलमधील लॉगिन सुरक्षिततेसाठी बंद (लॉगआऊट) करण्यात आले आहे.",
+                            fontSize = 14.sp,
+                            color = TextSecondary,
+                            lineHeight = 20.sp
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = { viewModel.clearSessionSecurityNotice() },
+                            colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                        ) {
+                            Text("समजले (OK)", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    containerColor = SurfaceWarm,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
                 )
             }
         }

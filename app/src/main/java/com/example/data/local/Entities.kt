@@ -20,7 +20,8 @@ data class UserEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val isOnline: Boolean = false,
     val lastSeen: Long = System.currentTimeMillis(),
-    val fcmToken: String = ""
+    val fcmToken: String = "",
+    val activeSessionId: String = ""
 )
 
 @Entity(tableName = "posts")

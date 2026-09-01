@@ -39,6 +39,13 @@ class MandalRepository(context: Context) {
     private val _mandalLogoUrl = MutableStateFlow<String?>(prefs.getString("mandal_logo_url", null))
     val mandalLogoUrl: StateFlow<String?> = _mandalLogoUrl.asStateFlow()
 
+    private val _sessionSecurityNotice = MutableStateFlow<String?>(null)
+    val sessionSecurityNotice: StateFlow<String?> = _sessionSecurityNotice.asStateFlow()
+
+    fun clearSessionSecurityNotice() {
+        _sessionSecurityNotice.value = null
+    }
+
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
 
     private fun loadUserFromPrefs(): User? {
@@ -55,6 +62,7 @@ class MandalRepository(context: Context) {
         val dob = prefs.getString("logged_user_dob", "1998-08-22") ?: "1998-08-22"
         val address = prefs.getString("logged_user_address", "") ?: ""
         val designation = prefs.getString("logged_user_designation", "सभासद") ?: "सभासद"
+        val session = prefs.getString("logged_user_session_id", "") ?: ""
 
         if (status != "APPROVED") return null
 
@@ -70,7 +78,8 @@ class MandalRepository(context: Context) {
             address = address,
             role = role,
             designation = designation,
-            status = status
+            status = status,
+            activeSessionId = session
         )
     }
 
@@ -89,6 +98,7 @@ class MandalRepository(context: Context) {
                 .putString("logged_user_dob", user.dateOfBirth)
                 .putString("logged_user_address", user.address)
                 .putString("logged_user_designation", user.designation)
+                .putString("logged_user_session_id", user.activeSessionId)
                 .apply()
         } else {
             prefs.edit()
@@ -104,6 +114,7 @@ class MandalRepository(context: Context) {
                 .remove("logged_user_dob")
                 .remove("logged_user_address")
                 .remove("logged_user_designation")
+                .remove("logged_user_session_id")
                 .apply()
         }
     }
@@ -360,10 +371,18 @@ class MandalRepository(context: Context) {
                         }
                     }
                     val currentId = _currentUser.value?.id
+                    val localSessionId = prefs.getString("logged_user_session_id", "") ?: ""
                     if (currentId != null) {
                         val updated = userDao.getUserById(currentId)
                         if (updated != null) {
-                            _currentUser.value = updated.toDomain()
+                            if (updated.status != "APPROVED") {
+                                handleSessionTerminated("आपले खाते मंजुरीच्या प्रतीक्षेत किंवा निलंबित आहे.")
+                            } else if (localSessionId.isNotBlank() && updated.activeSessionId.isNotBlank() && updated.activeSessionId != localSessionId) {
+                                Log.w("AuthSession", "Single-device login security: Duplicate login detected! Local: $localSessionId, Remote: ${updated.activeSessionId}")
+                                handleSessionTerminated("⚠️ आपले खाते दुसऱ्या मोबाईलवर लॉगिन झाले आहे. सुरक्षिततेसाठी या मोबाईलमधून आपोआप लॉगआऊट करण्यात आले आहे.")
+                            } else {
+                                _currentUser.value = updated.toDomain().copy(activeSessionId = localSessionId)
+                            }
                         }
                     }
                 }
@@ -658,15 +677,60 @@ class MandalRepository(context: Context) {
             return@withContext Result.failure(Exception("आपले खाते निलंबित किंवा नामंजूर करण्यात आले आहे. कृपया मंडळाशी संपर्क साधा."))
         }
 
-        val domainUser = user.toDomain()
+        // Generate unique Single-Device Session ID
+        val newSessionId = "sess_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().take(8)
+        val updatedUser = user.copy(
+            activeSessionId = newSessionId,
+            isOnline = true,
+            lastSeen = System.currentTimeMillis()
+        )
+        userDao.updateUser(updatedUser)
+
+        // Sync new session ID to Firestore immediately
+        try {
+            firestore.collection("users").document(updatedUser.id).set(
+                mapOf(
+                    "activeSessionId" to newSessionId,
+                    "isOnline" to true,
+                    "lastSeen" to System.currentTimeMillis()
+                ),
+                SetOptions.merge()
+            )
+            Log.d("AuthSession", "New active session $newSessionId registered for user ${updatedUser.id}")
+        } catch (e: Exception) {
+            Log.e("AuthSession", "Failed to update activeSessionId on Firestore: ${e.message}")
+        }
+
+        val domainUser = updatedUser.toDomain()
         saveUserToPrefs(domainUser)
         _currentUser.value = domainUser
+        _sessionSecurityNotice.value = null
         Result.success(domainUser)
     }
 
-    fun logout() {
+    fun handleSessionTerminated(reason: String) {
+        val currentId = _currentUser.value?.id
         saveUserToPrefs(null)
         _currentUser.value = null
+        _sessionSecurityNotice.value = reason
+        Log.w("AuthSession", "Session terminated for user $currentId: $reason")
+    }
+
+    fun logout() {
+        val current = _currentUser.value
+        if (current != null) {
+            try {
+                firestore.collection("users").document(current.id).set(
+                    mapOf("isOnline" to false, "lastSeen" to System.currentTimeMillis()),
+                    SetOptions.merge()
+                )
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+        saveUserToPrefs(null)
+        _currentUser.value = null
+        _sessionSecurityNotice.value = null
     }
 
     suspend fun registerMember(
@@ -1783,7 +1847,8 @@ fun UserEntity.toDomain() = User(
     createdAt = createdAt,
     isOnline = isOnline,
     lastSeen = lastSeen,
-    fcmToken = fcmToken
+    fcmToken = fcmToken,
+    activeSessionId = activeSessionId
 )
 
 fun parsePostImageUrls(raw: String): List<String> {
@@ -1954,7 +2019,8 @@ fun UserEntity.toMap(): Map<String, Any?> = mapOf(
     "createdAt" to createdAt,
     "isOnline" to isOnline,
     "lastSeen" to lastSeen,
-    "fcmToken" to fcmToken
+    "fcmToken" to fcmToken,
+    "activeSessionId" to activeSessionId
 )
 
 fun DocumentSnapshot.toUserEntity(): UserEntity? {
@@ -1976,7 +2042,8 @@ fun DocumentSnapshot.toUserEntity(): UserEntity? {
         createdAt = getLong("createdAt") ?: System.currentTimeMillis(),
         isOnline = getBoolean("isOnline") ?: false,
         lastSeen = getLong("lastSeen") ?: 0L,
-        fcmToken = getString("fcmToken") ?: ""
+        fcmToken = getString("fcmToken") ?: "",
+        activeSessionId = getString("activeSessionId") ?: ""
     )
 }
 
