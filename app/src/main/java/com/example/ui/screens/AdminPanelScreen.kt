@@ -910,12 +910,12 @@ fun EditAboutUsAdminTab(mandalInfo: MandalInfo, viewModel: MandalViewModel) {
     }
 }
 
-// 4. ALL MEMBERS & ADMIN ROLE MANAGEMENT
+// 4. ALL MEMBERS & ADMIN ROLE / DESIGNATION MANAGEMENT
 @Composable
 fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var memberToManage by remember { mutableStateOf<User?>(null) }
-    var memberToChangeRole by remember { mutableStateOf<User?>(null) }
+    var memberToEditDesignation by remember { mutableStateOf<User?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
     val filteredMembers = remember(members, searchQuery) {
@@ -924,7 +924,8 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
         } else {
             members.filter {
                 it.fullName.contains(searchQuery, ignoreCase = true) ||
-                it.mobileNumber.contains(searchQuery)
+                it.mobileNumber.contains(searchQuery) ||
+                it.designation.contains(searchQuery, ignoreCase = true)
             }
         }
     }
@@ -988,52 +989,15 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
         )
     }
 
-    // Dialog for Changing Admin Role
-    if (memberToChangeRole != null) {
-        val target = memberToChangeRole!!
-        val willBeAdmin = !target.isAdmin
-        AlertDialog(
-            onDismissRequest = { memberToChangeRole = null },
-            title = {
-                Text(
-                    text = if (willBeAdmin) "ॲडमिन अधिकार प्रदान करा (Make Admin)" else "ॲडमिन अधिकार काढून घ्या (Remove Admin)",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "सभासद: ${target.fullName} (${target.mobileNumber})",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (willBeAdmin)
-                            "तुम्हाला या सभासदाला मंडळाचे मुख्य ॲडमिन अधिकार द्यायचे आहेत का? ॲडमिन बनल्यानंतर ते सभासद मंजुरी, बॅनर, सूचना आणि कार्यक्रम व्यवस्थापित करू शकतील."
-                        else
-                            "तुम्हाला या सभासदाचे ॲडमिन अधिकार काढून त्यांना सामान्य सभासद बनवायचे आहे का?",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.changeUserRole(target.id, if (willBeAdmin) "ADMIN" else "MEMBER")
-                        memberToChangeRole = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (willBeAdmin) Color(0xFFDB2777) else SaffronPrimary
-                    )
-                ) {
-                    Text(if (willBeAdmin) "होय, ॲडमिन बनवा" else "होय, सामान्य सभासद करा")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { memberToChangeRole = null }) {
-                    Text("रद्द करा")
-                }
+    // Comprehensive Dialog for Changing Member Designation (पद) and System Role (अधिकार)
+    if (memberToEditDesignation != null) {
+        val target = memberToEditDesignation!!
+        EditMemberDesignationDialog(
+            member = target,
+            onDismiss = { memberToEditDesignation = null },
+            onSave = { newDesignation, newRole ->
+                viewModel.updateMemberDesignationAndRole(target.id, newDesignation, newRole)
+                memberToEditDesignation = null
             }
         )
     }
@@ -1060,7 +1024,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "सभासद क्रेडेंशियल्स व ॲडमिन व्यवस्थापन: सदस्यांचा मोबाईल व पासवर्ड पाहू शकता (पासवर्ड विसरल्यास मदत करण्यासाठी).",
+                        text = "🎖️ सभासद पद व ॲडमिन व्यवस्थापन: सदस्यांचे पद (उदा. कार्यकारणी सदस्य, अध्यक्ष, उपाध्यक्ष, सचिव, सल्लागार इ.) व ॲडमिन अधिकार कधीही बदलू शकता.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF4C1D95),
                         fontWeight = FontWeight.Medium
@@ -1074,7 +1038,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("नाव किंवा मोबाईल नंबरने शोधा...") },
+                label = { Text("नाव, पद किंवा मोबाईल नंबरने शोधा...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaffronPrimary) },
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
@@ -1099,6 +1063,13 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
 
         items(filteredMembers, key = { it.id }) { member ->
             var isPasswordVisible by remember { mutableStateOf(false) }
+            val currentDesig = if (member.designation.isNotBlank()) {
+                member.designation
+            } else if (member.isAdmin) {
+                "कार्यकारणी सदस्य"
+            } else {
+                "सभासद"
+            }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1108,13 +1079,21 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        MemberAvatar(photoUrl = member.profilePhotoUrl, name = member.fullName, size = 46)
+                        MemberAvatar(photoUrl = member.profilePhotoUrl, name = member.fullName, size = 48)
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = member.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = member.fullName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                                 if (member.isAdmin) {
-                                    Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
                                         color = Color(0xFFDB2777).copy(alpha = 0.15f)
@@ -1129,6 +1108,24 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                                     }
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            // Prominent Designation Badge
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SaffronContainer
+                            ) {
+                                Text(
+                                    text = "🎖️ $currentDesig",
+                                    color = SaffronDark,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(text = "📱 मोबाईल: ${member.mobileNumber}", fontSize = 12.sp, color = TextSecondary)
                             Spacer(modifier = Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1236,24 +1233,24 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Change Role Button (Make Admin / Remove Admin)
-                        OutlinedButton(
-                            onClick = { memberToChangeRole = member },
+                        // Change Role & Designation Button
+                        Button(
+                            onClick = { memberToEditDesignation = member },
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = if (member.isAdmin) SaffronPrimary else Color(0xFFDB2777)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = SaffronPrimary
                             )
                         ) {
                             Icon(
-                                imageVector = if (member.isAdmin) Icons.Default.Person else Icons.Default.AdminPanelSettings,
+                                imageVector = Icons.Default.Badge,
                                 contentDescription = null,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (member.isAdmin) "सामान्य सभासद बनवा" else "👑 ॲडमिन बनवा",
-                                fontSize = 11.sp,
+                                text = "🎖️ पद / अधिकार बदला",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -1286,6 +1283,234 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
             }
         }
     }
+}
+
+// DIALOG FOR CHANGING MEMBER DESIGNATION AND SYSTEM ROLE
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun EditMemberDesignationDialog(
+    member: User,
+    onDismiss: () -> Unit,
+    onSave: (newDesignation: String, newRole: String) -> Unit
+) {
+    val initialDesignation = if (member.designation.isNotBlank()) member.designation else if (member.isAdmin) "कार्यकारणी सदस्य" else "सभासद"
+    val presetDesignations = listOf(
+        "कार्यकारणी सदस्य",
+        "अध्यक्ष",
+        "उपाध्यक्ष",
+        "सचिव",
+        "सहसचिव",
+        "खजिनदार",
+        "सहखजिनदार",
+        "प्रसिद्धी प्रमुख",
+        "सांस्कृतिक प्रमुख",
+        "क्रीडा प्रमुख",
+        "सल्लागार",
+        "मार्गदर्शक",
+        "संस्थापक सदस्य",
+        "आजीवन सभासद",
+        "सभासद"
+    )
+
+    var selectedDesignation by remember(member) { mutableStateOf(initialDesignation) }
+    var customDesignationInput by remember(member) {
+        mutableStateOf(if (initialDesignation !in presetDesignations) initialDesignation else "")
+    }
+    var selectedRole by remember(member) { mutableStateOf(member.role) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Badge,
+                    contentDescription = null,
+                    tint = SaffronPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "पद व अधिकार व्यवस्थापन",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Member Header Card
+                Surface(
+                    color = SurfaceWarm,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MemberAvatar(photoUrl = member.profilePhotoUrl, name = member.fullName, size = 48)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(member.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                            Text("📱 ${member.mobileNumber}", fontSize = 12.sp, color = TextSecondary)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SaffronContainer
+                            ) {
+                                Text(
+                                    text = "सध्याचे पद: ${member.designation.ifBlank { if (member.isAdmin) "कार्यकारणी सदस्य" else "सभासद" }}",
+                                    fontSize = 10.sp,
+                                    color = SaffronDark,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = "🎖️ नवीन पद निवडा (Select Designation):",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
+                )
+
+                // Quick Preset Chips
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    presetDesignations.forEach { desig ->
+                        val isSelected = (selectedDesignation == desig && customDesignationInput.isBlank())
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedDesignation = desig
+                                customDesignationInput = ""
+                            },
+                            label = { Text(desig, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SaffronPrimary,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                // Custom Designation Input Field
+                OutlinedTextField(
+                    value = customDesignationInput,
+                    onValueChange = {
+                        customDesignationInput = it
+                        if (it.isNotBlank()) {
+                            selectedDesignation = it.trim()
+                        }
+                    },
+                    label = { Text("किंवा इतर कोणतेही कस्टम पद लिहा") },
+                    placeholder = { Text("उदा. प्रसिद्धी प्रमुख / महिला समन्वयक") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                HorizontalDivider(color = DividerColor)
+
+                // Admin Rights Selection
+                Text(
+                    text = "👑 ॲपमधील सिस्टम अधिकार (System Role):",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (selectedRole == "ADMIN") SaffronPrimary.copy(alpha = 0.15f) else SurfaceWarm,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (selectedRole == "ADMIN") SaffronPrimary else CardBorderColor
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { selectedRole = "ADMIN" }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "👑 मुख्य ॲडमिन",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = if (selectedRole == "ADMIN") SaffronPrimary else TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text("सर्व अधिकार व मंजुरी", fontSize = 10.sp, color = TextSecondary)
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (selectedRole != "ADMIN") Color(0xFFE2E8F0) else SurfaceWarm,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (selectedRole != "ADMIN") Color(0xFF64748B) else CardBorderColor
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { selectedRole = "MEMBER" }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "👤 सामान्य सभासद",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = if (selectedRole != "ADMIN") Color(0xFF1E293B) else TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text("फक्त पाहणे व पोस्ट", fontSize = 10.sp, color = TextSecondary)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val finalDesignation = if (customDesignationInput.isNotBlank()) {
+                        customDesignationInput.trim()
+                    } else {
+                        selectedDesignation.trim()
+                    }
+                    onSave(finalDesignation, selectedRole)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("जतन करा (Save)", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("रद्द करा")
+            }
+        }
+    )
 }
 
 // 5. CREATE EVENT

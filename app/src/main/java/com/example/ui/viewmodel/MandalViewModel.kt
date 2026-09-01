@@ -915,11 +915,18 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // ADMIN ROLE MANAGEMENT
+    // ADMIN ROLE & DESIGNATION MANAGEMENT
     fun changeUserRole(userId: String, newRole: String) {
         viewModelScope.launch {
             repository.changeUserRole(userId, newRole)
             showSnackbar("सभासदाचा रोल ($newRole) बदलण्यात आला! ✅")
+        }
+    }
+
+    fun updateMemberDesignationAndRole(userId: String, newDesignation: String, newRole: String) {
+        viewModelScope.launch {
+            repository.updateMemberDesignationAndRole(userId, newDesignation, newRole)
+            showSnackbar("सभासदाचे पद व अधिकार यशस्वीरित्या अपडेट केले! ✅")
         }
     }
 

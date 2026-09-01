@@ -74,7 +74,30 @@ fun MemberCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                val designationText = if (member.designation.isNotBlank()) {
+                    member.designation
+                } else if (member.isAdmin) {
+                    "कार्यकारणी सदस्य"
+                } else {
+                    "सभासद"
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = if (member.isAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronContainer else Color(0xFFF1F5F9)
+                ) {
+                    Text(
+                        text = "🎖️ $designationText",
+                        fontSize = 10.sp,
+                        color = if (member.isAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronDark else TextSecondary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     BloodGroupBadge(bloodGroup = member.bloodGroup)
@@ -243,6 +266,11 @@ fun MemberDetailSheet(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Details List
+            DetailRow(
+                icon = Icons.Default.Badge,
+                label = "पद / हुद्दा (Designation)",
+                value = member.designation.ifBlank { if (member.isAdmin) "कार्यकारणी सदस्य" else "सभासद" }
+            )
             DetailRow(icon = Icons.Default.Phone, label = "मोबाईल नंबर", value = member.mobileNumber)
             DetailRow(icon = Icons.Default.Cake, label = "जन्म तारीख (DOB)", value = member.dateOfBirth)
             DetailRow(icon = Icons.Default.Person, label = "लिंग", value = member.gender)

@@ -896,18 +896,44 @@ class MandalRepository(context: Context) {
         }
     }
 
-    // ADMIN ACTIONS ON USERS & ROLE MANAGEMENT
+    // ADMIN ACTIONS ON USERS & ROLE / DESIGNATION MANAGEMENT
     suspend fun changeUserRole(userId: String, newRole: String) = withContext(Dispatchers.IO) {
         val user = userDao.getUserById(userId) ?: return@withContext
         val updated = user.copy(role = newRole)
         userDao.updateUser(updated)
         if (_currentUser.value?.id == userId) {
             _currentUser.value = updated.toDomain()
+            prefs.edit().putString("logged_user_role", newRole).apply()
         }
         try {
             firestore.collection("users").document(userId).set(mapOf("role" to newRole), SetOptions.merge())
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error changing user role on Firestore", e)
+        }
+    }
+
+    suspend fun updateMemberDesignationAndRole(userId: String, newDesignation: String, newRole: String) = withContext(Dispatchers.IO) {
+        val user = userDao.getUserById(userId) ?: return@withContext
+        val updated = user.copy(designation = newDesignation.trim(), role = newRole)
+        userDao.updateUser(updated)
+        if (_currentUser.value?.id == userId) {
+            _currentUser.value = updated.toDomain()
+            prefs.edit()
+                .putString("logged_user_role", newRole)
+                .putString("logged_user_designation", newDesignation.trim())
+                .apply()
+        }
+        try {
+            firestore.collection("users").document(userId).set(
+                mapOf(
+                    "designation" to newDesignation.trim(),
+                    "role" to newRole
+                ),
+                SetOptions.merge()
+            )
+            Log.d("FirebaseSync", "Successfully updated designation for user $userId to $newDesignation")
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating member designation on Firestore", e)
         }
     }
 
