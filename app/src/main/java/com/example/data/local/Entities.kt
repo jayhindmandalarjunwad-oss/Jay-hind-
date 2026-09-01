@@ -166,6 +166,7 @@ data class MandalInfoEntity(
     val instagramHandle: String = "jayhind_mandal_arjunwad",
     val adminWebLink: String = "",
     val logoUrl: String = "",
+    val officialStampUrl: String = "",
     val presidentSignatureUrl: String = "",
     val presidentName: String = "अध्यक्ष",
     val isLiveStreamActive: Boolean = false,

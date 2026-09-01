@@ -671,69 +671,97 @@ Status: $statusStr
     }
 
     /**
-     * Draws an authentic official circular blue rubber seal (अधिकृत डिजिटल गोल निळा शिक्का)
+     * Draws an authentic official circular blue rubber seal (अधिकृत गोल रबर शिक्का)
      * and seamlessly overlays the President's signature on top of it.
      */
     private fun drawOfficialStamp(canvas: Canvas, cx: Float, cy: Float, radius: Float, mandalInfo: MandalInfo) {
-        val stampBlue = Color.rgb(30, 58, 138) // Official Rubber Stamp Blue (#1E3A8A)
-        val stampAlpha = 220
+        var drawnCustomStamp = false
 
-        // 1. Outer solid circle
-        val outerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 6.5f
-            color = stampBlue
-            alpha = stampAlpha
-        }
-        canvas.drawCircle(cx, cy, radius, outerPaint)
-
-        // 2. Inner fine dashed ring
-        val innerCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 3f
-            color = stampBlue
-            alpha = stampAlpha
-            pathEffect = DashPathEffect(floatArrayOf(12f, 6f), 0f)
-        }
-        canvas.drawCircle(cx, cy, radius - 13f, innerCirclePaint)
-
-        // 3. Innermost solid circle
-        val innermostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 2.5f
-            color = stampBlue
-            alpha = stampAlpha
-        }
-        canvas.drawCircle(cx, cy, radius - 24f, innermostPaint)
-
-        // 4. Center texts in Rubber Stamp
-        val stampCenterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = stampBlue
-            alpha = stampAlpha
-            textSize = 21f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textAlign = Paint.Align.CENTER
-        }
-        val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = stampBlue
-            alpha = stampAlpha
-            textSize = 18f
-            textAlign = Paint.Align.CENTER
+        // If an authentic physical stamp was uploaded, draw it!
+        if (mandalInfo.officialStampUrl.isNotBlank()) {
+            try {
+                val stampBmp = MediaUtils.base64ToBitmap(mandalInfo.officialStampUrl)
+                if (stampBmp != null) {
+                    val targetDiameter = radius * 2f
+                    val matrix = Matrix().apply {
+                        val s = targetDiameter / maxOf(stampBmp.width, stampBmp.height).toFloat()
+                        postScale(s, s)
+                        val scaledW = stampBmp.width * s
+                        val scaledH = stampBmp.height * s
+                        postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
+                    }
+                    val stampPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        alpha = 240
+                    }
+                    canvas.drawBitmap(stampBmp, matrix, stampPaint)
+                    drawnCustomStamp = true
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
-        canvas.drawText("★ ★ ★", cx, cy - 56f, starPaint)
-        canvas.drawText("जय हिंद मंडळ", cx, cy - 28f, stampCenterPaint)
+        if (!drawnCustomStamp) {
+            val stampBlue = Color.rgb(30, 58, 138) // Official Rubber Stamp Blue (#1E3A8A)
+            val stampAlpha = 220
 
-        val offPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = stampBlue
-            alpha = stampAlpha
-            textSize = 23f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textAlign = Paint.Align.CENTER
+            // 1. Outer solid circle
+            val outerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 6.5f
+                color = stampBlue
+                alpha = stampAlpha
+            }
+            canvas.drawCircle(cx, cy, radius, outerPaint)
+
+            // 2. Inner fine dashed ring
+            val innerCirclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+                color = stampBlue
+                alpha = stampAlpha
+                pathEffect = DashPathEffect(floatArrayOf(12f, 6f), 0f)
+            }
+            canvas.drawCircle(cx, cy, radius - 13f, innerCirclePaint)
+
+            // 3. Innermost solid circle
+            val innermostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 2.5f
+                color = stampBlue
+                alpha = stampAlpha
+            }
+            canvas.drawCircle(cx, cy, radius - 24f, innermostPaint)
+
+            // 4. Center texts in Rubber Stamp
+            val stampCenterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = stampBlue
+                alpha = stampAlpha
+                textSize = 21f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                textAlign = Paint.Align.CENTER
+            }
+            val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = stampBlue
+                alpha = stampAlpha
+                textSize = 18f
+                textAlign = Paint.Align.CENTER
+            }
+
+            canvas.drawText("★ ★ ★", cx, cy - 56f, starPaint)
+            canvas.drawText("जय हिंद मंडळ", cx, cy - 28f, stampCenterPaint)
+
+            val offPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = stampBlue
+                alpha = stampAlpha
+                textSize = 23f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                textAlign = Paint.Align.CENTER
+            }
+            canvas.drawText("★ अधिकृत शिक्का ★", cx, cy + 4f, offPaint)
+            canvas.drawText("अर्जुनवाड", cx, cy + 34f, stampCenterPaint)
+            canvas.drawText("स्थापना १९९६", cx, cy + 62f, Paint(stampCenterPaint).apply { textSize = 17f })
         }
-        canvas.drawText("★ अधिकृत शिक्का ★", cx, cy + 4f, offPaint)
-        canvas.drawText("अर्जुनवाड", cx, cy + 34f, stampCenterPaint)
-        canvas.drawText("स्थापना १९९६", cx, cy + 62f, Paint(stampCenterPaint).apply { textSize = 17f })
 
         // 5. Overlay President's Signature
         var drawnSignature = false

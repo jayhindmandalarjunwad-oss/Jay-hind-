@@ -354,6 +354,7 @@ fun DigitalIdCardView(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             OfficialMandalStamp(
                                 size = 82,
+                                stampUrl = mandalInfo.officialStampUrl.ifBlank { null },
                                 signatureUrl = mandalInfo.presidentSignatureUrl.ifBlank { null }
                             )
                             Spacer(modifier = Modifier.height(3.dp))
@@ -405,12 +406,13 @@ fun DigitalIdCardView(
 }
 
 /**
- * Authentic Official Blue Rubber Stamp Composable (अधिकृत डिजिटल गोल निळा शिक्का)
- * with President Signature Overlay.
+ * Authentic Official Blue Rubber Stamp Composable (मंडळाचा अधिकृत गोल निळा शिक्का)
+ * Supports uploaded physical stamp image OR generated digital vector seal, with signature overlay.
  */
 @Composable
 fun OfficialMandalStamp(
     size: Int = 82,
+    stampUrl: String? = null,
     signatureUrl: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -422,72 +424,85 @@ fun OfficialMandalStamp(
             .testTag("official_mandal_stamp"),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val strokeWidth = 2.dp.toPx()
-            val center = Offset(this.size.width / 2, this.size.height / 2)
-            val radius = (this.size.width / 2) - strokeWidth
-
-            // Outer thick ring
-            drawCircle(
-                color = stampBlue.copy(alpha = 0.88f),
-                radius = radius,
-                center = center,
-                style = Stroke(width = strokeWidth * 1.2f)
+        if (!stampUrl.isNullOrBlank()) {
+            // Display uploaded authentic Mandal rubber seal
+            UniversalAsyncImage(
+                model = stampUrl,
+                contentDescription = "मंडळाचा अधिकृत शिक्का",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(2.dp)
             )
+        } else {
+            // Display crisp digital vector circular seal
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 2.dp.toPx()
+                val center = Offset(this.size.width / 2, this.size.height / 2)
+                val radius = (this.size.width / 2) - strokeWidth
 
-            // Inner dashed ring
-            drawCircle(
-                color = stampBlue.copy(alpha = 0.82f),
-                radius = radius - 4.dp.toPx(),
-                center = center,
-                style = Stroke(
-                    width = 1.dp.toPx(),
-                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                        floatArrayOf(6f, 3f), 0f
+                // Outer thick ring
+                drawCircle(
+                    color = stampBlue.copy(alpha = 0.88f),
+                    radius = radius,
+                    center = center,
+                    style = Stroke(width = strokeWidth * 1.2f)
+                )
+
+                // Inner dashed ring
+                drawCircle(
+                    color = stampBlue.copy(alpha = 0.82f),
+                    radius = radius - 4.dp.toPx(),
+                    center = center,
+                    style = Stroke(
+                        width = 1.dp.toPx(),
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            floatArrayOf(6f, 3f), 0f
+                        )
                     )
                 )
-            )
 
-            // Innermost ring
-            drawCircle(
-                color = stampBlue.copy(alpha = 0.85f),
-                radius = radius - 8.dp.toPx(),
-                center = center,
-                style = Stroke(width = 1.dp.toPx())
-            )
-        }
+                // Innermost ring
+                drawCircle(
+                    color = stampBlue.copy(alpha = 0.85f),
+                    radius = radius - 8.dp.toPx(),
+                    center = center,
+                    style = Stroke(width = 1.dp.toPx())
+                )
+            }
 
-        // Stamp Typography (Under the signature)
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(4.dp)
-        ) {
-            Text(
-                text = "★ जय हिंद ★",
-                color = stampBlue.copy(alpha = 0.88f),
-                fontWeight = FontWeight.Black,
-                fontSize = (size * 0.10).sp
-            )
-            Text(
-                text = "अधिकृत शिक्का",
-                color = stampBlue.copy(alpha = 0.92f),
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = (size * 0.12).sp,
-                letterSpacing = 0.3.sp
-            )
-            Text(
-                text = "अर्जुनवाड",
-                color = stampBlue.copy(alpha = 0.88f),
-                fontWeight = FontWeight.Bold,
-                fontSize = (size * 0.10).sp
-            )
-            Text(
-                text = "१९९६",
-                color = stampBlue.copy(alpha = 0.85f),
-                fontWeight = FontWeight.Bold,
-                fontSize = (size * 0.09).sp
-            )
+            // Stamp Typography (Under the signature)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(4.dp)
+            ) {
+                Text(
+                    text = "★ जय हिंद ★",
+                    color = stampBlue.copy(alpha = 0.88f),
+                    fontWeight = FontWeight.Black,
+                    fontSize = (size * 0.10).sp
+                )
+                Text(
+                    text = "अधिकृत शिक्का",
+                    color = stampBlue.copy(alpha = 0.92f),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = (size * 0.12).sp,
+                    letterSpacing = 0.3.sp
+                )
+                Text(
+                    text = "अर्जुनवाड",
+                    color = stampBlue.copy(alpha = 0.88f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size * 0.10).sp
+                )
+                Text(
+                    text = "१९९६",
+                    color = stampBlue.copy(alpha = 0.85f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size * 0.09).sp
+                )
+            }
         }
 
         // President's Signature Overlay (Over top of stamp with slight rotation)

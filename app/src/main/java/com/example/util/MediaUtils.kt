@@ -296,6 +296,142 @@ object MediaUtils {
     }
 
     /**
+     * Converts a stamp photo URI into a clean, transparent PNG Base64 string with paper background removed.
+     */
+    suspend fun uriToStampBase64(
+        context: Context,
+        uri: Uri,
+        maxDimension: Int = 600
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext null
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            if (originalBitmap == null) return@withContext null
+
+            // Read orientation
+            var rotationAngle = 0
+            try {
+                val exifStream = context.contentResolver.openInputStream(uri)
+                if (exifStream != null) {
+                    val exif = ExifInterface(exifStream)
+                    val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                    rotationAngle = when (orientation) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                        ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                        ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                        else -> 0
+                    }
+                    exifStream.close()
+                }
+            } catch (_: Exception) {}
+
+            var rotatedBmp = originalBitmap
+            if (rotationAngle != 0) {
+                val matrix = Matrix().apply { postRotate(rotationAngle.toFloat()) }
+                rotatedBmp = Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+            }
+
+            // Downscale if huge
+            val w = rotatedBmp.width
+            val h = rotatedBmp.height
+            val scale = if (w > maxDimension || h > maxDimension) {
+                maxDimension.toFloat() / maxOf(w, h).toFloat()
+            } else 1.0f
+
+            val scaledBmp = if (scale < 1.0f) {
+                Bitmap.createScaledBitmap(rotatedBmp, (w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1), true)
+            } else rotatedBmp
+
+            // Process pixels: make white/bright paper transparent and stamp ink vibrant
+            val processedBmp = processStampBitmap(scaledBmp)
+
+            val outputStream = ByteArrayOutputStream()
+            processedBmp.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            val byteArray = outputStream.toByteArray()
+            val base64Str = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            "data:image/png;base64,$base64Str"
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Failed to convert stamp uri: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Extracts circular rubber stamp impression, removes background paper, and enhances ink contrast.
+     */
+    fun processStampBitmap(src: Bitmap): Bitmap {
+        val width = src.width
+        val height = src.height
+        val pixels = IntArray(width * height)
+        src.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        var minX = width
+        var minY = height
+        var maxX = 0
+        var maxY = 0
+        var hasInk = false
+
+        val outPixels = IntArray(width * height)
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val index = y * width + x
+                val pixel = pixels[index]
+                val a = android.graphics.Color.alpha(pixel)
+                val r = android.graphics.Color.red(pixel)
+                val g = android.graphics.Color.green(pixel)
+                val b = android.graphics.Color.blue(pixel)
+
+                if (a < 30) {
+                    outPixels[index] = android.graphics.Color.TRANSPARENT
+                    continue
+                }
+
+                // Luminance (0 = black, 255 = white)
+                val lum = (0.299f * r + 0.587f * g + 0.114f * b).toInt()
+
+                if (lum > 215) {
+                    // White or light grey paper -> transparent
+                    outPixels[index] = android.graphics.Color.TRANSPARENT
+                } else {
+                    // Rubber stamp ink stroke: calculate stroke alpha based on darkness
+                    val strokeAlpha = (((235 - lum).toFloat() / 235f) * 255f).toInt().coerceIn(120, 255)
+                    
+                    // If the stamp has noticeable blue/purple hue, keep authentic blue tone, else enhance to deep navy stamp
+                    val isBlueOrPurple = b > (r - 20) && b > (g - 20)
+                    if (isBlueOrPurple) {
+                        outPixels[index] = android.graphics.Color.argb(strokeAlpha, (r * 0.7f).toInt().coerceIn(0, 50), (g * 0.7f).toInt().coerceIn(0, 70), (b * 1.1f).toInt().coerceIn(120, 255))
+                    } else {
+                        // Deep official blue-black ink color
+                        outPixels[index] = android.graphics.Color.argb(strokeAlpha, 30, 58, 138)
+                    }
+
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                    hasInk = true
+                }
+            }
+        }
+
+        val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        resultBitmap.setPixels(outPixels, 0, width, 0, 0, width, height)
+
+        if (hasInk && maxX > minX && maxY > minY) {
+            val cropX = (minX - 12).coerceAtLeast(0)
+            val cropY = (minY - 12).coerceAtLeast(0)
+            val cropW = (maxX - minX + 24).coerceAtMost(width - cropX)
+            val cropH = (maxY - minY + 24).coerceAtMost(height - cropY)
+            if (cropW > 10 && cropH > 10) {
+                return Bitmap.createBitmap(resultBitmap, cropX, cropY, cropW, cropH)
+            }
+        }
+        return resultBitmap
+    }
+
+    /**
      * Extracts a frame from a local video URI and converts it to a Base64 JPEG string thumbnail.
      */
     suspend fun getVideoThumbnailBase64(

@@ -853,6 +853,48 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // MANDAL OFFICIAL STAMP MANAGEMENT
+    fun updateOfficialStamp(stampUrl: String, onComplete: ((Boolean) -> Unit)? = null) {
+        if (stampUrl.isBlank()) {
+            showSnackbar("कृपया अधिकृत शिक्क्याचा फोटो किंवा इमेज निवडा.")
+            onComplete?.invoke(false)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val result = repository.updateOfficialStamp(stampUrl)
+                if (result.isSuccess) {
+                    showSnackbar("मंडळाचा अधिकृत शिक्का सर्व ओळखपत्रांवर यशस्वीरित्या सेट झाला! 🏛️✅")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ शिक्का अपडेट करताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
+    fun deleteOfficialStamp(onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            try {
+                val result = repository.deleteOfficialStamp()
+                if (result.isSuccess) {
+                    showSnackbar("अधिकृत शिक्का रीसेट झाला आणि डीफॉल्ट डिजिटल शिक्का सेट झाला.")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ शिक्का रीसेट करताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
     // MANDAL PRESIDENT SIGNATURE MANAGEMENT
     fun updatePresidentSignature(signatureUrl: String, presidentName: String = "अध्यक्ष", onComplete: ((Boolean) -> Unit)? = null) {
         if (signatureUrl.isBlank()) {
