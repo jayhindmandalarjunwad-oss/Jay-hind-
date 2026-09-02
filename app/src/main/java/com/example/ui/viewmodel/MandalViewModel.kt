@@ -1052,8 +1052,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _showLiveStreamPlayer = MutableStateFlow(false)
     val showLiveStreamPlayer: StateFlow<Boolean> = _showLiveStreamPlayer.asStateFlow()
 
-    private val _liveComments = MutableStateFlow<List<LiveComment>>(emptyList())
-    val liveComments: StateFlow<List<LiveComment>> = _liveComments.asStateFlow()
+    // Real-time live comments synced across all viewers in the app
+    val liveComments: StateFlow<List<LiveComment>> = repository.liveComments
 
     fun openLiveStreamPlayer() {
         _showLiveStreamPlayer.value = true
@@ -1069,26 +1069,31 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         val name = user?.fullName?.ifEmpty { "सभासद" } ?: "जय हिंद सभासद"
         val photo = user?.profilePhotoUrl ?: ""
         val newComment = LiveComment(
-            id = "comment_${System.currentTimeMillis()}",
+            id = "comment_${System.currentTimeMillis()}_${(1000..9999).random()}",
             userName = name,
             userPhoto = photo,
             message = message.trim(),
             timestamp = System.currentTimeMillis()
         )
-        _liveComments.value = _liveComments.value + newComment
+        viewModelScope.launch {
+            repository.postLiveComment(newComment)
+        }
     }
 
     fun sendLiveReaction(reactionText: String) {
         val user = currentUser.value
         val name = user?.fullName?.ifEmpty { "सभासद" } ?: "जय हिंद सभासद"
+        val photo = user?.profilePhotoUrl ?: ""
         val newComment = LiveComment(
-            id = "reaction_${System.currentTimeMillis()}",
+            id = "reaction_${System.currentTimeMillis()}_${(1000..9999).random()}",
             userName = name,
-            userPhoto = user?.profilePhotoUrl ?: "",
+            userPhoto = photo,
             message = reactionText,
             timestamp = System.currentTimeMillis()
         )
-        _liveComments.value = _liveComments.value + newComment
+        viewModelScope.launch {
+            repository.postLiveComment(newComment)
+        }
         showSnackbar("प्रतिक्रिया नोंदवली: $reactionText 🚩")
     }
 

@@ -361,9 +361,25 @@ fun LiveStreamDialog(
     )
 
     val commentsListState = rememberLazyListState()
+    var lastSeenCommentId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(comments.size) {
         if (comments.isNotEmpty()) {
             commentsListState.animateScrollToItem(comments.size - 1)
+            val latest = comments.last()
+            if (latest.id != lastSeenCommentId) {
+                lastSeenCommentId = latest.id
+                val msg = latest.message.trim()
+                if (msg.startsWith("🚩") || msg.startsWith("❤️") || msg.startsWith("🙏") ||
+                    msg.startsWith("🌸") || msg.startsWith("👏") || msg.startsWith("🔔") ||
+                    msg.length <= 4) {
+                    val newParticle = FloatingParticle(
+                        id = System.currentTimeMillis() + Random.nextLong(1000),
+                        text = msg.take(2),
+                        startOffsetX = Random.nextFloat() * 0.7f + 0.15f
+                    )
+                    floatingParticles = floatingParticles + newParticle
+                }
+            }
         }
     }
 
@@ -547,6 +563,45 @@ fun LiveStreamDialog(
 
                     // Floating Reaction Particles in Fullscreen
                     FloatingReactionOverlay(particles = floatingParticles)
+
+                    // Semi-transparent Live Comments Ticker in Fullscreen (Bottom-Left)
+                    if (comments.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(start = 14.dp, bottom = 54.dp)
+                                .widthIn(max = 280.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            comments.takeLast(3).forEach { c ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.Black.copy(alpha = 0.55f),
+                                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = c.userName,
+                                            color = SaffronLight,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = c.message,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Custom HUD Controls for Fullscreen (Back Icon, Sound, Reload, Exit Fullscreen, Open in App)
                     if (showControlsOverlay) {
@@ -840,6 +895,39 @@ fun LiveStreamDialog(
                     }
 
                     // 3. LIVE CHAT & COMMENTS FEED
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF2E7D32))
+                            )
+                            Text(
+                                text = "थेट संवाद (Real-time Live Chat)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                        Text(
+                            text = "सर्व प्रेक्षकांना थेट दिसते ⚡",
+                            fontSize = 10.sp,
+                            color = SaffronDark,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -901,12 +989,20 @@ fun LiveStreamDialog(
                                                 .background(SaffronPrimary),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = comment.userName.take(1).ifEmpty { "स" },
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            if (comment.userPhoto.isNotBlank()) {
+                                                UniversalAsyncImage(
+                                                    model = comment.userPhoto,
+                                                    contentDescription = comment.userName,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = comment.userName.take(1).ifEmpty { "स" },
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
 
                                         Column(modifier = Modifier.weight(1f)) {

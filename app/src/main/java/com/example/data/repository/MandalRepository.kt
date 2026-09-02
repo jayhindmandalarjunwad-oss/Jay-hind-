@@ -127,6 +127,10 @@ class MandalRepository(context: Context) {
     private val _cloudSyncStatus = MutableStateFlow("Firebase चालू आहे")
     val cloudSyncStatus: StateFlow<String> = _cloudSyncStatus.asStateFlow()
 
+    // Real-time Live Stream Comments & Reactions StateFlow (Synced instantly across all watchers)
+    private val _liveComments = MutableStateFlow<List<LiveComment>>(emptyList())
+    val liveComments: StateFlow<List<LiveComment>> = _liveComments.asStateFlow()
+
     // Firebase Firestore instance
     private val firestore: FirebaseFirestore by lazy {
         val db = FirebaseFirestore.getInstance()
@@ -632,6 +636,32 @@ class MandalRepository(context: Context) {
                     }
                 }
             }
+
+            // Real-time Live Stream Comments Sync (Instant broadcast to all active watchers)
+            firestore.collection("live_comments")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.ASCENDING)
+                .limitToLast(150)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e("FirebaseSync", "Live comments snapshot listener error: ${e.message}", e)
+                        return@addSnapshotListener
+                    }
+                    if (snapshots == null) return@addSnapshotListener
+                    val list = snapshots.documents.mapNotNull { doc ->
+                        try {
+                            LiveComment(
+                                id = doc.getString("id") ?: doc.id,
+                                userName = doc.getString("userName") ?: "सभासद",
+                                userPhoto = doc.getString("userPhoto") ?: "",
+                                message = doc.getString("message") ?: "",
+                                timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                            )
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                    _liveComments.value = list
+                }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "startFirestoreSync error: ${e.message}", e)
         }
@@ -1954,6 +1984,23 @@ class MandalRepository(context: Context) {
                 }
             }
 
+            // 5. Clean up old live comments from past sessions when new stream starts
+            if (isLive) {
+                try {
+                    val cutoff = System.currentTimeMillis() - 43200000L // 12 hours
+                    firestore.collection("live_comments")
+                        .whereLessThan("timestamp", cutoff)
+                        .get()
+                        .addOnSuccessListener { querySnapshot ->
+                            for (doc in querySnapshot.documents) {
+                                doc.reference.delete()
+                            }
+                        }
+                } catch (e: Exception) {
+                    Log.d("LiveStream", "Old live comments cleanup note: ${e.message}")
+                }
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error updating live stream status: ${e.message}", e)
@@ -1966,6 +2013,24 @@ class MandalRepository(context: Context) {
             galleryDao.getAllVideos().first()
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    // REAL-TIME LIVE COMMENTS POSTING (INSTANT BROADCAST TO ALL WATCHERS)
+    suspend fun postLiveComment(comment: LiveComment): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val data = hashMapOf<String, Any>(
+                "id" to comment.id,
+                "userName" to comment.userName,
+                "userPhoto" to comment.userPhoto,
+                "message" to comment.message,
+                "timestamp" to comment.timestamp
+            )
+            firestore.collection("live_comments").document(comment.id).set(data)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error posting live comment on Firestore: ${e.message}", e)
+            Result.failure(e)
         }
     }
 }
