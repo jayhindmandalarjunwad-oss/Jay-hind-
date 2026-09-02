@@ -2096,7 +2096,7 @@ fun ManageLogoAdminTab(
                             shape = RoundedCornerShape(8.dp),
                             color = Color.White,
                             border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-                            modifier = Modifier.size(width = 135.dp, height = 72.dp)
+                            modifier = Modifier.size(width = 115.dp, height = 58.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(4.dp)) {
                                 if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
@@ -2107,12 +2107,7 @@ fun ManageLogoAdminTab(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
-                                    androidx.compose.foundation.Image(
-                                        painter = painterResource(id = R.drawable.ic_president_signature_default),
-                                        contentDescription = "डीफॉल्ट स्वाक्षरी",
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
+                                    Text("स्वाक्षरी नाही", fontSize = 11.sp, color = TextMuted)
                                 }
                             }
                         }
@@ -2141,7 +2136,7 @@ fun ManageLogoAdminTab(
                             shape = RoundedCornerShape(8.dp),
                             color = Color.White,
                             border = androidx.compose.foundation.BorderStroke(1.dp, if (hasPendingSignatureChanges) SaffronPrimary else CardBorderColor),
-                            modifier = Modifier.size(width = 135.dp, height = 72.dp)
+                            modifier = Modifier.size(width = 115.dp, height = 58.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(4.dp)) {
                                 val sigToShow = selectedSignatureInput.ifBlank { mandalInfo.presidentSignatureUrl }
@@ -2153,12 +2148,7 @@ fun ManageLogoAdminTab(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
-                                    androidx.compose.foundation.Image(
-                                        painter = painterResource(id = R.drawable.ic_president_signature_default),
-                                        contentDescription = "डीफॉल्ट स्वाक्षरी",
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
+                                    Text("स्वाक्षरी नाही", fontSize = 11.sp, color = TextMuted)
                                 }
                             }
                         }

@@ -615,12 +615,13 @@ Status: $statusStr
 
         // 8. President's Authorized Signature on Right (अध्यक्षांची स्वाक्षरी)
         val sealCenterX = width - 250f
-        val sealCenterY = qrTop + qrSize / 2f - 20f
+        val hasSignature = mandalInfo.presidentSignatureUrl.isNotBlank() || mandalInfo.officialStampUrl.isNotBlank()
+        val sealCenterY = if (hasSignature) qrTop + qrSize / 2f - 20f else qrTop + qrSize / 2f - 10f
         val sealRadius = 130f
 
         drawOfficialStamp(context, canvas, sealCenterX, sealCenterY, sealRadius, mandalInfo)
 
-        // Sign text below signature
+        // Sign text below signature (without any baseline)
         val presName = mandalInfo.presidentName.ifBlank { "अध्यक्ष" }
         val signPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(15, 23, 42)
@@ -628,7 +629,7 @@ Status: $statusStr
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        val textY = sealCenterY + 70f
+        val textY = if (hasSignature) sealCenterY + 70f else sealCenterY + 20f
         canvas.drawText(presName, sealCenterX, textY, signPaint)
 
         val signSubPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -673,73 +674,59 @@ Status: $statusStr
     }
 
     /**
-     * Draws President's signature and Mandal Seal/Stamp on ID Card canvas.
-     * Uses uploaded official stamp/signature or default high-resolution vector assets.
+     * Draws President's signature and baseline on ID Card canvas.
+     * If an authentic physical stamp was uploaded, it will be subtly rendered behind the signature.
+     * NO default circular stamp is drawn when no custom stamp is uploaded.
      */
     private fun drawOfficialStamp(context: Context, canvas: Canvas, cx: Float, cy: Float, radius: Float, mandalInfo: MandalInfo) {
-        // 1. Draw Official Mandal Stamp (Seal) in background
-        try {
-            val stampBmp = if (mandalInfo.officialStampUrl.isNotBlank()) {
-                MediaUtils.loadBitmap(context, mandalInfo.officialStampUrl)
-            } else {
-                getVectorBitmap(context, R.drawable.ic_mandal_official_stamp, 300, 300)
-            }
-
-            if (stampBmp != null) {
-                val targetDiameter = radius * 2.1f
-                val matrix = Matrix().apply {
-                    val s = targetDiameter / maxOf(stampBmp.width, stampBmp.height).toFloat()
-                    postScale(s, s)
-                    val scaledW = stampBmp.width * s
-                    val scaledH = stampBmp.height * s
-                    postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
+        // If an authentic physical stamp was uploaded, draw it
+        if (mandalInfo.officialStampUrl.isNotBlank()) {
+            try {
+                val stampBmp = MediaUtils.loadBitmap(context, mandalInfo.officialStampUrl)
+                if (stampBmp != null) {
+                    val targetDiameter = radius * 1.8f
+                    val matrix = Matrix().apply {
+                        val s = targetDiameter / maxOf(stampBmp.width, stampBmp.height).toFloat()
+                        postScale(s, s)
+                        val scaledW = stampBmp.width * s
+                        val scaledH = stampBmp.height * s
+                        postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
+                    }
+                    val stampPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        alpha = 210
+                    }
+                    canvas.drawBitmap(stampBmp, matrix, stampPaint)
                 }
-                val stampPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    alpha = 220
-                }
-                canvas.drawBitmap(stampBmp, matrix, stampPaint)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
 
-        // 2. Draw President's Signature
-        try {
-            val sigBmp = if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
-                MediaUtils.loadBitmap(context, mandalInfo.presidentSignatureUrl)
-            } else {
-                getVectorBitmap(context, R.drawable.ic_president_signature_default, 320, 160)
-            }
-
-            if (sigBmp != null) {
-                val sigWidth = 320f
-                val sigHeight = 160f
-                val matrix = Matrix().apply {
-                    val scaleX = sigWidth / sigBmp.width.toFloat()
-                    val scaleY = sigHeight / sigBmp.height.toFloat()
-                    val s = minOf(scaleX, scaleY)
-                    postScale(s, s)
-                    val scaledW = sigBmp.width * s
-                    val scaledH = sigBmp.height * s
-                    postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
+        // Draw President's Signature (Only when uploaded)
+        if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
+            try {
+                val sigBmp = MediaUtils.loadBitmap(context, mandalInfo.presidentSignatureUrl)
+                if (sigBmp != null) {
+                    val sigWidth = 240f
+                    val sigHeight = 110f
+                    val matrix = Matrix().apply {
+                        val scaleX = sigWidth / sigBmp.width.toFloat()
+                        val scaleY = sigHeight / sigBmp.height.toFloat()
+                        val s = minOf(scaleX, scaleY)
+                        postScale(s, s)
+                        val scaledW = sigBmp.width * s
+                        val scaledH = sigBmp.height * s
+                        postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
+                    }
+                    val sigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        alpha = 255
+                    }
+                    canvas.drawBitmap(sigBmp, matrix, sigPaint)
                 }
-                val sigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    alpha = 255
-                }
-                canvas.drawBitmap(sigBmp, matrix, sigPaint)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
-    }
-
-    private fun getVectorBitmap(context: Context, drawableResId: Int, width: Int, height: Int): Bitmap? {
-        val drawable = ContextCompat.getDrawable(context, drawableResId) ?: return null
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, width, height)
-        drawable.draw(canvas)
-        return bitmap
     }
 
     /**
