@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -2789,6 +2790,58 @@ fun LiveStreamAdminTab(
                         singleLine = true
                     )
 
+                    // Dynamic Detection Indicator
+                    if (streamUrl.isNotBlank()) {
+                        val detectedPlatform = remember(streamUrl) { detectStreamPlatform(streamUrl) }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = when (detectedPlatform) {
+                                StreamPlatform.YOUTUBE -> SaffronPrimary.copy(alpha = 0.12f)
+                                StreamPlatform.FACEBOOK -> Color(0xFF1877F2).copy(alpha = 0.12f)
+                                StreamPlatform.INSTAGRAM -> Color(0xFFE1306C).copy(alpha = 0.12f)
+                                else -> CardBorderColor.copy(alpha = 0.3f)
+                            },
+                            border = BorderStroke(1.dp, when (detectedPlatform) {
+                                StreamPlatform.YOUTUBE -> SaffronPrimary.copy(alpha = 0.6f)
+                                StreamPlatform.FACEBOOK -> Color(0xFF1877F2).copy(alpha = 0.6f)
+                                StreamPlatform.INSTAGRAM -> Color(0xFFE1306C).copy(alpha = 0.6f)
+                                else -> CardBorderColor
+                            })
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "ओळखलेले प्लॅटफॉर्म:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    text = when (detectedPlatform) {
+                                        StreamPlatform.YOUTUBE -> "▶️ YouTube Live (युट्युब लाईव्ह)"
+                                        StreamPlatform.FACEBOOK -> "🔵 Facebook Live (फेसबुक लाईव्ह)"
+                                        StreamPlatform.INSTAGRAM -> "🟣 Instagram Live (इन्स्टाग्राम लाईव्ह)"
+                                        StreamPlatform.DIRECT_HLS -> "📡 Direct HLS / RTMP स्ट्रीम"
+                                        StreamPlatform.CUSTOM -> "🌐 थेट वेब प्लेयर"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when (detectedPlatform) {
+                                        StreamPlatform.YOUTUBE -> SaffronPrimary
+                                        StreamPlatform.FACEBOOK -> Color(0xFF1877F2)
+                                        StreamPlatform.INSTAGRAM -> Color(0xFFE1306C)
+                                        else -> TextPrimary
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     // Platform presets indicator
                     Row(
                         modifier = Modifier
@@ -2882,6 +2935,34 @@ fun LiveStreamAdminTab(
                                     color = TextSecondary
                                 )
                             }
+                        }
+                    }
+
+                    // Helpful Marathi tip for Live Streaming
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFFFF8E1),
+                        border = BorderStroke(1.dp, Color(0xFFFFD54F)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFF57C00), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "थेट प्रक्षेपणासाठी उपयुक्त टीप:",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFE65100)
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "• YouTube वर लाईव्ह करताना YouTube Studio मध्ये 'Allow embedding' (एम्बेडिंग) चालू ठेवावे, जेणेकरून ॲपमध्ये थेट व्हिडिओ दिसेल.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF5D4037),
+                                lineHeight = 16.sp
+                            )
                         }
                     }
 

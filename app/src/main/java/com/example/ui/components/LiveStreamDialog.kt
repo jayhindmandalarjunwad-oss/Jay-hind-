@@ -8,6 +8,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.widget.Toast
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -85,33 +86,107 @@ fun extractYouTubeId(url: String): String {
     if (clean.matches(Regex("^[a-zA-Z0-9_-]{11}$"))) {
         return clean
     }
-    val youtuBeRegex = Regex("youtu\\.be/([a-zA-Z0-9_-]{11})")
+    // youtu.be/ID
+    val youtuBeRegex = Regex("""youtu\.be/([a-zA-Z0-9_-]{11})""")
     youtuBeRegex.find(clean)?.let { return it.groupValues[1] }
 
-    val watchRegex = Regex("[?&]v=([a-zA-Z0-9_-]{11})")
-    watchRegex.find(clean)?.let { return it.groupValues[1] }
-
-    val liveRegex = Regex("youtube\\.com/live/([a-zA-Z0-9_-]{11})")
+    // youtube.com/live/ID
+    val liveRegex = Regex("""youtube\.com/live/([a-zA-Z0-9_-]{11})""")
     liveRegex.find(clean)?.let { return it.groupValues[1] }
 
-    val embedRegex = Regex("youtube\\.com/embed/([a-zA-Z0-9_-]{11})")
+    // [?&]v=ID
+    val watchRegex = Regex("""[?&]v=([a-zA-Z0-9_-]{11})""")
+    watchRegex.find(clean)?.let { return it.groupValues[1] }
+
+    // youtube.com/embed/ID
+    val embedRegex = Regex("""youtube\.com/embed/([a-zA-Z0-9_-]{11})""")
     embedRegex.find(clean)?.let { return it.groupValues[1] }
 
-    val shortsRegex = Regex("youtube\\.com/shorts/([a-zA-Z0-9_-]{11})")
+    // youtube.com/shorts/ID
+    val shortsRegex = Regex("""youtube\.com/shorts/([a-zA-Z0-9_-]{11})""")
     shortsRegex.find(clean)?.let { return it.groupValues[1] }
+
+    // youtube.com/vi?/ID
+    val vRegex = Regex("""youtube\.com/vi?/([a-zA-Z0-9_-]{11})""")
+    vRegex.find(clean)?.let { return it.groupValues[1] }
 
     return ""
 }
 
 fun detectStreamPlatform(url: String): StreamPlatform {
     val clean = url.trim().lowercase()
+    val ytId = extractYouTubeId(url)
     return when {
-        clean.contains("youtu.be") || clean.contains("youtube.com") || extractYouTubeId(url).isNotEmpty() -> StreamPlatform.YOUTUBE
-        clean.contains("facebook.com") || clean.contains("fb.watch") || clean.contains("fb.me") -> StreamPlatform.FACEBOOK
+        ytId.isNotEmpty() || clean.contains("youtu.be") || clean.contains("youtube.com") -> StreamPlatform.YOUTUBE
+        clean.contains("facebook.com") || clean.contains("fb.watch") || clean.contains("fb.me") || clean.contains("fb.gg") -> StreamPlatform.FACEBOOK
         clean.contains("instagram.com") || clean.contains("instagr.am") -> StreamPlatform.INSTAGRAM
         clean.contains(".m3u8") || clean.contains(".mp4") || clean.contains("rtmp://") || clean.contains(".webm") -> StreamPlatform.DIRECT_HLS
         clean.startsWith("http://") || clean.startsWith("https://") -> StreamPlatform.CUSTOM
         else -> StreamPlatform.YOUTUBE
+    }
+}
+
+fun openStreamInExternalApp(context: Context, url: String, platform: StreamPlatform) {
+    val cleanUrl = url.trim()
+    if (cleanUrl.isBlank()) return
+    try {
+        when (platform) {
+            StreamPlatform.YOUTUBE -> {
+                val videoId = extractYouTubeId(cleanUrl)
+                val targetUrl = if (videoId.isNotEmpty()) "https://www.youtube.com/watch?v=$videoId" else cleanUrl
+                val uri = Uri.parse(targetUrl)
+
+                // Try YouTube App directly first
+                val appIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage("com.google.android.youtube")
+                }
+                try {
+                    context.startActivity(appIntent)
+                    return
+                } catch (_: Exception) {
+                    try {
+                        val fallbackUri = if (videoId.isNotEmpty()) Uri.parse("vnd.youtube:$videoId") else uri
+                        val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
+                        context.startActivity(fallbackIntent)
+                        return
+                    } catch (_: Exception) {
+                        val webIntent = Intent(Intent.ACTION_VIEW, uri)
+                        context.startActivity(webIntent)
+                        return
+                    }
+                }
+            }
+            StreamPlatform.FACEBOOK -> {
+                try {
+                    val fbIntent = Intent(Intent.ACTION_VIEW, Uri.parse("fb://facewebmodal/f?href=" + URLEncoder.encode(cleanUrl, "UTF-8")))
+                    context.startActivity(fbIntent)
+                    return
+                } catch (_: Exception) {
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl))
+                    context.startActivity(webIntent)
+                    return
+                }
+            }
+            StreamPlatform.INSTAGRAM -> {
+                try {
+                    val uri = Uri.parse(cleanUrl)
+                    val instaIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                        setPackage("com.instagram.android")
+                    }
+                    context.startActivity(instaIntent)
+                    return
+                } catch (_: Exception) {
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl))
+                    context.startActivity(webIntent)
+                    return
+                }
+            }
+            else -> {}
+        }
+        val defaultIntent = Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl))
+        context.startActivity(defaultIntent)
+    } catch (_: Exception) {
+        Toast.makeText(context, "लिंक उघडता आली नाही", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -148,7 +223,7 @@ fun LiveStreamDialog(
 
     // Custom Player Controls State
     var isPlaying by remember { mutableStateOf(true) }
-    var isMuted by remember { mutableStateOf(false) }
+    var isMuted by remember { mutableStateOf(true) }
     var isPlayerLoading by remember { mutableStateOf(true) }
     var playbackErrorMsg by remember { mutableStateOf<String?>(null) }
     var showControlsOverlay by remember { mutableStateOf(true) }
@@ -418,13 +493,15 @@ fun LiveStreamDialog(
                             .padding(top = 10.dp, end = 12.dp)
                     )
 
-                    // In-Place Playback Error Fallback (Strictly in-app retry)
+                    // In-Place Playback Error Fallback (With direct app fallback)
                     if (playbackErrorMsg != null) {
                         PlaybackErrorOverlay(
                             errorMessage = playbackErrorMsg!!,
-                            onRetry = { reloadStream() }
+                            platform = platform,
+                            onRetry = { reloadStream() },
+                            onOpenInApp = { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
                         )
-                    } else if (isPlayerLoading || !isPlaying) {
+                    } else if (!isLiveActive || (isPlayerLoading && !isPlaying)) {
                         // Loading / Paused Overlay with Center Mandal Logo
                         MandalLogoPlayerOverlay(
                             logoUrl = mandalLogoUrl,
@@ -434,10 +511,31 @@ fun LiveStreamDialog(
                         )
                     }
 
+                    // Floating Unmute Prompt if Muted
+                    if (isMuted && isLiveActive && !isPlayerLoading) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.Black.copy(alpha = 0.75f),
+                            border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.8f)),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .clickable { toggleMute() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.VolumeUp, contentDescription = "Unmute", tint = SaffronPrimary, modifier = Modifier.size(18.dp))
+                                Text("🔊 आवाज सुरू करा (Unmute)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
                     // Floating Reaction Particles in Fullscreen
                     FloatingReactionOverlay(particles = floatingParticles)
 
-                    // Custom HUD Controls for Fullscreen (Back Icon, Sound, Reload, Exit Fullscreen)
+                    // Custom HUD Controls for Fullscreen (Back Icon, Sound, Reload, Exit Fullscreen, Open in App)
                     if (showControlsOverlay) {
                         CustomPlayerControlsOverlay(
                             streamTitle = streamTitle,
@@ -451,7 +549,8 @@ fun LiveStreamDialog(
                             onPlayPauseClick = { togglePlayPause() },
                             onMuteToggle = { toggleMute() },
                             onFullscreenToggle = { toggleOrientationFullscreen() },
-                            onReloadClick = { reloadStream() }
+                            onReloadClick = { reloadStream() },
+                            onOpenInApp = { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
                         )
                     }
 
@@ -534,9 +633,11 @@ fun LiveStreamDialog(
                         if (playbackErrorMsg != null) {
                             PlaybackErrorOverlay(
                                 errorMessage = playbackErrorMsg!!,
-                                onRetry = { reloadStream() }
+                                platform = platform,
+                                onRetry = { reloadStream() },
+                                onOpenInApp = { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
                             )
-                        } else if (isPlayerLoading || !isPlaying) {
+                        } else if (!isLiveActive || (isPlayerLoading && !isPlaying)) {
                             // Loading / Paused Center Mandal Logo Overlay
                             MandalLogoPlayerOverlay(
                                 logoUrl = mandalLogoUrl,
@@ -544,6 +645,27 @@ fun LiveStreamDialog(
                                 isPlaying = isPlaying,
                                 onPlayClick = { togglePlayPause() }
                             )
+                        }
+
+                        // Floating Unmute Prompt if Muted
+                        if (isMuted && isLiveActive && !isPlayerLoading) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.Black.copy(alpha = 0.75f),
+                                border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.8f)),
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .clickable { toggleMute() }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.VolumeUp, contentDescription = "Unmute", tint = SaffronPrimary, modifier = Modifier.size(18.dp))
+                                    Text("🔊 आवाज सुरू करा (Unmute)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
 
                         // Floating Reaction Overlay over video
@@ -566,8 +688,96 @@ fun LiveStreamDialog(
                                 onPlayPauseClick = { togglePlayPause() },
                                 onMuteToggle = { toggleMute() },
                                 onFullscreenToggle = { toggleOrientationFullscreen() },
-                                onReloadClick = { reloadStream() }
+                                onReloadClick = { reloadStream() },
+                                onOpenInApp = { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
                             )
+                        }
+                    }
+
+
+
+                    // 1.5 DIRECT QUICK ACTION STRIP (Sound, Open in App, Fullscreen)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1F1F1F))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = SaffronPrimary,
+                                modifier = Modifier.clickable { toggleMute() }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                        contentDescription = "Mute Toggle",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = if (isMuted) "आवाज बंद आहे (Tap करा)" else "आवाज चालू आहे",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color.White.copy(alpha = 0.15f),
+                                modifier = Modifier.clickable { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                    Text(
+                                        text = when (platform) {
+                                            StreamPlatform.YOUTUBE -> "YouTube ॲप"
+                                            StreamPlatform.FACEBOOK -> "Facebook ॲप"
+                                            StreamPlatform.INSTAGRAM -> "Instagram ॲप"
+                                            else -> "थेट ॲप"
+                                        },
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color.White.copy(alpha = 0.15f),
+                                modifier = Modifier.clickable { toggleOrientationFullscreen() }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.Fullscreen, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Text("आडवा", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
 
@@ -1010,11 +1220,13 @@ private fun MandalLogoPlayerOverlay(
     }
 }
 
-// IN-PLACE PLAYBACK ERROR FALLBACK (Pure In-App Retry)
+// IN-PLACE PLAYBACK ERROR FALLBACK (Pure In-App Retry with Open in App Option)
 @Composable
 private fun PlaybackErrorOverlay(
     errorMessage: String,
-    onRetry: () -> Unit
+    platform: StreamPlatform,
+    onRetry: () -> Unit,
+    onOpenInApp: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -1067,13 +1279,35 @@ private fun PlaybackErrorOverlay(
 
                 Button(
                     onClick = onRetry,
-                    modifier = Modifier.fillMaxWidth(0.7f),
+                    modifier = Modifier.fillMaxWidth(0.85f),
                     colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("पुन्हा प्रयत्न करा", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+
+                OutlinedButton(
+                    onClick = onOpenInApp,
+                    modifier = Modifier.fillMaxWidth(0.85f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.OpenInNew, contentDescription = "Open in app", modifier = Modifier.size(16.dp), tint = Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = when (platform) {
+                            StreamPlatform.YOUTUBE -> "▶️ YouTube ॲपमध्ये पहा"
+                            StreamPlatform.FACEBOOK -> "🔵 Facebook ॲपमध्ये पहा"
+                            StreamPlatform.INSTAGRAM -> "🟣 Instagram ॲपमध्ये पहा"
+                            else -> "🌐 थेट ॲपमध्ये उघडा"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
         }
@@ -1094,7 +1328,8 @@ private fun CustomPlayerControlsOverlay(
     onPlayPauseClick: () -> Unit,
     onMuteToggle: () -> Unit,
     onFullscreenToggle: () -> Unit,
-    onReloadClick: () -> Unit
+    onReloadClick: () -> Unit,
+    onOpenInApp: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -1265,7 +1500,7 @@ private fun CustomPlayerControlsOverlay(
             }
         }
 
-        // Bottom HUD: Fullscreen / Rotation Toggle
+        // Bottom HUD: Fullscreen / Rotation Toggle and Open In App
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1280,28 +1515,63 @@ private fun CustomPlayerControlsOverlay(
                 fontWeight = FontWeight.SemiBold
             )
 
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color.Black.copy(alpha = 0.7f),
-                modifier = Modifier.clickable { onFullscreenToggle() }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    modifier = Modifier.clickable { onOpenInApp() }
                 ) {
-                    Icon(
-                        imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                        contentDescription = "Fullscreen",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = if (isFullscreen) "उभा / Exit Fullscreen" else "आडवा / Fullscreen",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = "Open in App",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = when (platform) {
+                                StreamPlatform.YOUTUBE -> "YouTube ↗"
+                                StreamPlatform.FACEBOOK -> "Facebook ↗"
+                                StreamPlatform.INSTAGRAM -> "Instagram ↗"
+                                else -> "App ↗"
+                            },
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    modifier = Modifier.clickable { onFullscreenToggle() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = "Fullscreen",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = if (isFullscreen) "उभा / Exit" else "आडवा / Fullscreen",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -1342,7 +1612,8 @@ private fun SmartMultiPlatformPlayer(
                 settings.allowFileAccess = false
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 settings.cacheMode = WebSettings.LOAD_DEFAULT
-                settings.setSupportMultipleWindows(false)
+                settings.setSupportMultipleWindows(true)
+                settings.javaScriptCanOpenWindowsAutomatically = true
 
                 // Modern Android Chrome User-Agent
                 settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
@@ -1383,6 +1654,8 @@ private fun SmartMultiPlatformPlayer(
                             onLoadingChange(false)
                             if (errorCode == 100) {
                                 onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
+                            } else if (errorCode == 101 || errorCode == 150 || errorCode == 152) {
+                                onErrorChange("YouTube सुरक्षा निर्बंध किंवा एम्बेडिंग बंद असल्यामुळे हा व्हिडिओ थेट YouTube ॲपमध्ये सुरू करण्यासाठी खालील बटण दाबा.")
                             } else {
                                 onErrorChange("थेट प्रक्षेपण लोड होत आहे. पुन्हा प्रयत्न करा.")
                             }
@@ -1390,7 +1663,28 @@ private fun SmartMultiPlatformPlayer(
                     }
                 }, "AndroidBridge")
 
-                webChromeClient = WebChromeClient()
+                webChromeClient = object : WebChromeClient() {
+                    override fun onCreateWindow(
+                        view: WebView?,
+                        isDialog: Boolean,
+                        isUserGesture: Boolean,
+                        resultMsg: android.os.Message?
+                    ): Boolean {
+                        val newWebView = WebView(ctx)
+                        newWebView.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
+                                val u = req?.url?.toString() ?: return false
+                                openStreamInExternalApp(ctx, u, platform)
+                                return true
+                            }
+                        }
+                        val transport = resultMsg?.obj as? WebView.WebViewTransport
+                        transport?.webView = newWebView
+                        resultMsg?.sendToTarget()
+                        return true
+                    }
+                }
+
                 webViewClient = object : WebViewClient() {
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
@@ -1407,13 +1701,41 @@ private fun SmartMultiPlatformPlayer(
                         onLoadingChange(false)
                     }
 
-                    // STRICTLY BLOCK ALL EXTERNAL APP REDIRECTS — KEEP 100% IN APP
+                    // ALLOW EMBEDDED IFRAMES & MEDIA BUT REDIRECT WATCH LINKS DIRECTLY TO APP
                     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                         val targetUrl = request?.url?.toString() ?: return false
-                        if (targetUrl == "about:blank" || targetUrl.startsWith("data:") || targetUrl.contains("youtube.com/embed/") || targetUrl.contains("youtube-nocookie.com")) {
+
+                        // If user tapped "Watch video on YouTube" or any watch/live link, launch external app immediately
+                        if (targetUrl.contains("youtube.com/watch") || targetUrl.contains("youtu.be/") ||
+                            targetUrl.contains("youtube.com/live/") || targetUrl.contains("m.youtube.com/watch") ||
+                            targetUrl.contains("youtube.com/shorts")) {
+                            openStreamInExternalApp(ctx, targetUrl, StreamPlatform.YOUTUBE)
+                            return true
+                        }
+
+                        // Never block subframes loading inner scripts/media
+                        if (request.isForMainFrame == false) {
                             return false
                         }
-                        // Absorb navigation clicks so user stays inside our player without leaving the app
+                        if (targetUrl == "about:blank" || targetUrl.startsWith("data:")) {
+                            return false
+                        }
+                        // Allow trusted player embed domains
+                        if (targetUrl.contains("youtube.com/embed/") || targetUrl.contains("facebook.com/plugins/") ||
+                            targetUrl.contains("instagram.com/p/") || targetUrl.contains("/embed/")) {
+                            return false
+                        }
+                        // Handle native app intents or external schemes gracefully
+                        if (targetUrl.startsWith("intent://") || targetUrl.startsWith("vnd.youtube:") ||
+                            targetUrl.startsWith("fb://") || targetUrl.startsWith("instagram://")) {
+                            try {
+                                val intent = Intent.parseUri(targetUrl, Intent.URI_INTENT_SCHEME)
+                                ctx.startActivity(intent)
+                            } catch (_: Exception) {}
+                            return true
+                        }
+                        // Default fallback: open in app
+                        openStreamInExternalApp(ctx, targetUrl, platform)
                         return true
                     }
                 }
@@ -1437,13 +1759,14 @@ private fun loadSmartPlayerHtml(
 ) {
     val html = when (platform) {
         StreamPlatform.YOUTUBE -> {
-            val validYtId = ytVideoId.ifEmpty { "live_stream" }
-            val embedSrc = if (ytVideoId.isNotEmpty()) {
-                "https://www.youtube-nocookie.com/embed/$validYtId?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0&iv_load_policy=3&modestbranding=1"
+            val validYtId = ytVideoId.ifEmpty { extractYouTubeId(streamUrl) }
+            val embedSrc = if (validYtId.isNotEmpty()) {
+                "https://www.youtube.com/embed/$validYtId?autoplay=1&mute=1&playsinline=1&controls=1&enablejsapi=1&origin=https://www.youtube.com&rel=0&iv_load_policy=3&modestbranding=1&widget_referrer=https://www.youtube.com"
             } else if (streamUrl.contains("channel/") || streamUrl.contains("@")) {
-                "https://www.youtube.com/embed/live_stream?channel=${streamUrl.substringAfterLast("/")}&autoplay=1&playsinline=1"
+                val cleanPath = streamUrl.substringAfter("youtube.com/").trim('/')
+                "https://www.youtube.com/$cleanPath"
             } else {
-                "https://www.youtube-nocookie.com/embed/$validYtId?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0"
+                "https://www.youtube.com/embed/$validYtId?autoplay=1&mute=1&playsinline=1&controls=1&enablejsapi=1&origin=https://www.youtube.com&rel=0&widget_referrer=https://www.youtube.com"
             }
 
             """
@@ -1452,6 +1775,7 @@ private fun loadSmartPlayerHtml(
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <meta name="referrer" content="strict-origin-when-cross-origin">
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
@@ -1464,6 +1788,7 @@ private fun loadSmartPlayerHtml(
                     <iframe 
                         id="yt-player"
                         src="$embedSrc" 
+                        referrerpolicy="strict-origin-when-cross-origin"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
                         allowfullscreen="true">
                     </iframe>
@@ -1491,6 +1816,7 @@ private fun loadSmartPlayerHtml(
                         var iframe = document.getElementById('yt-player');
                         if (iframe && iframe.contentWindow) {
                             iframe.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
+                            iframe.contentWindow.postMessage('{"event":"command","func":"setVolume","args":[100]}', '*');
                         }
                     };
                     setTimeout(function() {
@@ -1504,7 +1830,7 @@ private fun loadSmartPlayerHtml(
 
         StreamPlatform.FACEBOOK -> {
             val encodedFb = try { URLEncoder.encode(streamUrl, "UTF-8") } catch (_: Exception) { streamUrl }
-            val fbEmbedUrl = "https://www.facebook.com/plugins/video.php?href=$encodedFb&show_text=false&autoplay=true&mute=0"
+            val fbEmbedUrl = "https://www.facebook.com/plugins/video.php?href=$encodedFb&show_text=false&autoplay=true&mute=1&container_width=0"
             """
             <!DOCTYPE html>
             <html>
@@ -1518,7 +1844,7 @@ private fun loadSmartPlayerHtml(
                 </style>
             </head>
             <body>
-                <iframe src="$fbEmbedUrl" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true" frameborder="0"></iframe>
+                <iframe id="fb-player" src="$fbEmbedUrl" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true" frameborder="0"></iframe>
                 <script>
                     setTimeout(function() {
                         if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
@@ -1530,8 +1856,13 @@ private fun loadSmartPlayerHtml(
         }
 
         StreamPlatform.INSTAGRAM -> {
-            val igUrl = if (streamUrl.endsWith("/")) streamUrl else "$streamUrl/"
-            val igEmbed = if (igUrl.contains("/embed/")) igUrl else "${igUrl}embed/"
+            val cleanIg = streamUrl.trim()
+            val igEmbed = if (cleanIg.contains("/p/") || cleanIg.contains("/reel/") || cleanIg.contains("/tv/")) {
+                val base = cleanIg.substringBefore("?").trimEnd('/')
+                "$base/embed/"
+            } else {
+                cleanIg
+            }
             """
             <!DOCTYPE html>
             <html>
@@ -1545,7 +1876,7 @@ private fun loadSmartPlayerHtml(
                 </style>
             </head>
             <body>
-                <iframe src="$igEmbed" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowtransparency="true" frameborder="0" scrolling="no"></iframe>
+                <iframe id="ig-player" src="$igEmbed" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowtransparency="true" frameborder="0" scrolling="no"></iframe>
                 <script>
                     setTimeout(function() {
                         if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
