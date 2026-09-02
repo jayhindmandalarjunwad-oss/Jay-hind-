@@ -41,6 +41,7 @@ import com.example.data.model.Album
 import com.example.data.model.GalleryPhoto
 import com.example.data.model.VideoItem
 import com.example.ui.components.EmptyStateView
+import com.example.ui.components.FullscreenPhotoDialog
 import com.example.ui.components.GalleryImagePicker
 import com.example.ui.components.MandalTopHeader
 import com.example.ui.components.UniversalAsyncImage
@@ -63,7 +64,7 @@ fun GalleryScreen(
     val selectedAlbum by viewModel.selectedAlbum.collectAsStateWithLifecycle()
     val photos by viewModel.albumPhotos.collectAsStateWithLifecycle()
     val videos by viewModel.videos.collectAsStateWithLifecycle()
-    val fullscreenUrl by viewModel.fullscreenPhotoUrl.collectAsStateWithLifecycle()
+    val fullscreenViewerState by viewModel.fullscreenViewerState.collectAsStateWithLifecycle()
 
     val isAdmin = currentUser?.isAdmin == true
 
@@ -416,57 +417,13 @@ fun GalleryScreen(
                 }
             }
 
-            // FULLSCREEN PHOTO VIEWER DIALOG (For all members)
-            if (fullscreenUrl != null) {
-                Dialog(
-                    onDismissRequest = { viewModel.openFullscreenPhoto(null) },
-                    properties = DialogProperties(usePlatformDefaultWidth = false)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black)
-                            .testTag("fullscreen_photo_viewer")
-                    ) {
-                        UniversalAsyncImage(
-                            model = fullscreenUrl,
-                            contentDescription = "Full Screen Photo",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize()
-                        )
-
-                        // Close Button Top End
-                        IconButton(
-                            onClick = { viewModel.openFullscreenPhoto(null) },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .statusBarsPadding()
-                                .padding(16.dp)
-                                .size(44.dp)
-                                .background(Color.Black.copy(alpha = 0.7f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "बंद करा", tint = Color.White)
-                        }
-
-                        // Bottom Title / Mandal Tag
-                        Surface(
-                            color = Color.Black.copy(alpha = 0.65f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .navigationBarsPadding()
-                        ) {
-                            Text(
-                                text = "🚩 जय हिंद मंडळ अर्जुनवाड - गॅलरी फोटो",
-                                color = Color.White,
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(14.dp)
-                            )
-                        }
-                    }
-                }
+            // FULLSCREEN PHOTO VIEWER DIALOG with Swipe & Next/Prev Controls (For all members)
+            if (fullscreenViewerState != null && fullscreenViewerState!!.photos.isNotEmpty()) {
+                FullscreenPhotoDialog(
+                    photos = fullscreenViewerState!!.photos,
+                    initialIndex = fullscreenViewerState!!.initialIndex,
+                    onDismiss = { viewModel.closeFullscreenPhoto() }
+                )
             }
 
             // CREATE ALBUM DIALOG (Admin)
