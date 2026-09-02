@@ -1,0 +1,94 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <!-- Outer Rings -->
+    <path
+        android:strokeColor="#0A2472"
+        android:strokeWidth="3.5"
+        android:pathData="M 100,6 A 94,94 0 1,1 99.9,6 Z" />
+    <path
+        android:strokeColor="#0A2472"
+        android:strokeWidth="1.5"
+        android:pathData="M 100,12 A 88,88 0 1,1 99.9,12 Z" />
+    <!-- Inner Ring -->
+    <path
+        android:strokeColor="#0A2472"
+        android:strokeWidth="2"
+        android:pathData="M 100,38 A 62,62 0 1,1 99.9,38 Z" />
+
+    <!-- Top Star and Text Elements -->
+    <!-- Left Star -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 40,32 L 42,37 L 47,37 L 43,40 L 45,45 L 40,42 L 35,45 L 37,40 L 33,37 L 38,37 Z" />
+    <!-- Right Star -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 160,32 L 162,37 L 167,37 L 163,40 L 165,45 L 160,42 L 155,45 L 157,40 L 153,37 L 158,37 Z" />
+
+    <!-- Side Stars -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 24,108 L 26,113 L 31,113 L 27,116 L 29,121 L 24,118 L 19,121 L 21,116 L 17,113 L 22,113 Z" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 176,108 L 178,113 L 183,113 L 179,116 L 181,121 L 176,118 L 171,121 L 173,116 L 169,113 L 174,113 Z" />
+
+    <!-- Center Torch (मशाल) and Flame -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 97,55 C 97,55 93,64 97,70 C 99,73 103,72 103,69 C 103,66 101,64 103,61 C 105,58 102,52 100,50 C 99,52 98,53 97,55 Z" />
+    <!-- Torch Cup -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 92,72 L 108,72 L 103,80 L 97,80 Z" />
+    <!-- Torch Handle -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 98,80 L 102,80 L 100,94 L 98,94 Z" />
+
+    <!-- Laurel Wreath Leaves (Left) -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 86,60 C 82,62 82,67 85,69 C 88,67 88,62 86,60 Z" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 82,70 C 78,73 79,78 82,79 C 84,77 84,72 82,70 Z" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 82,82 C 79,85 81,90 84,90 C 86,88 85,84 82,82 Z" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 87,92 C 85,95 88,99 91,98 C 92,96 90,93 87,92 Z" />
+
+    <!-- Laurel Wreath Leaves (Right) -->
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 114,60 C 118,62 118,67 115,69 C 112,67 112,62 114,60 Z" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 118,70 C 122,73 121,78 118,79 C 116,77 116,72 118,70 Z" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 118,82 C 121,85 119,90 116,90 C 114,88 115,84 118,82 Z" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 113,92 C 115,95 112,99 109,98 C 108,96 110,93 113,92 Z" />
+
+    <!-- Center Divider Line with Diamond -->
+    <path
+        android:strokeColor="#0A2472"
+        android:strokeWidth="1.5"
+        android:pathData="M 60,105 L 94,105 M 106,105 L 140,105" />
+    <path
+        android:fillColor="#0A2472"
+        android:pathData="M 100,102 L 103,105 L 100,108 L 97,105 Z" />
+
+    <!-- Established Line -->
+    <path
+        android:strokeColor="#0A2472"
+        android:strokeWidth="1.2"
+        android:pathData="M 66,128 L 134,128" />
+</vector>

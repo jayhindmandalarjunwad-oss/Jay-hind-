@@ -25,12 +25,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.example.R
 import com.example.data.model.*
 import com.example.ui.components.*
 import com.example.ui.theme.*
@@ -2105,7 +2107,12 @@ fun ManageLogoAdminTab(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
-                                    Text("स्वाक्षरी नाही", fontSize = 11.sp, color = TextMuted)
+                                    androidx.compose.foundation.Image(
+                                        painter = painterResource(id = R.drawable.ic_president_signature_default),
+                                        contentDescription = "डीफॉल्ट स्वाक्षरी",
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 }
                             }
                         }
@@ -2146,7 +2153,12 @@ fun ManageLogoAdminTab(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
-                                    Text("स्वाक्षरी नाही", fontSize = 11.sp, color = TextMuted)
+                                    androidx.compose.foundation.Image(
+                                        painter = painterResource(id = R.drawable.ic_president_signature_default),
+                                        contentDescription = "डीफॉल्ट स्वाक्षरी",
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 }
                             }
                         }

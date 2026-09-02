@@ -350,18 +350,17 @@ fun DigitalIdCardView(
                             )
                         }
 
-                        // Right: President's Authorized Signature & Official Stamp (अध्यक्षांची स्वाक्षरी व शिक्का)
+                        // Right: President's Authorized Signature & Official Seal (अध्यक्षांची स्वाक्षरी व शिक्का)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.widthIn(min = 120.dp)
                         ) {
-                            if (!mandalInfo.presidentSignatureUrl.isNullOrBlank() || !mandalInfo.officialStampUrl.isNullOrBlank()) {
-                                PresidentSignatureSection(
-                                    signatureUrl = mandalInfo.presidentSignatureUrl.ifBlank { null },
-                                    stampUrl = mandalInfo.officialStampUrl.ifBlank { null }
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                            }
+                            PresidentSignatureSection(
+                                signatureUrl = mandalInfo.presidentSignatureUrl.ifBlank { null },
+                                stampUrl = mandalInfo.officialStampUrl.ifBlank { null },
+                                showFallbackSignature = true
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = mandalInfo.presidentName.ifBlank { "अध्यक्ष" },
                                 fontSize = 10.5.sp,
@@ -417,7 +416,7 @@ fun DigitalIdCardView(
 fun PresidentSignatureSection(
     signatureUrl: String? = null,
     stampUrl: String? = null,
-    showFallbackSignature: Boolean = false,
+    showFallbackSignature: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -427,7 +426,7 @@ fun PresidentSignatureSection(
             .testTag("president_signature_box"),
         contentAlignment = Alignment.Center
     ) {
-        // If an authentic custom physical stamp photo was explicitly uploaded, show it in background
+        // Official Mandal Stamp (Seal) in background
         if (!stampUrl.isNullOrBlank()) {
             UniversalAsyncImage(
                 model = stampUrl,
@@ -435,15 +434,33 @@ fun PresidentSignatureSection(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .size(70.dp)
-                    .alpha(0.88f)
+                    .alpha(0.92f)
+            )
+        } else if (showFallbackSignature) {
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = R.drawable.ic_mandal_official_stamp),
+                contentDescription = "मंडळाचा अधिकृत शिक्का",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .size(70.dp)
+                    .alpha(0.92f)
             )
         }
 
-        // President's Signature & Official Stamp (Only display when uploaded)
+        // President's Authorized Signature
         if (!signatureUrl.isNullOrBlank()) {
             UniversalAsyncImage(
                 model = signatureUrl,
-                contentDescription = "अध्यक्षांची स्वाक्षरी व शिक्का",
+                contentDescription = "अध्यक्षांची स्वाक्षरी",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 2.dp, vertical = 2.dp)
+            )
+        } else if (showFallbackSignature) {
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = R.drawable.ic_president_signature_default),
+                contentDescription = "अध्यक्षांची स्वाक्षरी",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
