@@ -18,6 +18,12 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -228,6 +234,7 @@ fun LiveStreamDialog(
     var playbackErrorMsg by remember { mutableStateOf<String?>(null) }
     var showControlsOverlay by remember { mutableStateOf(true) }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var playerControllerInstance by remember { mutableStateOf<LivePlayerController?>(null) }
     val streamKeyOrUrl by remember(mandalInfo.liveStreamUrl) { mutableStateOf(mandalInfo.liveStreamUrl) }
 
     // Floating reaction bubbles list
@@ -290,25 +297,29 @@ fun LiveStreamDialog(
         }
     }
 
-    // Toggle Play/Pause via JavaScript
+    // Toggle Play/Pause
     fun togglePlayPause() {
         if (isPlaying) {
+            playerControllerInstance?.pause()
             webViewInstance?.evaluateJavascript("if(window.pauseVideo) window.pauseVideo();", null)
             isPlaying = false
             showControlsOverlay = true
         } else {
+            playerControllerInstance?.play()
             webViewInstance?.evaluateJavascript("if(window.playVideo) window.playVideo();", null)
             isPlaying = true
             showControlsOverlay = true
         }
     }
 
-    // Toggle Mute/Unmute via JavaScript
+    // Toggle Mute/Unmute
     fun toggleMute() {
         if (isMuted) {
+            playerControllerInstance?.unMute()
             webViewInstance?.evaluateJavascript("if(window.unMuteVideo) window.unMuteVideo();", null)
             isMuted = false
         } else {
+            playerControllerInstance?.mute()
             webViewInstance?.evaluateJavascript("if(window.muteVideo) window.muteVideo();", null)
             isMuted = true
         }
@@ -319,6 +330,7 @@ fun LiveStreamDialog(
     fun reloadStream() {
         playbackErrorMsg = null
         isPlayerLoading = true
+        playerControllerInstance?.reload()
         webViewInstance?.reload()
     }
 
@@ -478,6 +490,7 @@ fun LiveStreamDialog(
                         streamUrl = streamKeyOrUrl,
                         platform = platform,
                         onWebViewCreated = { webViewInstance = it },
+                        onControllerReady = { playerControllerInstance = it },
                         onLoadingChange = { isPlayerLoading = it },
                         onPlayStateChange = { playing -> isPlaying = playing },
                         onErrorChange = { error -> playbackErrorMsg = error },
@@ -614,6 +627,7 @@ fun LiveStreamDialog(
                             streamUrl = streamKeyOrUrl,
                             platform = platform,
                             onWebViewCreated = { webViewInstance = it },
+                            onControllerReady = { playerControllerInstance = it },
                             onLoadingChange = { isPlayerLoading = it },
                             onPlayStateChange = { playing -> isPlaying = playing },
                             onErrorChange = { error -> playbackErrorMsg = error },
@@ -1578,6 +1592,14 @@ private fun CustomPlayerControlsOverlay(
     }
 }
 
+interface LivePlayerController {
+    fun play()
+    fun pause()
+    fun mute()
+    fun unMute()
+    fun reload()
+}
+
 // IN-APP SMART MULTI-PLATFORM LIVE PLAYER (100% IN-APP WITHOUT EXTERNAL REDIRECTS)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -1585,6 +1607,7 @@ private fun SmartMultiPlatformPlayer(
     streamUrl: String,
     platform: StreamPlatform,
     onWebViewCreated: (WebView) -> Unit,
+    onControllerReady: (LivePlayerController) -> Unit = {},
     onLoadingChange: (Boolean) -> Unit,
     onPlayStateChange: (Boolean) -> Unit,
     onErrorChange: (String?) -> Unit = {},
@@ -1593,162 +1616,273 @@ private fun SmartMultiPlatformPlayer(
     val cleanUrl = streamUrl.trim()
     val ytVideoId = remember(cleanUrl) { extractYouTubeId(cleanUrl) }
 
-    AndroidView(
-        factory = { ctx ->
-            WebView(ctx).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
+    if (platform == StreamPlatform.YOUTUBE && ytVideoId.isNotEmpty()) {
+        val lifecycleOwner = LocalLifecycleOwner.current
+        var youTubePlayerRef by remember { mutableStateOf<YouTubePlayer?>(null) }
+        var youTubePlayerViewRef by remember { mutableStateOf<YouTubePlayerView?>(null) }
+        var currentVideoId by remember { mutableStateOf(ytVideoId) }
 
-                // High compatibility Android WebView settings
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.databaseEnabled = true
-                settings.mediaPlaybackRequiresUserGesture = false
-                settings.loadWithOverviewMode = true
-                settings.useWideViewPort = true
-                settings.allowContentAccess = true
-                settings.allowFileAccess = false
-                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                settings.cacheMode = WebSettings.LOAD_DEFAULT
-                settings.setSupportMultipleWindows(true)
-                settings.javaScriptCanOpenWindowsAutomatically = true
+        AndroidView(
+            factory = { ctx ->
+                YouTubePlayerView(ctx).apply {
+                    youTubePlayerViewRef = this
+                    enableAutomaticInitialization = false
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    lifecycleOwner.lifecycle.addObserver(this)
 
-                // Modern Android Chrome User-Agent
-                settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+                    val options = IFramePlayerOptions.Builder(ctx)
+                        .controls(1)
+                        .rel(0)
+                        .ivLoadPolicy(3)
+                        .build()
 
-                addJavascriptInterface(object {
-                    @JavascriptInterface
-                    fun onPlayerReady() {
-                        post {
-                            onErrorChange(null)
-                            onLoadingChange(false)
-                            onPlayStateChange(true)
-                        }
-                    }
+                    initialize(
+                        object : AbstractYouTubePlayerListener() {
+                            override fun onReady(youTubePlayer: YouTubePlayer) {
+                                youTubePlayerRef = youTubePlayer
+                                youTubePlayer.loadVideo(ytVideoId, 0f)
+                                onLoadingChange(false)
+                                onPlayStateChange(true)
+                                onErrorChange(null)
 
-                    @JavascriptInterface
-                    fun onPlayerStateChange(state: Int) {
-                        post {
-                            when (state) {
-                                1 -> { // Playing
-                                    onErrorChange(null)
-                                    onLoadingChange(false)
-                                    onPlayStateChange(true)
+                                onControllerReady(object : LivePlayerController {
+                                    override fun play() { youTubePlayer.play() }
+                                    override fun pause() { youTubePlayer.pause() }
+                                    override fun mute() { youTubePlayer.mute() }
+                                    override fun unMute() { youTubePlayer.unMute() }
+                                    override fun reload() { youTubePlayer.loadVideo(ytVideoId, 0f) }
+                                })
+                            }
+
+                            override fun onStateChange(
+                                youTubePlayer: YouTubePlayer,
+                                state: PlayerConstants.PlayerState
+                            ) {
+                                when (state) {
+                                    PlayerConstants.PlayerState.PLAYING -> {
+                                        onLoadingChange(false)
+                                        onPlayStateChange(true)
+                                        onErrorChange(null)
+                                    }
+                                    PlayerConstants.PlayerState.PAUSED -> {
+                                        onPlayStateChange(false)
+                                    }
+                                    PlayerConstants.PlayerState.BUFFERING -> {
+                                        onLoadingChange(true)
+                                    }
+                                    PlayerConstants.PlayerState.ENDED -> {
+                                        onPlayStateChange(false)
+                                    }
+                                    else -> {}
                                 }
-                                2 -> { // Paused
-                                    onPlayStateChange(false)
+                            }
+
+                            override fun onError(
+                                youTubePlayer: YouTubePlayer,
+                                error: PlayerConstants.PlayerError
+                            ) {
+                                onLoadingChange(false)
+                                when (error) {
+                                    PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
+                                        onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
+                                    }
+                                    PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
+                                        onErrorChange("YouTube सुरक्षा निर्बंधांमुळे हा व्हिडिओ इन-ॲप प्लेयरमध्ये चालवण्यास मर्यादा आहे.")
+                                    }
+                                    else -> {
+                                        onErrorChange("थेट प्रक्षेपण प्लेबॅक त्रुटी आली. कृपया पुन्हा प्रयत्न करा.")
+                                    }
                                 }
-                                3 -> { // Buffering
-                                    onLoadingChange(true)
-                                }
-                                else -> {}
+                            }
+                        },
+                        true,
+                        options
+                    )
+                }
+            },
+            update = {
+                if (currentVideoId != ytVideoId) {
+                    currentVideoId = ytVideoId
+                    youTubePlayerRef?.loadVideo(ytVideoId, 0f)
+                }
+            },
+            modifier = modifier.testTag("youtube_native_live_player")
+        )
+
+        DisposableEffect(lifecycleOwner) {
+            onDispose {
+                youTubePlayerRef?.pause()
+                youTubePlayerViewRef?.let { view ->
+                    lifecycleOwner.lifecycle.removeObserver(view)
+                    view.release()
+                }
+            }
+        }
+    } else {
+        AndroidView(
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+
+                    // High compatibility Android WebView settings
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.databaseEnabled = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.allowContentAccess = true
+                    settings.allowFileAccess = false
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    settings.cacheMode = WebSettings.LOAD_DEFAULT
+                    settings.setSupportMultipleWindows(true)
+                    settings.javaScriptCanOpenWindowsAutomatically = true
+
+                    addJavascriptInterface(object {
+                        @JavascriptInterface
+                        fun onPlayerReady() {
+                            post {
+                                onErrorChange(null)
+                                onLoadingChange(false)
+                                onPlayStateChange(true)
                             }
                         }
-                    }
 
-                    @JavascriptInterface
-                    fun onPlayerError(errorCode: Int) {
-                        post {
-                            onLoadingChange(false)
-                            if (errorCode == 100) {
-                                onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
-                            } else if (errorCode == 101 || errorCode == 150 || errorCode == 152) {
-                                onErrorChange("YouTube सुरक्षा निर्बंध किंवा एम्बेडिंग बंद असल्यामुळे हा व्हिडिओ थेट YouTube ॲपमध्ये सुरू करण्यासाठी खालील बटण दाबा.")
-                            } else {
-                                onErrorChange("थेट प्रक्षेपण लोड होत आहे. पुन्हा प्रयत्न करा.")
+                        @JavascriptInterface
+                        fun onPlayerStateChange(state: Int) {
+                            post {
+                                when (state) {
+                                    1 -> { // Playing
+                                        onErrorChange(null)
+                                        onLoadingChange(false)
+                                        onPlayStateChange(true)
+                                    }
+                                    2 -> { // Paused
+                                        onPlayStateChange(false)
+                                    }
+                                    3 -> { // Buffering
+                                        onLoadingChange(true)
+                                    }
+                                    else -> {}
+                                }
                             }
                         }
-                    }
-                }, "AndroidBridge")
 
-                webChromeClient = object : WebChromeClient() {
-                    override fun onCreateWindow(
-                        view: WebView?,
-                        isDialog: Boolean,
-                        isUserGesture: Boolean,
-                        resultMsg: android.os.Message?
-                    ): Boolean {
-                        val newWebView = WebView(ctx)
-                        newWebView.webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
-                                val u = req?.url?.toString() ?: return false
-                                openStreamInExternalApp(ctx, u, platform)
+                        @JavascriptInterface
+                        fun onPlayerError(errorCode: Int) {
+                            post {
+                                onLoadingChange(false)
+                                if (errorCode == 100) {
+                                    onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
+                                } else if (errorCode == 101 || errorCode == 150 || errorCode == 152) {
+                                    onErrorChange("YouTube सुरक्षा निर्बंध किंवा एम्बेडिंग बंद असल्यामुळे हा व्हिडिओ चालण्यास मर्यादा आहे.")
+                                } else {
+                                    onErrorChange("थेट प्रक्षेपण लोड होत आहे. पुन्हा प्रयत्न करा.")
+                                }
+                            }
+                        }
+                    }, "AndroidBridge")
+
+                    webChromeClient = object : WebChromeClient() {
+                        override fun onCreateWindow(
+                            view: WebView?,
+                            isDialog: Boolean,
+                            isUserGesture: Boolean,
+                            resultMsg: android.os.Message?
+                        ): Boolean {
+                            val newWebView = WebView(ctx)
+                            newWebView.webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
+                                    val u = req?.url?.toString() ?: return false
+                                    openStreamInExternalApp(ctx, u, platform)
+                                    return true
+                                }
+                            }
+                            val transport = resultMsg?.obj as? WebView.WebViewTransport
+                            transport?.webView = newWebView
+                            resultMsg?.sendToTarget()
+                            return true
+                        }
+                    }
+
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                            super.onPageStarted(view, url, favicon)
+                            onLoadingChange(true)
+                        }
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            onLoadingChange(false)
+                        }
+
+                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                            super.onReceivedError(view, request, error)
+                            onLoadingChange(false)
+                        }
+
+                        // ALLOW EMBEDDED IFRAMES & MEDIA BUT REDIRECT WATCH LINKS DIRECTLY TO APP
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                            val targetUrl = request?.url?.toString() ?: return false
+
+                            // If user tapped "Watch video on YouTube" or any watch/live link, launch external app immediately
+                            if (targetUrl.contains("youtube.com/watch") || targetUrl.contains("youtu.be/") ||
+                                targetUrl.contains("youtube.com/live/") || targetUrl.contains("m.youtube.com/watch") ||
+                                targetUrl.contains("youtube.com/shorts")) {
+                                openStreamInExternalApp(ctx, targetUrl, StreamPlatform.YOUTUBE)
                                 return true
                             }
-                        }
-                        val transport = resultMsg?.obj as? WebView.WebViewTransport
-                        transport?.webView = newWebView
-                        resultMsg?.sendToTarget()
-                        return true
-                    }
-                }
 
-                webViewClient = object : WebViewClient() {
-                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                        super.onPageStarted(view, url, favicon)
-                        onLoadingChange(true)
-                    }
-
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url)
-                        onLoadingChange(false)
-                    }
-
-                    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                        super.onReceivedError(view, request, error)
-                        onLoadingChange(false)
-                    }
-
-                    // ALLOW EMBEDDED IFRAMES & MEDIA BUT REDIRECT WATCH LINKS DIRECTLY TO APP
-                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                        val targetUrl = request?.url?.toString() ?: return false
-
-                        // If user tapped "Watch video on YouTube" or any watch/live link, launch external app immediately
-                        if (targetUrl.contains("youtube.com/watch") || targetUrl.contains("youtu.be/") ||
-                            targetUrl.contains("youtube.com/live/") || targetUrl.contains("m.youtube.com/watch") ||
-                            targetUrl.contains("youtube.com/shorts")) {
-                            openStreamInExternalApp(ctx, targetUrl, StreamPlatform.YOUTUBE)
+                            // Never block subframes loading inner scripts/media
+                            if (request.isForMainFrame == false) {
+                                return false
+                            }
+                            if (targetUrl == "about:blank" || targetUrl.startsWith("data:")) {
+                                return false
+                            }
+                            // Allow trusted player embed domains
+                            if (targetUrl.contains("youtube.com/embed/") || targetUrl.contains("facebook.com/plugins/") ||
+                                targetUrl.contains("instagram.com/p/") || targetUrl.contains("/embed/")) {
+                                return false
+                            }
+                            // Handle native app intents or external schemes gracefully
+                            if (targetUrl.startsWith("intent://") || targetUrl.startsWith("vnd.youtube:") ||
+                                targetUrl.startsWith("fb://") || targetUrl.startsWith("instagram://")) {
+                                try {
+                                    val intent = Intent.parseUri(targetUrl, Intent.URI_INTENT_SCHEME)
+                                    ctx.startActivity(intent)
+                                } catch (_: Exception) {}
+                                return true
+                            }
+                            // Default fallback: open in app
+                            openStreamInExternalApp(ctx, targetUrl, platform)
                             return true
                         }
-
-                        // Never block subframes loading inner scripts/media
-                        if (request.isForMainFrame == false) {
-                            return false
-                        }
-                        if (targetUrl == "about:blank" || targetUrl.startsWith("data:")) {
-                            return false
-                        }
-                        // Allow trusted player embed domains
-                        if (targetUrl.contains("youtube.com/embed/") || targetUrl.contains("facebook.com/plugins/") ||
-                            targetUrl.contains("instagram.com/p/") || targetUrl.contains("/embed/")) {
-                            return false
-                        }
-                        // Handle native app intents or external schemes gracefully
-                        if (targetUrl.startsWith("intent://") || targetUrl.startsWith("vnd.youtube:") ||
-                            targetUrl.startsWith("fb://") || targetUrl.startsWith("instagram://")) {
-                            try {
-                                val intent = Intent.parseUri(targetUrl, Intent.URI_INTENT_SCHEME)
-                                ctx.startActivity(intent)
-                            } catch (_: Exception) {}
-                            return true
-                        }
-                        // Default fallback: open in app
-                        openStreamInExternalApp(ctx, targetUrl, platform)
-                        return true
                     }
-                }
 
-                loadSmartPlayerHtml(this, cleanUrl, platform, ytVideoId)
-                onWebViewCreated(this)
-            }
-        },
-        update = { webView ->
-            onWebViewCreated(webView)
-        },
-        modifier = modifier.testTag("smart_multiplatform_live_player")
-    )
+                    loadSmartPlayerHtml(this, cleanUrl, platform, ytVideoId)
+                    onWebViewCreated(this)
+                    onControllerReady(object : LivePlayerController {
+                        override fun play() { evaluateJavascript("if(window.playVideo) window.playVideo();", null) }
+                        override fun pause() { evaluateJavascript("if(window.pauseVideo) window.pauseVideo();", null) }
+                        override fun mute() { evaluateJavascript("if(window.muteVideo) window.muteVideo();", null) }
+                        override fun unMute() { evaluateJavascript("if(window.unMuteVideo) window.unMuteVideo();", null) }
+                        override fun reload() { reload() }
+                    })
+                }
+            },
+            update = { webView ->
+                onWebViewCreated(webView)
+            },
+            modifier = modifier.testTag("smart_multiplatform_live_player")
+        )
+    }
 }
 
 private fun loadSmartPlayerHtml(
