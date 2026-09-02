@@ -350,10 +350,10 @@ fun DigitalIdCardView(
                             )
                         }
 
-                        // Right: President's Authorized Signature (अध्यक्षांची स्वाक्षरी)
+                        // Right: President's Authorized Signature & Official Stamp (अध्यक्षांची स्वाक्षरी व शिक्का)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.widthIn(min = 100.dp)
+                            modifier = Modifier.widthIn(min = 120.dp)
                         ) {
                             if (!mandalInfo.presidentSignatureUrl.isNullOrBlank() || !mandalInfo.officialStampUrl.isNullOrBlank()) {
                                 PresidentSignatureSection(
@@ -422,8 +422,8 @@ fun PresidentSignatureSection(
 ) {
     Box(
         modifier = modifier
-            .width(105.dp)
-            .height(54.dp)
+            .width(135.dp)
+            .height(72.dp)
             .testTag("president_signature_box"),
         contentAlignment = Alignment.Center
     ) {
@@ -434,20 +434,20 @@ fun PresidentSignatureSection(
                 contentDescription = "मंडळाचा शिक्का",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .size(54.dp)
-                    .alpha(0.85f)
+                    .size(70.dp)
+                    .alpha(0.88f)
             )
         }
 
-        // President's Signature (Only display when uploaded)
+        // President's Signature & Official Stamp (Only display when uploaded)
         if (!signatureUrl.isNullOrBlank()) {
             UniversalAsyncImage(
                 model = signatureUrl,
-                contentDescription = "अध्यक्षांची स्वाक्षरी",
+                contentDescription = "अध्यक्षांची स्वाक्षरी व शिक्का",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(horizontal = 2.dp, vertical = 2.dp)
             )
         }
     }

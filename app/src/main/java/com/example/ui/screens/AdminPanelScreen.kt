@@ -2094,7 +2094,7 @@ fun ManageLogoAdminTab(
                             shape = RoundedCornerShape(8.dp),
                             color = Color.White,
                             border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-                            modifier = Modifier.size(width = 115.dp, height = 58.dp)
+                            modifier = Modifier.size(width = 135.dp, height = 72.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(4.dp)) {
                                 if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
@@ -2134,7 +2134,7 @@ fun ManageLogoAdminTab(
                             shape = RoundedCornerShape(8.dp),
                             color = Color.White,
                             border = androidx.compose.foundation.BorderStroke(1.dp, if (hasPendingSignatureChanges) SaffronPrimary else CardBorderColor),
-                            modifier = Modifier.size(width = 115.dp, height = 58.dp)
+                            modifier = Modifier.size(width = 135.dp, height = 72.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(4.dp)) {
                                 val sigToShow = selectedSignatureInput.ifBlank { mandalInfo.presidentSignatureUrl }

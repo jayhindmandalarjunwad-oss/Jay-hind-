@@ -683,7 +683,7 @@ Status: $statusStr
             try {
                 val stampBmp = MediaUtils.loadBitmap(context, mandalInfo.officialStampUrl)
                 if (stampBmp != null) {
-                    val targetDiameter = radius * 1.8f
+                    val targetDiameter = radius * 2.1f
                     val matrix = Matrix().apply {
                         val s = targetDiameter / maxOf(stampBmp.width, stampBmp.height).toFloat()
                         postScale(s, s)
@@ -692,7 +692,7 @@ Status: $statusStr
                         postTranslate(cx - scaledW / 2f, cy - scaledH / 2f)
                     }
                     val stampPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        alpha = 210
+                        alpha = 220
                     }
                     canvas.drawBitmap(stampBmp, matrix, stampPaint)
                 }
@@ -701,13 +701,13 @@ Status: $statusStr
             }
         }
 
-        // Draw President's Signature (Only when uploaded)
+        // Draw President's Signature & Stamp (Only when uploaded)
         if (mandalInfo.presidentSignatureUrl.isNotBlank()) {
             try {
                 val sigBmp = MediaUtils.loadBitmap(context, mandalInfo.presidentSignatureUrl)
                 if (sigBmp != null) {
-                    val sigWidth = 240f
-                    val sigHeight = 110f
+                    val sigWidth = 320f
+                    val sigHeight = 160f
                     val matrix = Matrix().apply {
                         val scaleX = sigWidth / sigBmp.width.toFloat()
                         val scaleY = sigHeight / sigBmp.height.toFloat()
