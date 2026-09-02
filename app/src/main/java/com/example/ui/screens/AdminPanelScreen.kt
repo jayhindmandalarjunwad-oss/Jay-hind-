@@ -533,10 +533,10 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(150.dp),
+                            .height(160.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = SaffronPrimary),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Box(modifier = Modifier.fillMaxSize()) {
                             UniversalAsyncImage(
@@ -545,52 +545,6 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                Color.Black.copy(alpha = 0.25f),
-                                                SaffronDark.copy(alpha = 0.85f)
-                                            )
-                                        )
-                                    )
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = Color.White.copy(alpha = 0.25f)
-                                ) {
-                                    Text(
-                                        text = "🚩 होम स्क्रीन थेट बॅनर",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = previewTitle,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = previewSubtitle,
-                                        color = Color.White.copy(alpha = 0.9f),
-                                        fontSize = 11.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
                         }
                     }
                 }
