@@ -673,8 +673,8 @@ class MandalRepository(context: Context) {
         if (user.status == "PENDING_APPROVAL") {
             return@withContext Result.failure(Exception("आपले खाते मंजुरीच्या प्रतीक्षेत आहे (Pending Approval). मंडळाच्या ॲडमिनने मंजुरी दिल्यावर आपण लॉगिन करू शकाल."))
         }
-        if (user.status == "REJECTED" || user.status == "BLOCKED") {
-            return@withContext Result.failure(Exception("आपले खाते निलंबित किंवा नामंजूर करण्यात आले आहे. कृपया मंडळाशी संपर्क साधा."))
+        if (user.status == "REJECTED") {
+            return@withContext Result.failure(Exception("आपले खाते नामंजूर करण्यात आले आहे. कृपया मंडळाशी संपर्क साधा."))
         }
 
         // Generate unique Single-Device Session ID
@@ -997,6 +997,9 @@ class MandalRepository(context: Context) {
         videoUrl: String?
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("कृपया प्रथम लॉगिन करा"))
+        if (user.status == "BLOCKED") {
+            return@withContext Result.failure(Exception("आपले खाते ब्लॉक असल्याने आपण नवीन पोस्ट करू शकत नाही."))
+        }
         val newPost = PostEntity(
             id = "post_" + UUID.randomUUID().toString().take(8),
             authorId = user.id,
@@ -1037,6 +1040,7 @@ class MandalRepository(context: Context) {
 
     suspend fun toggleLikePost(postId: String) = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext
+        if (user.status == "BLOCKED") return@withContext
         val post = postDao.getAllPosts().first().find { it.id == postId } ?: return@withContext
         val currentLikes = post.likedUserIdsJson.split(",").filter { it.isNotBlank() }.toMutableList()
         if (currentLikes.contains(user.id)) {
@@ -1097,6 +1101,9 @@ class MandalRepository(context: Context) {
 
     suspend fun addComment(postId: String, text: String): Result<Unit> = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
+        if (user.status == "BLOCKED") {
+            return@withContext Result.failure(Exception("आपले खाते ब्लॉक असल्याने आपण कमेंट करू शकत नाही."))
+        }
         val comment = CommentEntity(
             id = "comm_" + UUID.randomUUID().toString().take(8),
             postId = postId,
@@ -1159,6 +1166,9 @@ class MandalRepository(context: Context) {
         attachmentExtra: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
+        if (user.status == "BLOCKED") {
+            return@withContext Result.failure(Exception("आपले खाते ब्लॉक असल्याने आपण मेसेज पाठवू शकत नाही."))
+        }
         val isGroup = receiverId == "GROUP_MANDAL"
         val convId = if (isGroup) "conv_mandal_group" else getConversationId(user.id, receiverId)
         val finalImageUrl = imageUrl ?: if (attachmentType == "IMAGE") attachmentUrl else null

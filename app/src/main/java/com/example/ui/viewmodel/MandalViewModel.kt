@@ -373,6 +373,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
     // POSTS ACTIONS
     fun createPost(content: String, imageUrl: String?, videoUrl: String?, onDone: () -> Unit) {
+        val user = currentUser.value
+        if (user?.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण नवीन पोस्ट करू शकत नाही. ⚠️")
+            return
+        }
         if (content.isBlank() && imageUrl == null) {
             showSnackbar("पोस्टसाठी काही मजकूर किंवा फोटो निवडा.")
             return
@@ -389,6 +394,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun toggleLike(postId: String) {
+        val user = currentUser.value
+        if (user?.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण पोस्ट लाईक करू शकत नाही. ⚠️")
+            return
+        }
         viewModelScope.launch {
             repository.toggleLikePost(postId)
         }
@@ -425,6 +435,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun addComment(text: String) {
+        val user = currentUser.value
+        if (user?.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण कमेंट करू शकत नाही. ⚠️")
+            return
+        }
         val post = _activeCommentPost.value ?: return
         if (text.isBlank()) return
         viewModelScope.launch {
@@ -442,6 +457,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun updatePost(postId: String, content: String, imageUrl: String?, videoUrl: String?, onDone: () -> Unit) {
+        val user = currentUser.value
+        if (user?.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण पोस्ट एडिट करू शकत नाही. ⚠️")
+            return
+        }
         if (content.isBlank() && imageUrl == null) {
             showSnackbar("पोस्टसाठी काही मजकूर किंवा फोटो निवडा.")
             return
@@ -500,6 +520,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         attachmentName: String? = null,
         attachmentExtra: String? = null
     ) {
+        val user = currentUser.value
+        if (user?.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण मेसेज पाठवू शकत नाही. ⚠️")
+            return
+        }
         val partner = _activeChatPartner.value ?: return
         if (text.isBlank() && imageUrl == null && attachmentUrl == null && attachmentExtra == null) return
         viewModelScope.launch {
