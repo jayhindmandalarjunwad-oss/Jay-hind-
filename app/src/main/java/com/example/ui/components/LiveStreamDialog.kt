@@ -58,8 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -98,6 +97,9 @@ fun extractYouTubeId(url: String): String {
     val embedRegex = Regex("youtube\\.com/embed/([a-zA-Z0-9_-]{11})")
     embedRegex.find(clean)?.let { return it.groupValues[1] }
 
+    val shortsRegex = Regex("youtube\\.com/shorts/([a-zA-Z0-9_-]{11})")
+    shortsRegex.find(clean)?.let { return it.groupValues[1] }
+
     return ""
 }
 
@@ -119,6 +121,9 @@ private data class FloatingParticle(
     val startOffsetX: Float
 )
 
+/**
+ * 100% In-App Dedicated Live Stream Screen (No Dialog, Seamless Fullscreen Rotation, Reliable Hardware Back Key)
+ */
 @SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -175,9 +180,15 @@ fun LiveStreamDialog(
         setFullscreenMode(!effectiveFullscreen)
     }
 
-    // Handle Hardware Back Press in Fullscreen to exit fullscreen first
+    // 1. In Fullscreen / Landscape: Hardware Back Button exits fullscreen and restores Portrait
     BackHandler(enabled = effectiveFullscreen) {
         setFullscreenMode(false)
+    }
+
+    // 2. In Portrait mode: Hardware Back Button closes live stream screen
+    BackHandler(enabled = !effectiveFullscreen) {
+        setFullscreenMode(false)
+        onDismiss()
     }
 
     // Auto-hide controls overlay after 4 seconds
@@ -229,30 +240,14 @@ fun LiveStreamDialog(
         showControlsOverlay = true
     }
 
-    // Reload stream
+    // Reload stream in-place
     fun reloadStream() {
         playbackErrorMsg = null
         isPlayerLoading = true
         webViewInstance?.reload()
     }
 
-    // Open stream in external app (YouTube app, Facebook, Browser)
-    fun openInExternalApp() {
-        try {
-            val ytId = extractYouTubeId(streamKeyOrUrl)
-            val targetUrl = if (ytId.isNotEmpty()) {
-                "https://www.youtube.com/watch?v=$ytId"
-            } else {
-                streamKeyOrUrl.ifEmpty { "https://www.youtube.com" }
-            }
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-        } catch (_: Exception) { }
-    }
-
-    // Restore orientation & system bars when dialog closes
+    // Restore orientation & system bars when view is dismissed
     DisposableEffect(Unit) {
         onDispose {
             activity?.let { act ->
@@ -285,142 +280,237 @@ fun LiveStreamDialog(
         }
     }
 
-    Dialog(
-        onDismissRequest = {
-            setFullscreenMode(false)
-            onDismiss()
-        },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = !effectiveFullscreen,
-            dismissOnBackPress = !effectiveFullscreen,
-            dismissOnClickOutside = !effectiveFullscreen
-        )
+    // TOP-LEVEL DEDICATED IN-APP LAYER (NO MODAL DIALOG CONTAINER)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(100f)
+            .background(if (effectiveFullscreen) Color.Black else MaterialTheme.colorScheme.surface)
+            .testTag(if (effectiveFullscreen) "live_stream_fullscreen_view" else "live_stream_portrait_view")
     ) {
-        Card(
-            modifier = if (effectiveFullscreen) {
-                Modifier
-                    .fillMaxSize()
-                    .testTag("live_stream_dialog_fullscreen")
-            } else {
-                Modifier
-                    .fillMaxWidth(0.98f)
-                    .fillMaxHeight(0.95f)
-                    .testTag("live_stream_dialog_portrait")
-            },
-            shape = if (effectiveFullscreen) RoundedCornerShape(0.dp) else RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (effectiveFullscreen) Color.Black else MaterialTheme.colorScheme.surface)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                // Top Header Bar (Only visible in Portrait Mode to maximize landscape video area)
-                if (!effectiveFullscreen) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color(0xFF8E0E00), Color(0xFF1F1C18))
-                                )
+            // Top Header Bar (Only shown in Portrait Mode for maximum screen real estate in Landscape)
+            if (!effectiveFullscreen) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF8E0E00), Color(0xFF1F1C18))
                             )
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        )
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isLiveActive) BloodRed.copy(alpha = alphaAnim) else SaffronPrimary,
+                            contentColor = Color.White
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isLiveActive) BloodRed.copy(alpha = alphaAnim) else SaffronPrimary,
-                                contentColor = Color.White
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    if (isLiveActive) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.White)
-                                        )
-                                    }
-                                    Text(
-                                        text = if (isLiveActive) "🔴 थेट दर्शन" else "मंडळ दर्शन",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                                if (isLiveActive) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White)
                                     )
                                 }
+                                Text(
+                                    text = if (isLiveActive) "🔴 थेट दर्शन" else "मंडळ दर्शन",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
                             }
+                        }
 
-                            Text(
-                                text = streamTitle,
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        Text(
+                            text = streamTitle,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Fullscreen / Rotate Toggle Button
+                        IconButton(
+                            onClick = { toggleOrientationFullscreen() },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("live_fullscreen_toggle_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Fullscreen,
+                                contentDescription = "Fullscreen",
+                                tint = Color.White
                             )
                         }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        // Close Button
+                        IconButton(
+                            onClick = {
+                                setFullscreenMode(false)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("close_live_stream_btn")
                         ) {
-                            // Fullscreen / Rotate Toggle Button
-                            IconButton(
-                                onClick = { toggleOrientationFullscreen() },
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .testTag("live_fullscreen_toggle_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Fullscreen,
-                                    contentDescription = "Fullscreen",
-                                    tint = Color.White
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "बंद करा",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+            }
 
-                            // Close Dialog Button
-                            IconButton(
-                                onClick = {
-                                    setFullscreenMode(false)
-                                    onDismiss()
-                                },
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .testTag("close_live_stream_btn")
+            // Main View Area: True Fullscreen Landscape vs Portrait Layout
+            if (effectiveFullscreen) {
+                // ==========================================
+                // 1. TRUE IMMERSIVE FULLSCREEN MODE (LANDSCAPE)
+                // ==========================================
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                        .clickable { showControlsOverlay = !showControlsOverlay },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Smart Multi-Platform Live Player Engine (100% In-App)
+                    SmartMultiPlatformPlayer(
+                        streamUrl = streamKeyOrUrl,
+                        platform = platform,
+                        onWebViewCreated = { webViewInstance = it },
+                        onLoadingChange = { isPlayerLoading = it },
+                        onPlayStateChange = { playing -> isPlaying = playing },
+                        onErrorChange = { error -> playbackErrorMsg = error },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // TV-Style Corner Watermark Logo
+                    TvCornerWatermark(
+                        logoUrl = mandalLogoUrl,
+                        isLive = isLiveActive,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 10.dp, end = 12.dp)
+                    )
+
+                    // In-Place Playback Error Fallback (Strictly in-app retry)
+                    if (playbackErrorMsg != null) {
+                        PlaybackErrorOverlay(
+                            errorMessage = playbackErrorMsg!!,
+                            onRetry = { reloadStream() }
+                        )
+                    } else if (isPlayerLoading || !isPlaying) {
+                        // Loading / Paused Overlay with Center Mandal Logo
+                        MandalLogoPlayerOverlay(
+                            logoUrl = mandalLogoUrl,
+                            isLoading = isPlayerLoading,
+                            isPlaying = isPlaying,
+                            onPlayClick = { togglePlayPause() }
+                        )
+                    }
+
+                    // Floating Reaction Particles in Fullscreen
+                    FloatingReactionOverlay(particles = floatingParticles)
+
+                    // Custom HUD Controls for Fullscreen (Back Icon, Sound, Reload, Exit Fullscreen)
+                    if (showControlsOverlay) {
+                        CustomPlayerControlsOverlay(
+                            streamTitle = streamTitle,
+                            isPlaying = isPlaying,
+                            isMuted = isMuted,
+                            isLoading = isPlayerLoading,
+                            viewerCount = viewerCount,
+                            isFullscreen = true,
+                            platform = platform,
+                            onBackClick = { setFullscreenMode(false) },
+                            onPlayPauseClick = { togglePlayPause() },
+                            onMuteToggle = { toggleMute() },
+                            onFullscreenToggle = { toggleOrientationFullscreen() },
+                            onReloadClick = { reloadStream() }
+                        )
+                    }
+
+                    // Compact Quick Reactions Bar at bottom of Fullscreen View
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                )
+                            )
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("प्रतिक्रिया:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val quickList = listOf(
+                            "🚩 जय हिंद!",
+                            "🙏 बाप्पा मोरया!",
+                            "🌸 आरती व फुले",
+                            "👏 टाळ्या",
+                            "🔔 घंटी"
+                        )
+                        quickList.forEach { reaction ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = SaffronPrimary.copy(alpha = 0.9f),
+                                modifier = Modifier.clickable { triggerFloatingReaction(reaction) }
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "बंद करा",
-                                    tint = Color.White
+                                Text(
+                                    text = reaction,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                 )
                             }
                         }
                     }
                 }
-
-                // Main Content Body: Video Player + Chat / Controls
-                if (effectiveFullscreen) {
-                    // True Fullscreen Immersive Video View (Landscape Mode)
+            } else {
+                // ==========================================
+                // 2. PORTRAIT MODE (VIDEO PLAYER + LIVE CHAT + ACTIONS)
+                // ==========================================
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // 1. BRANDED MULTI-PLATFORM VIDEO PLAYER (16:9 Aspect Ratio)
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
                             .background(Color.Black)
                             .clickable { showControlsOverlay = !showControlsOverlay },
                         contentAlignment = Alignment.Center
                     ) {
-                        // Smart Multi-Platform Live Player
                         SmartMultiPlatformPlayer(
                             streamUrl = streamKeyOrUrl,
                             platform = platform,
@@ -431,25 +521,23 @@ fun LiveStreamDialog(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // TV-Style Corner Watermark Logo (न्यूज चॅनेल प्रमाणे कोपऱ्यात लोगो)
+                        // TV-Style Corner Watermark Logo
                         TvCornerWatermark(
                             logoUrl = mandalLogoUrl,
                             isLive = isLiveActive,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(top = 10.dp, end = 12.dp)
+                                .padding(top = 8.dp, end = 8.dp)
                         )
 
                         // Playback Error Fallback Overlay
                         if (playbackErrorMsg != null) {
                             PlaybackErrorOverlay(
                                 errorMessage = playbackErrorMsg!!,
-                                platform = platform,
-                                onOpenExternal = { openInExternalApp() },
                                 onRetry = { reloadStream() }
                             )
                         } else if (isPlayerLoading || !isPlaying) {
-                            // Loading / Paused State Overlay with Center Mandal Logo
+                            // Loading / Paused Center Mandal Logo Overlay
                             MandalLogoPlayerOverlay(
                                 logoUrl = mandalLogoUrl,
                                 isLoading = isPlayerLoading,
@@ -458,10 +546,10 @@ fun LiveStreamDialog(
                             )
                         }
 
-                        // Floating Reaction Overlay in Fullscreen
+                        // Floating Reaction Overlay over video
                         FloatingReactionOverlay(particles = floatingParticles)
 
-                        // Custom HUD Overlay for Fullscreen (with Back, Title, Controls)
+                        // Custom Branded HUD Controls Overlay
                         if (showControlsOverlay) {
                             CustomPlayerControlsOverlay(
                                 streamTitle = streamTitle,
@@ -469,397 +557,281 @@ fun LiveStreamDialog(
                                 isMuted = isMuted,
                                 isLoading = isPlayerLoading,
                                 viewerCount = viewerCount,
-                                isFullscreen = true,
+                                isFullscreen = false,
                                 platform = platform,
-                                onBackClick = { setFullscreenMode(false) },
-                                onOpenExternalClick = { openInExternalApp() },
+                                onBackClick = {
+                                    setFullscreenMode(false)
+                                    onDismiss()
+                                },
                                 onPlayPauseClick = { togglePlayPause() },
                                 onMuteToggle = { toggleMute() },
                                 onFullscreenToggle = { toggleOrientationFullscreen() },
                                 onReloadClick = { reloadStream() }
                             )
                         }
+                    }
 
-                        // Compact Reaction Bar at bottom in Landscape
+                    // 2. QUICK REACTIONS ROW (5 REACTION BUTTONS)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SurfaceVariantWarm)
+                            .padding(vertical = 8.dp)
+                    ) {
                         Row(
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
                                 .fillMaxWidth()
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                                    )
-                                )
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                                .horizontalScroll(rememberScrollState()),
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("प्रतिक्रिया:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            val quickList = listOf(
+                            val reactionOptions = listOf(
                                 "🚩 जय हिंद!",
                                 "🙏 बाप्पा मोरया!",
                                 "🌸 आरती व फुले",
                                 "👏 टाळ्या",
                                 "🔔 घंटी"
                             )
-                            quickList.forEach { reaction ->
+
+                            reactionOptions.forEach { reaction ->
                                 Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = SaffronPrimary.copy(alpha = 0.9f),
-                                    modifier = Modifier.clickable { triggerFloatingReaction(reaction) }
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = SaffronLight.copy(alpha = 0.35f),
+                                    border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .clickable { triggerFloatingReaction(reaction) }
+                                        .testTag("reaction_btn_${reaction.take(4)}")
                                 ) {
                                     Text(
                                         text = reaction,
-                                        color = Color.White,
-                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        color = SaffronDark
                                     )
                                 }
                             }
                         }
                     }
-                } else {
-                    // Portrait Mode: Top Video Player + Bottom Live Chat & Actions
-                    Column(
-                        modifier = Modifier.fillMaxSize()
+
+                    // 3. LIVE CHAT & COMMENTS FEED
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
                     ) {
-                        // 1. BRANDED MULTI-PLATFORM VIDEO PLAYER (16:9 Aspect Ratio)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(16f / 9f)
-                                .background(Color.Black)
-                                .clickable { showControlsOverlay = !showControlsOverlay },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            SmartMultiPlatformPlayer(
-                                streamUrl = streamKeyOrUrl,
-                                platform = platform,
-                                onWebViewCreated = { webViewInstance = it },
-                                onLoadingChange = { isPlayerLoading = it },
-                                onPlayStateChange = { playing -> isPlaying = playing },
-                                onErrorChange = { error -> playbackErrorMsg = error },
-                                modifier = Modifier.fillMaxSize()
-                            )
-
-                            // TV-Style Corner Watermark Logo
-                            TvCornerWatermark(
-                                logoUrl = mandalLogoUrl,
-                                isLive = isLiveActive,
+                        if (comments.isEmpty()) {
+                            Column(
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(top = 8.dp, end = 8.dp)
-                            )
-
-                            // Playback Error Fallback Overlay
-                            if (playbackErrorMsg != null) {
-                                PlaybackErrorOverlay(
-                                    errorMessage = playbackErrorMsg!!,
-                                    platform = platform,
-                                    onOpenExternal = { openInExternalApp() },
-                                    onRetry = { reloadStream() }
-                                )
-                            } else if (isPlayerLoading || !isPlaying) {
-                                // Loading / Paused Center Mandal Logo Overlay
-                                MandalLogoPlayerOverlay(
-                                    logoUrl = mandalLogoUrl,
-                                    isLoading = isPlayerLoading,
-                                    isPlaying = isPlaying,
-                                    onPlayClick = { togglePlayPause() }
-                                )
-                            }
-
-                            // Floating Reaction Overlay over video
-                            FloatingReactionOverlay(particles = floatingParticles)
-
-                            // Custom Branded HUD Controls Overlay
-                            if (showControlsOverlay) {
-                                CustomPlayerControlsOverlay(
-                                    streamTitle = streamTitle,
-                                    isPlaying = isPlaying,
-                                    isMuted = isMuted,
-                                    isLoading = isPlayerLoading,
-                                    viewerCount = viewerCount,
-                                    isFullscreen = false,
-                                    platform = platform,
-                                    onBackClick = {
-                                        setFullscreenMode(false)
-                                        onDismiss()
-                                    },
-                                    onOpenExternalClick = { openInExternalApp() },
-                                    onPlayPauseClick = { togglePlayPause() },
-                                    onMuteToggle = { toggleMute() },
-                                    onFullscreenToggle = { toggleOrientationFullscreen() },
-                                    onReloadClick = { reloadStream() }
-                                )
-                            }
-                        }
-
-                        // 2. QUICK REACTIONS ROW (5 REACTION BUTTONS)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(SurfaceVariantWarm)
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(horizontal = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                val reactionOptions = listOf(
-                                    "🚩 जय हिंद!",
-                                    "🙏 बाप्पा मोरया!",
-                                    "🌸 आरती व फुले",
-                                    "👏 टाळ्या",
-                                    "🔔 घंटी"
+                                Icon(
+                                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = SaffronPrimary,
+                                    modifier = Modifier.size(36.dp)
                                 )
-
-                                reactionOptions.forEach { reaction ->
-                                    Surface(
-                                        shape = RoundedCornerShape(20.dp),
-                                        color = SaffronLight.copy(alpha = 0.35f),
-                                        border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)),
-                                        modifier = Modifier
-                                            .clickable { triggerFloatingReaction(reaction) }
-                                            .testTag("reaction_btn_${reaction.take(4)}")
-                                    ) {
-                                        Text(
-                                            text = reaction,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = SaffronDark
-                                        )
-                                    }
-                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "थेट प्रतिक्रिया व जयघोष सुरू करा!",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "खालील बॉक्समध्ये टाईप करून सर्व सभासदांना आपली प्रतिक्रिया पाठवा.",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
                             }
-                        }
-
-                        // 3. LIVE CHAT & COMMENTS FEED (Zero dummy comments!)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface)
-                        ) {
-                            if (comments.isEmpty()) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.ChatBubbleOutline,
-                                        contentDescription = null,
-                                        tint = SaffronPrimary,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "थेट प्रतिक्रिया व जयघोष सुरू करा!",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = "खालील बॉक्समध्ये टाईप करून सर्व सभासदांना आपली प्रतिक्रिया पाठवा.",
-                                        fontSize = 11.sp,
-                                        color = TextSecondary,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            } else {
-                                LazyColumn(
-                                    state = commentsListState,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    items(comments, key = { it.id }) { comment ->
-                                        Row(
+                        } else {
+                            LazyColumn(
+                                state = commentsListState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(comments, key = { it.id }) { comment ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                color = SurfaceVariantWarm,
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.Top,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
                                             modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(
-                                                    color = SurfaceVariantWarm,
-                                                    shape = RoundedCornerShape(12.dp)
-                                                )
-                                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.Top,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(SaffronPrimary),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .clip(CircleShape)
-                                                    .background(SaffronPrimary),
-                                                contentAlignment = Alignment.Center
+                                            Text(
+                                                text = comment.userName.take(1).ifEmpty { "स" },
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    text = comment.userName.take(1).ifEmpty { "स" },
-                                                    color = Color.White,
+                                                    text = comment.userName,
                                                     fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SaffronDark
                                                 )
-                                            }
-
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        text = comment.userName,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = SaffronDark
-                                                    )
-                                                    Text(
-                                                        text = formatTimeAgoShort(comment.timestamp),
-                                                        fontSize = 10.sp,
-                                                        color = TextMuted
-                                                    )
-                                                }
                                                 Text(
-                                                    text = comment.message,
-                                                    fontSize = 13.sp,
-                                                    color = TextPrimary,
-                                                    lineHeight = 16.sp
+                                                    text = formatTimeAgoShort(comment.timestamp),
+                                                    fontSize = 10.sp,
+                                                    color = TextMuted
                                                 )
                                             }
+                                            Text(
+                                                text = comment.message,
+                                                fontSize = 13.sp,
+                                                color = TextPrimary,
+                                                lineHeight = 16.sp
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
+                    }
 
-                        Divider(color = CardBorderColor)
+                    HorizontalDivider(color = CardBorderColor)
 
-                        // 4. TYPE & SEND LIVE COMMENT INPUT
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = typedComment,
-                                onValueChange = { typedComment = it },
-                                placeholder = {
-                                    Text(
-                                        "✍️ तुमची प्रतिक्रिया येथे टाईप करा...",
-                                        fontSize = 12.sp,
-                                        color = TextMuted
-                                    )
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("live_comment_input"),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = SaffronPrimary,
-                                    unfocusedBorderColor = CardBorderColor,
-                                    focusedContainerColor = SurfaceWarm,
-                                    unfocusedContainerColor = SurfaceVariantWarm
-                                ),
-                                maxLines = 2,
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                keyboardActions = KeyboardActions(
-                                    onSend = {
-                                        if (typedComment.isNotBlank()) {
-                                            onPostComment(typedComment)
-                                            typedComment = ""
-                                            focusManager.clearFocus()
-                                        }
-                                    }
+                    // 4. TYPE & SEND LIVE COMMENT INPUT
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = typedComment,
+                            onValueChange = { typedComment = it },
+                            placeholder = {
+                                Text(
+                                    "✍️ तुमची प्रतिक्रिया येथे टाईप करा...",
+                                    fontSize = 12.sp,
+                                    color = TextMuted
                                 )
-                            )
-
-                            IconButton(
-                                onClick = {
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("live_comment_input"),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = SaffronPrimary,
+                                unfocusedBorderColor = CardBorderColor,
+                                focusedContainerColor = SurfaceWarm,
+                                unfocusedContainerColor = SurfaceVariantWarm
+                            ),
+                            maxLines = 2,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(
+                                onSend = {
                                     if (typedComment.isNotBlank()) {
                                         onPostComment(typedComment)
                                         typedComment = ""
                                         focusManager.clearFocus()
                                     }
-                                },
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .background(SaffronPrimary, CircleShape)
-                                    .testTag("send_live_comment_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Send,
-                                    contentDescription = "Send",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
+                                }
+                            )
+                        )
 
-                        // 5. ACTION BUTTONS: WHATSAPP SHARE
-                        Row(
+                        IconButton(
+                            onClick = {
+                                if (typedComment.isNotBlank()) {
+                                    onPostComment(typedComment)
+                                    typedComment = ""
+                                    focusManager.clearFocus()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(42.dp)
+                                .background(SaffronPrimary, CircleShape)
+                                .testTag("send_live_comment_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Send,
+                                contentDescription = "Send",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    // 5. INSTANT WHATSAPP SHARE
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SurfaceWarm)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val liveUrl = mandalInfo.liveStreamUrl.ifEmpty {
+                                    "https://www.youtube.com/@JayHindMandalArjunwad/live"
+                                }
+                                val shareText = "🚩 *जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड*\n🔴 *$streamTitle*\n\nथेट आरती व सोहळा पाहण्यासाठी खालील लिंकवर क्लिक करा किंवा जय हिंद ॲप उघडा:\n$liveUrl\n\n_जय हिंद मंडळ, अर्जुनवाड परिवार_"
+                                try {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                        setPackage("com.whatsapp")
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                    val chooserIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                    }
+                                    context.startActivity(Intent.createChooser(chooserIntent, "थेट प्रक्षेपण शेअर करा"))
+                                }
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(SurfaceWarm)
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .height(44.dp)
+                                .testTag("whatsapp_share_live_btn"),
+                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            // Instant WhatsApp Share
-                            Button(
-                                onClick = {
-                                    val liveUrl = mandalInfo.liveStreamUrl.ifEmpty {
-                                        "https://www.youtube.com/@JayHindMandalArjunwad/live"
-                                    }
-                                    val shareText = "🚩 *जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड*\n🔴 *$streamTitle*\n\nथेट आरती व सोहळा पाहण्यासाठी खालील लिंकवर क्लिक करा किंवा जय हिंद ॲप उघडा:\n$liveUrl\n\n_जय हिंद मंडळ, अर्जुनवाड परिवार_"
-                                    try {
-                                        val intent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(Intent.EXTRA_TEXT, shareText)
-                                            setPackage("com.whatsapp")
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        val chooserIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(Intent.EXTRA_TEXT, shareText)
-                                        }
-                                        context.startActivity(Intent.createChooser(chooserIntent, "थेट प्रक्षेपण शेअर करा"))
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .testTag("whatsapp_share_live_btn"),
-                                colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "WhatsApp वर थेट प्रक्षेपण शेअर करा 🟢",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "WhatsApp वर थेट प्रक्षेपण शेअर करा 🟢",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
                         }
                     }
                 }
@@ -868,7 +840,7 @@ fun LiveStreamDialog(
     }
 }
 
-// TV-STYLE CORNER WATERMARK LOGO (न्यूज चॅनेल प्रमाणे कोपऱ्यात लोगो)
+// TV-STYLE CORNER WATERMARK LOGO
 @Composable
 private fun TvCornerWatermark(
     logoUrl: String?,
@@ -897,7 +869,6 @@ private fun TvCornerWatermark(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Mandal Logo Badge
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -956,7 +927,7 @@ private fun TvCornerWatermark(
     }
 }
 
-// MANDAL LOGO PLAYER OVERLAY (व्हिडिओ लोड किंवा पॉज असताना मध्यभागी मंडळाचा लोगो)
+// MANDAL LOGO OVERLAY (When loading or paused)
 @Composable
 private fun MandalLogoPlayerOverlay(
     logoUrl: String?,
@@ -964,147 +935,85 @@ private fun MandalLogoPlayerOverlay(
     isPlaying: Boolean,
     onPlayClick: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "mandal_pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_scale"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.78f)),
+            .background(Color.Black.copy(alpha = 0.6f)),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(16.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Glowing Circular Mandal Logo Frame
             Box(
                 modifier = Modifier
-                    .size(90.dp)
-                    .scale(if (isLoading) pulseScale else 1f)
+                    .size(72.dp)
                     .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(SaffronPrimary.copy(alpha = 0.4f), Color.Transparent)
-                        )
-                    ),
+                    .background(Color.White.copy(alpha = 0.95f))
+                    .border(2.dp, SaffronPrimary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                // Outer ring
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(3.dp, GoldenTertiary, CircleShape)
-                        .padding(3.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!logoUrl.isNullOrBlank()) {
-                        UniversalAsyncImage(
-                            model = logoUrl,
-                            contentDescription = "Mandal Logo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    } else {
-                        androidx.compose.foundation.Image(
-                            painter = painterResource(id = R.drawable.ic_jayhind_logo),
-                            contentDescription = "Mandal Logo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    }
+                if (!logoUrl.isNullOrBlank()) {
+                    UniversalAsyncImage(
+                        model = logoUrl,
+                        contentDescription = "Mandal Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = R.drawable.ic_jayhind_logo),
+                        contentDescription = "Mandal Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "अर्जुनवाड • थेट प्रक्षेपण",
-                color = GoldenTertiary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
             if (isLoading) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    CircularProgressIndicator(
-                        color = SaffronPrimary,
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Text(
-                        text = "🔴 थेट प्रक्षेपण सुरू होत आहे...",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                CircularProgressIndicator(
+                    color = SaffronPrimary,
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.5.dp
+                )
+                Text(
+                    text = "थेट प्रक्षेपण सुरू होत आहे...",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
             } else if (!isPlaying) {
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = CircleShape,
                     color = SaffronPrimary,
-                    modifier = Modifier.clickable { onPlayClick() }
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clickable { onPlayClick() }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "प्रक्षेपण पुन्हा सुरू करा (Play)",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .fillMaxSize()
+                    )
                 }
+                Text(
+                    text = "प्रक्षेपण पाहण्यासाठी क्लिक करा",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
 }
 
-// PLAYBACK ERROR FALLBACK OVERLAY (For restricted YouTube embeds or network errors)
+// IN-PLACE PLAYBACK ERROR FALLBACK (Pure In-App Retry)
 @Composable
 private fun PlaybackErrorOverlay(
     errorMessage: String,
-    platform: StreamPlatform,
-    onOpenExternal: () -> Unit,
     onRetry: () -> Unit
 ) {
     Box(
@@ -1149,39 +1058,22 @@ private fun PlaybackErrorOverlay(
                 )
 
                 Text(
-                    text = "हे थेट प्रक्षेपण YouTube/प्लॅटफॉर्मवर थेट सुरू आहे. सर्वोत्तम अनुभवासाठी खालील बटनावर क्लिक करून थेट ॲपमध्ये पहा.",
+                    text = errorMessage.ifEmpty { "थेट प्रक्षेपण लोड होत आहे. कृपया पुन्हा प्रयत्न करा." },
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
                     lineHeight = 17.sp
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier.fillMaxWidth(0.7f),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = onRetry,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("पुन्हा प्रयत्न करा", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    }
-
-                    Button(
-                        onClick = onOpenExternal,
-                        modifier = Modifier.weight(1.3f),
-                        colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.OpenInNew, contentDescription = "Open", tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("ॲपमध्ये उघडा", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
+                    Icon(Icons.Default.Refresh, contentDescription = "Retry", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("पुन्हा प्रयत्न करा", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -1199,7 +1091,6 @@ private fun CustomPlayerControlsOverlay(
     isFullscreen: Boolean,
     platform: StreamPlatform,
     onBackClick: () -> Unit,
-    onOpenExternalClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
     onMuteToggle: () -> Unit,
     onFullscreenToggle: () -> Unit,
@@ -1219,11 +1110,11 @@ private fun CustomPlayerControlsOverlay(
             )
             .padding(if (isFullscreen) 14.dp else 8.dp)
     ) {
-        // Top HUD: Back button (if Fullscreen) + Title + Live Badge + Viewers Count + Sound button + External button
+        // Top HUD: Back button (if Fullscreen) + Title + Live Badge + Viewers Count + Sound button + Reload button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.TopCenter),
+                .align(Alignment.TopStart),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1236,15 +1127,17 @@ private fun CustomPlayerControlsOverlay(
                     Surface(
                         shape = CircleShape,
                         color = Color.Black.copy(alpha = 0.65f),
-                        modifier = Modifier.clickable { onBackClick() }
+                        modifier = Modifier
+                            .clickable { onBackClick() }
+                            .testTag("live_fullscreen_back_icon_btn")
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White,
                             modifier = Modifier
-                                .padding(6.dp)
-                                .size(20.dp)
+                                .padding(8.dp)
+                                .size(22.dp)
                         )
                     }
                 }
@@ -1288,13 +1181,24 @@ private fun CustomPlayerControlsOverlay(
                     shape = RoundedCornerShape(50),
                     color = Color.Black.copy(alpha = 0.6f)
                 ) {
-                    Text(
-                        text = "👁️ $viewerCount",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "$viewerCount उपस्थित",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -1302,27 +1206,6 @@ private fun CustomPlayerControlsOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Open in Native YouTube/Platform App
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.Black.copy(alpha = 0.65f),
-                    modifier = Modifier.clickable { onOpenExternalClick() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.OpenInNew,
-                            contentDescription = "Open External",
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text("YouTube", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
                 // Sound Mute/Unmute
                 Surface(
                     shape = CircleShape,
@@ -1414,7 +1297,7 @@ private fun CustomPlayerControlsOverlay(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = if (isFullscreen) "लहान करा" else "आडवा / Fullscreen",
+                        text = if (isFullscreen) "उभा / Exit Fullscreen" else "आडवा / Fullscreen",
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -1425,7 +1308,7 @@ private fun CustomPlayerControlsOverlay(
     }
 }
 
-// IN-APP SMART MULTI-PLATFORM LIVE PLAYER WEBVIEW
+// IN-APP SMART MULTI-PLATFORM LIVE PLAYER (100% IN-APP WITHOUT EXTERNAL REDIRECTS)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun SmartMultiPlatformPlayer(
@@ -1459,9 +1342,10 @@ private fun SmartMultiPlatformPlayer(
                 settings.allowFileAccess = false
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 settings.cacheMode = WebSettings.LOAD_DEFAULT
+                settings.setSupportMultipleWindows(false)
 
                 // Modern Android Chrome User-Agent
-                settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
 
                 addJavascriptInterface(object {
                     @JavascriptInterface
@@ -1497,10 +1381,10 @@ private fun SmartMultiPlatformPlayer(
                     fun onPlayerError(errorCode: Int) {
                         post {
                             onLoadingChange(false)
-                            if (errorCode == 101 || errorCode == 150 || errorCode == 152) {
-                                onErrorChange("YouTube सुरक्षा निर्बंधामुळे हे थेट प्रक्षेपण थेट YouTube ॲपमध्ये पहा.")
-                            } else if (errorCode == 100) {
+                            if (errorCode == 100) {
                                 onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
+                            } else {
+                                onErrorChange("थेट प्रक्षेपण लोड होत आहे. पुन्हा प्रयत्न करा.")
                             }
                         }
                     }
@@ -1523,18 +1407,13 @@ private fun SmartMultiPlatformPlayer(
                         onLoadingChange(false)
                     }
 
+                    // STRICTLY BLOCK ALL EXTERNAL APP REDIRECTS — KEEP 100% IN APP
                     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                         val targetUrl = request?.url?.toString() ?: return false
-                        if (targetUrl == "about:blank" || targetUrl.startsWith("data:") || targetUrl.contains("youtube.com/embed/")) {
+                        if (targetUrl == "about:blank" || targetUrl.startsWith("data:") || targetUrl.contains("youtube.com/embed/") || targetUrl.contains("youtube-nocookie.com")) {
                             return false
                         }
-                        // Open external link in system browser / YouTube app instead of hijacking the embedded webview
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                            }
-                            context.startActivity(intent)
-                        } catch (_: Exception) { }
+                        // Absorb navigation clicks so user stays inside our player without leaving the app
                         return true
                     }
                 }
@@ -1559,6 +1438,14 @@ private fun loadSmartPlayerHtml(
     val html = when (platform) {
         StreamPlatform.YOUTUBE -> {
             val validYtId = ytVideoId.ifEmpty { "live_stream" }
+            val embedSrc = if (ytVideoId.isNotEmpty()) {
+                "https://www.youtube-nocookie.com/embed/$validYtId?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0&iv_load_policy=3&modestbranding=1"
+            } else if (streamUrl.contains("channel/") || streamUrl.contains("@")) {
+                "https://www.youtube.com/embed/live_stream?channel=${streamUrl.substringAfterLast("/")}&autoplay=1&playsinline=1"
+            } else {
+                "https://www.youtube-nocookie.com/embed/$validYtId?autoplay=1&playsinline=1&controls=1&enablejsapi=1&rel=0"
+            }
+
             """
             <!DOCTYPE html>
             <html lang="mr">
@@ -1570,58 +1457,45 @@ private fun loadSmartPlayerHtml(
                     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
                     #player-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
                     iframe { width: 100%; height: 100%; border: 0; }
-                    .ytp-chrome-top, .ytp-watermark, .ytp-youtube-button, .ytp-pause-overlay, 
-                    .ytp-show-cards-title, .ytp-share-panel, .ytp-button, .ytp-contextmenu {
-                        display: none !important; opacity: 0 !important; pointer-events: none !important;
-                    }
                 </style>
-                <script src="https://www.youtube.com/iframe_api"></script>
             </head>
             <body>
                 <div id="player-container">
-                    <div id="player"></div>
+                    <iframe 
+                        id="yt-player"
+                        src="$embedSrc" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                        allowfullscreen="true">
+                    </iframe>
                 </div>
                 <script>
-                    var player;
-                    function onYouTubeIframeAPIReady() {
-                        player = new YT.Player('player', {
-                            width: '100%',
-                            height: '100%',
-                            videoId: '$validYtId',
-                            playerVars: {
-                                'autoplay': 1,
-                                'playsinline': 1,
-                                'controls': 0,
-                                'modestbranding': 1,
-                                'rel': 0,
-                                'showinfo': 0,
-                                'iv_load_policy': 3,
-                                'disablekb': 1,
-                                'fs': 0,
-                                'origin': 'https://www.youtube.com',
-                                'enablejsapi': 1
-                            },
-                            events: {
-                                'onReady': onPlayerReady,
-                                'onStateChange': onPlayerStateChange,
-                                'onError': onPlayerError
-                            }
-                        });
-                    }
-                    function onPlayerReady(event) {
-                        event.target.playVideo();
+                    window.playVideo = function() {
+                        var iframe = document.getElementById('yt-player');
+                        if (iframe && iframe.contentWindow) {
+                            iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                        }
+                    };
+                    window.pauseVideo = function() {
+                        var iframe = document.getElementById('yt-player');
+                        if (iframe && iframe.contentWindow) {
+                            iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                        }
+                    };
+                    window.muteVideo = function() {
+                        var iframe = document.getElementById('yt-player');
+                        if (iframe && iframe.contentWindow) {
+                            iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":""}', '*');
+                        }
+                    };
+                    window.unMuteVideo = function() {
+                        var iframe = document.getElementById('yt-player');
+                        if (iframe && iframe.contentWindow) {
+                            iframe.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
+                        }
+                    };
+                    setTimeout(function() {
                         if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
-                    }
-                    function onPlayerStateChange(event) {
-                        if (window.AndroidBridge) window.AndroidBridge.onPlayerStateChange(event.data);
-                    }
-                    function onPlayerError(event) {
-                        if (window.AndroidBridge) window.AndroidBridge.onPlayerError(event.data);
-                    }
-                    window.playVideo = function() { if (player && player.playVideo) player.playVideo(); };
-                    window.pauseVideo = function() { if (player && player.pauseVideo) player.pauseVideo(); };
-                    window.muteVideo = function() { if (player && player.mute) player.mute(); };
-                    window.unMuteVideo = function() { if (player && player.unMute) player.unMute(); };
+                    }, 800);
                 </script>
             </body>
             </html>
@@ -1644,11 +1518,11 @@ private fun loadSmartPlayerHtml(
                 </style>
             </head>
             <body>
-                <iframe src="$fbEmbedUrl" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true"></iframe>
+                <iframe src="$fbEmbedUrl" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowFullScreen="true" frameborder="0"></iframe>
                 <script>
                     setTimeout(function() {
                         if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
-                    }, 1200);
+                    }, 1000);
                 </script>
             </body>
             </html>
@@ -1675,7 +1549,7 @@ private fun loadSmartPlayerHtml(
                 <script>
                     setTimeout(function() {
                         if (window.AndroidBridge) window.AndroidBridge.onPlayerReady();
-                    }, 1200);
+                    }, 1000);
                 </script>
             </body>
             </html>
@@ -1701,7 +1575,7 @@ private fun loadSmartPlayerHtml(
                 <script>
                     var video = document.getElementById('videoPlayer');
                     var videoSrc = '$streamUrl';
-                    if (Hls.isSupported() && videoSrc.includes('.m3u8')) {
+                    if (Hls.isSupported() && (videoSrc.indexOf('.m3u8') !== -1 || videoSrc.indexOf('m3u8') !== -1)) {
                         var hls = new Hls();
                         hls.loadSource(videoSrc);
                         hls.attachMedia(video);
