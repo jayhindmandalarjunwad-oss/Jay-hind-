@@ -353,7 +353,7 @@ fun DigitalIdCardView(
                         // Right: President's Authorized Signature (अध्यक्षांची स्वाक्षरी)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.widthIn(min = 100.dp)
+                            modifier = Modifier.widthIn(min = 135.dp)
                         ) {
                             if (!mandalInfo.presidentSignatureUrl.isNullOrBlank() || !mandalInfo.officialStampUrl.isNullOrBlank()) {
                                 PresidentSignatureSection(
@@ -422,8 +422,8 @@ fun PresidentSignatureSection(
 ) {
     Box(
         modifier = modifier
-            .width(105.dp)
-            .height(54.dp)
+            .width(135.dp)
+            .height(72.dp)
             .testTag("president_signature_box"),
         contentAlignment = Alignment.Center
     ) {

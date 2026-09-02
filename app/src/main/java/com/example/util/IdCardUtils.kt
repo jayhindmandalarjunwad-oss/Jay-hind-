@@ -707,8 +707,8 @@ Status: $statusStr
             try {
                 val sigBmp = MediaUtils.loadBitmap(context, mandalInfo.presidentSignatureUrl)
                 if (sigBmp != null) {
-                    val sigWidth = 240f
-                    val sigHeight = 110f
+                    val sigWidth = 320f
+                    val sigHeight = 160f
                     val matrix = Matrix().apply {
                         val scaleX = sigWidth / sigBmp.width.toFloat()
                         val scaleY = sigHeight / sigBmp.height.toFloat()
