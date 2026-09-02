@@ -138,6 +138,9 @@ interface GalleryDao {
     @Query("DELETE FROM photos WHERE id = :photoId")
     suspend fun deletePhoto(photoId: String)
 
+    @Query("UPDATE photos SET caption = :caption WHERE id = :photoId")
+    suspend fun updatePhotoCaption(photoId: String, caption: String)
+
     @Query("SELECT * FROM videos ORDER BY uploadedAt DESC")
     fun getAllVideos(): Flow<List<VideoEntity>>
 

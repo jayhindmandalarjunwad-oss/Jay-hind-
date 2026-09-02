@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun FullscreenPhotoDialog(
     photos: List<String>,
+    titles: List<String> = emptyList(),
     initialIndex: Int = 0,
     onDismiss: () -> Unit
 ) {
@@ -237,6 +239,27 @@ fun FullscreenPhotoDialog(
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Photo Title / Caption if provided
+                    val currentTitle = titles.getOrNull(pagerState.currentPage)?.takeIf { it.isNotBlank() }
+                    if (!currentTitle.isNullOrBlank()) {
+                        Surface(
+                            color = Color(0xFF1E293B).copy(alpha = 0.85f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 10.dp)
+                        ) {
+                            Text(
+                                text = "🚩 $currentTitle",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
                     // Page indicator dots for multi-photos
                     if (validPhotos.size > 1 && validPhotos.size <= 12) {
                         Row(

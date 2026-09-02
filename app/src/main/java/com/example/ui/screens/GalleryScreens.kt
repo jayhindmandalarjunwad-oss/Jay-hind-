@@ -72,6 +72,7 @@ fun GalleryScreen(
     var showCreateAlbumDialog by remember { mutableStateOf(false) }
     var showAddPhotoDialog by remember { mutableStateOf(false) }
     var showAddVideoDialog by remember { mutableStateOf(false) }
+    var editingPhoto by remember { mutableStateOf<GalleryPhoto?>(null) }
 
     val context = LocalContext.current
 
@@ -243,6 +244,7 @@ fun GalleryScreen(
                                             .clickable {
                                                 viewModel.openFullscreenPhotos(
                                                     photos = photos.map { it.imageUrl },
+                                                    titles = photos.map { it.caption },
                                                     initialIndex = index
                                                 )
                                             }
@@ -254,21 +256,69 @@ fun GalleryScreen(
                                             modifier = Modifier.fillMaxSize()
                                         )
 
-                                        if (isAdmin) {
-                                            IconButton(
-                                                onClick = { viewModel.deletePhoto(photo.id) },
+                                        // Bottom gradient & Caption overlay if caption/title is present
+                                        if (photo.caption.isNotBlank()) {
+                                            Box(
                                                 modifier = Modifier
-                                                    .size(28.dp)
-                                                    .padding(4.dp)
-                                                    .align(Alignment.TopEnd)
-                                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                                    .fillMaxWidth()
+                                                    .align(Alignment.BottomCenter)
+                                                    .background(
+                                                        Brush.verticalGradient(
+                                                            colors = listOf(
+                                                                Color.Transparent,
+                                                                Color.Black.copy(alpha = 0.85f)
+                                                            )
+                                                        )
+                                                    )
+                                                    .padding(horizontal = 6.dp, vertical = 4.dp)
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = "हटवा",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp)
+                                                Text(
+                                                    text = photo.caption,
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
+                                            }
+                                        }
+
+                                        if (isAdmin) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(4.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                // Edit Title / Caption button
+                                                IconButton(
+                                                    onClick = { editingPhoto = photo },
+                                                    modifier = Modifier
+                                                        .size(26.dp)
+                                                        .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Edit,
+                                                        contentDescription = "शीर्षक बदला",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                }
+
+                                                // Delete Photo button
+                                                IconButton(
+                                                    onClick = { viewModel.deletePhoto(photo.id) },
+                                                    modifier = Modifier
+                                                        .size(26.dp)
+                                                        .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = "हटवा",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -421,6 +471,7 @@ fun GalleryScreen(
             if (fullscreenViewerState != null && fullscreenViewerState!!.photos.isNotEmpty()) {
                 FullscreenPhotoDialog(
                     photos = fullscreenViewerState!!.photos,
+                    titles = fullscreenViewerState!!.titles,
                     initialIndex = fullscreenViewerState!!.initialIndex,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
                 )
@@ -444,6 +495,18 @@ fun GalleryScreen(
                     onAdd = { url, caption ->
                         viewModel.addPhotoToActiveAlbum(url, caption)
                         showAddPhotoDialog = false
+                    }
+                )
+            }
+
+            // EDIT PHOTO CAPTION / TITLE DIALOG (Admin)
+            if (editingPhoto != null) {
+                EditPhotoCaptionDialog(
+                    photo = editingPhoto!!,
+                    onDismiss = { editingPhoto = null },
+                    onSave = { newCaption ->
+                        viewModel.updatePhotoCaption(editingPhoto!!.id, newCaption)
+                        editingPhoto = null
                     }
                 )
             }
@@ -814,8 +877,9 @@ fun AddPhotoDialog(
                 OutlinedTextField(
                     value = caption,
                     onValueChange = { caption = it },
-                    label = { Text("कॅपशन / माहिती (पर्यायी)") },
-                    placeholder = { Text("उदा. महाआरती सोहळा २०२६") },
+                    label = { Text("फोटोचे शीर्षक / नाव (Title / Caption)") },
+                    placeholder = { Text("उदा. महाआरती सोहळा, बक्षीस वितरण") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -834,6 +898,70 @@ fun AddPhotoDialog(
                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("फोटो जोडा", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("रद्द करा") }
+        }
+    )
+}
+
+// DIALOG: EDIT PHOTO CAPTION / TITLE (Admin)
+@Composable
+fun EditPhotoCaptionDialog(
+    photo: GalleryPhoto,
+    onDismiss: () -> Unit,
+    onSave: (caption: String) -> Unit
+) {
+    var caption by remember { mutableStateOf(photo.caption) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Edit, contentDescription = null, tint = SaffronPrimary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("फोटोचे शीर्षक / नाव बदला", fontWeight = FontWeight.Bold, color = TextPrimary)
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceWarm)
+                        .border(1.dp, CardBorderColor, RoundedCornerShape(12.dp))
+                ) {
+                    UniversalAsyncImage(
+                        model = photo.imageUrl,
+                        contentDescription = "Photo Preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                OutlinedTextField(
+                    value = caption,
+                    onValueChange = { caption = it },
+                    label = { Text("फोटोचे शीर्षक / नाव") },
+                    placeholder = { Text("उदा. महाआरती सोहळा, बक्षीस वितरण, इत्यादी") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(caption) },
+                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("जतन करा", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

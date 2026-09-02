@@ -596,7 +596,14 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun openFullscreenPhoto(url: String?) {
+    fun updatePhotoCaption(photoId: String, caption: String) {
+        viewModelScope.launch {
+            repository.updatePhotoCaption(photoId, caption)
+            showSnackbar("फोटोचे शीर्षक अपडेट केले! ✨")
+        }
+    }
+
+    fun openFullscreenPhoto(url: String?, title: String? = null) {
         if (url.isNullOrBlank()) {
             _fullscreenPhotoUrl.value = null
             _fullscreenViewerState.value = null
@@ -604,12 +611,13 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             _fullscreenPhotoUrl.value = url
             _fullscreenViewerState.value = FullscreenViewerState(
                 photos = listOf(url),
-                initialIndex = 0
+                initialIndex = 0,
+                titles = if (!title.isNullOrBlank()) listOf(title) else emptyList()
             )
         }
     }
 
-    fun openFullscreenPhotos(photos: List<String>, initialIndex: Int = 0) {
+    fun openFullscreenPhotos(photos: List<String>, initialIndex: Int = 0, titles: List<String> = emptyList()) {
         val valid = photos.filter { it.isNotBlank() }
         if (valid.isEmpty()) {
             _fullscreenPhotoUrl.value = null
@@ -619,7 +627,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             _fullscreenPhotoUrl.value = valid.getOrNull(safeIndex)
             _fullscreenViewerState.value = FullscreenViewerState(
                 photos = valid,
-                initialIndex = safeIndex
+                initialIndex = safeIndex,
+                titles = titles
             )
         }
     }
@@ -1127,5 +1136,6 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
 data class FullscreenViewerState(
     val photos: List<String> = emptyList(),
-    val initialIndex: Int = 0
+    val initialIndex: Int = 0,
+    val titles: List<String> = emptyList()
 )

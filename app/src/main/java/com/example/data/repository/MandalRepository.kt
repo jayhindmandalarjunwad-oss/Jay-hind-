@@ -1375,6 +1375,15 @@ class MandalRepository(context: Context) {
         }
     }
 
+    suspend fun updatePhotoCaption(photoId: String, caption: String) = withContext(Dispatchers.IO) {
+        galleryDao.updatePhotoCaption(photoId, caption.trim())
+        try {
+            firestore.collection("photos").document(photoId).update("caption", caption.trim())
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating photo caption on Firestore", e)
+        }
+    }
+
     suspend fun addVideo(title: String, description: String, category: String, videoUrl: String, thumbnailUrl: String) = withContext(Dispatchers.IO) {
         val video = VideoEntity(
             id = "vid_" + UUID.randomUUID().toString().take(8),
