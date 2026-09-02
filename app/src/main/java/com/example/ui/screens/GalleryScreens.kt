@@ -467,12 +467,13 @@ fun GalleryScreen(
                 }
             }
 
-            // FULLSCREEN PHOTO VIEWER DIALOG with Swipe & Next/Prev Controls (For all members)
+            // FULLSCREEN PHOTO VIEWER DIALOG with Swipe & Next/Prev Controls (Admin has download & share access, members view only)
             if (fullscreenViewerState != null && fullscreenViewerState!!.photos.isNotEmpty()) {
                 FullscreenPhotoDialog(
                     photos = fullscreenViewerState!!.photos,
                     titles = fullscreenViewerState!!.titles,
                     initialIndex = fullscreenViewerState!!.initialIndex,
+                    isAdmin = isAdmin,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
                 )
             }

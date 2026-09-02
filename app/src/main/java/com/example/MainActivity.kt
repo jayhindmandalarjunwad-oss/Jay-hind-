@@ -367,16 +367,19 @@ fun MandalApp(viewModel: MandalViewModel) {
                 )
             }
 
-            // Global Fullscreen Photo Viewer Modal with Swipe and Download functionality
+            // Global Fullscreen Photo Viewer Modal with Swipe, Titles, and Admin Download/Share functionality
             if (fullscreenViewerState != null) {
                 FullscreenPhotoDialog(
                     photos = fullscreenViewerState!!.photos,
+                    titles = fullscreenViewerState!!.titles,
                     initialIndex = fullscreenViewerState!!.initialIndex,
+                    isAdmin = currentUser?.isAdmin == true,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
                 )
             } else if (!fullscreenPhotoUrl.isNullOrBlank()) {
                 FullscreenPhotoDialog(
                     photoUrl = fullscreenPhotoUrl,
+                    isAdmin = currentUser?.isAdmin == true,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
                 )
             }

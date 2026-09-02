@@ -3,7 +3,9 @@ package com.example.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -15,6 +17,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +43,8 @@ fun FullscreenPhotoDialog(
     photos: List<String>,
     titles: List<String> = emptyList(),
     initialIndex: Int = 0,
+    isAdmin: Boolean = false,
+    allowDownload: Boolean = isAdmin,
     onDismiss: () -> Unit
 ) {
     val validPhotos = remember(photos) { photos.filter { it.isNotBlank() } }
@@ -47,6 +53,7 @@ fun FullscreenPhotoDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isDownloading by remember { mutableStateOf(false) }
+    var isSharing by remember { mutableStateOf(false) }
 
     val safeInitialIndex = remember(validPhotos, initialIndex) {
         initialIndex.coerceIn(0, (validPhotos.size - 1).coerceAtLeast(0))
@@ -190,44 +197,101 @@ fun FullscreenPhotoDialog(
                         }
                     }
 
-                    // Download Button in Top Bar (Share button removed per request)
-                    IconButton(
-                        onClick = {
-                            val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
-                            if (activePhotoUrl != null && !isDownloading) {
-                                coroutineScope.launch {
-                                    isDownloading = true
-                                    MediaUtils.saveImageToGallery(context, activePhotoUrl)
-                                    isDownloading = false
+                    if (allowDownload) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Share Button for Admin
+                            IconButton(
+                                onClick = {
+                                    val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
+                                    val activeTitle = titles.getOrNull(pagerState.currentPage)
+                                    if (activePhotoUrl != null && !isSharing) {
+                                        coroutineScope.launch {
+                                            isSharing = true
+                                            MediaUtils.shareImage(context, activePhotoUrl, activeTitle)
+                                            isSharing = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.22f))
+                            ) {
+                                if (isSharing) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "शेअर करा",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
-                        },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(SaffronPrimary)
-                    ) {
-                        if (isDownloading) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
+
+                            // Download Button for Admin
+                            IconButton(
+                                onClick = {
+                                    val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
+                                    if (activePhotoUrl != null && !isDownloading) {
+                                        coroutineScope.launch {
+                                            isDownloading = true
+                                            MediaUtils.saveImageToGallery(context, activePhotoUrl)
+                                            isDownloading = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(SaffronPrimary)
+                            ) {
+                                if (isDownloading) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "डाऊनलोड करा",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Privacy indicator for regular members
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "डाऊनलोड करा",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "सुरक्षित",
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 }
             }
 
-            // Bottom Bar with Dots & Download CTA
+            // Bottom Bar with Dots, Title & Actions
             Surface(
-                color = Color.Black.copy(alpha = 0.80f),
+                color = Color.Black.copy(alpha = 0.85f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
@@ -236,16 +300,16 @@ fun FullscreenPhotoDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Photo Title / Caption if provided
                     val currentTitle = titles.getOrNull(pagerState.currentPage)?.takeIf { it.isNotBlank() }
                     if (!currentTitle.isNullOrBlank()) {
                         Surface(
-                            color = Color(0xFF1E293B).copy(alpha = 0.85f),
+                            color = Color(0xFF1E293B).copy(alpha = 0.90f),
                             shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.6f)),
+                            border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.6f)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 10.dp)
@@ -279,43 +343,122 @@ fun FullscreenPhotoDialog(
                         }
                     }
 
-                    Button(
-                        onClick = {
-                            val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
-                            if (activePhotoUrl != null && !isDownloading) {
-                                coroutineScope.launch {
-                                    isDownloading = true
-                                    MediaUtils.saveImageToGallery(context, activePhotoUrl)
-                                    isDownloading = false
+                    if (allowDownload) {
+                        // Admin Actions: Download & Share
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
+                                    if (activePhotoUrl != null && !isDownloading) {
+                                        coroutineScope.launch {
+                                            isDownloading = true
+                                            MediaUtils.saveImageToGallery(context, activePhotoUrl)
+                                            isDownloading = false
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                                shape = RoundedCornerShape(24.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                            ) {
+                                if (isDownloading) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "डाऊनलोड",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
                                 }
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                    ) {
-                        if (isDownloading) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "मोबाईल गॅलरीमध्ये सेव्ह करा",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+
+                            OutlinedButton(
+                                onClick = {
+                                    val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
+                                    val activeTitle = titles.getOrNull(pagerState.currentPage)
+                                    if (activePhotoUrl != null && !isSharing) {
+                                        coroutineScope.launch {
+                                            isSharing = true
+                                            MediaUtils.shareImage(context, activePhotoUrl, activeTitle)
+                                            isSharing = false
+                                        }
+                                    }
+                                },
+                                border = BorderStroke(1.dp, SaffronPrimary),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                            ) {
+                                if (isSharing) {
+                                    CircularProgressIndicator(
+                                        color = SaffronPrimary,
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = SaffronPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "शेअर करा",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Privacy message for regular members
+                        Surface(
+                            color = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "🔒 फोटो सुरक्षा: प्रायव्हसीसाठी केवळ ॲडमिन डाऊनलोड/शेअर करू शकतात",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
                     }
                 }
@@ -330,12 +473,14 @@ fun FullscreenPhotoDialog(
 @Composable
 fun FullscreenPhotoDialog(
     photoUrl: String?,
+    isAdmin: Boolean = false,
     onDismiss: () -> Unit
 ) {
     if (photoUrl.isNullOrBlank()) return
     FullscreenPhotoDialog(
         photos = listOf(photoUrl),
         initialIndex = 0,
+        isAdmin = isAdmin,
         onDismiss = onDismiss
     )
 }

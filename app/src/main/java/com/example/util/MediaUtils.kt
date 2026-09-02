@@ -709,6 +709,72 @@ object MediaUtils {
     }
 
     /**
+     * Shares an image via Android Share Sheet (FileProvider / Intent.ACTION_SEND)
+     */
+    suspend fun shareImage(
+        context: Context,
+        imageUrlOrBase64: String,
+        title: String? = null
+    ) = withContext(Dispatchers.IO) {
+        try {
+            if (imageUrlOrBase64.isBlank()) return@withContext
+            val imageBytes: ByteArray? = when {
+                imageUrlOrBase64.startsWith("data:") -> {
+                    val base64Data = imageUrlOrBase64.substringAfter("base64,")
+                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                }
+                imageUrlOrBase64.startsWith("http://") || imageUrlOrBase64.startsWith("https://") -> {
+                    val url = URL(imageUrlOrBase64)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connect()
+                    connection.inputStream.use { it.readBytes() }
+                }
+                imageUrlOrBase64.startsWith("content://") || imageUrlOrBase64.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(imageUrlOrBase64))?.use { it.readBytes() }
+                }
+                else -> {
+                    try {
+                        Base64.decode(imageUrlOrBase64.trim(), Base64.DEFAULT)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
+
+            if (imageBytes != null && imageBytes.isNotEmpty()) {
+                val cachePath = File(context.cacheDir, "shared_images").apply { if (!exists()) mkdirs() }
+                val file = File(cachePath, "share_photo_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(file).use { it.write(imageBytes) }
+
+                val contentUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "image/jpeg"
+                    putExtra(Intent.EXTRA_STREAM, contentUri)
+                    if (!title.isNullOrBlank()) {
+                        putExtra(Intent.EXTRA_TEXT, "🚩 जय हिंद मंडळ अर्जुनवाड - $title")
+                    } else {
+                        putExtra(Intent.EXTRA_TEXT, "🚩 जय हिंद मंडळ अर्जुनवाड - फोटो")
+                    }
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                withContext(Dispatchers.Main) {
+                    context.startActivity(Intent.createChooser(shareIntent, "फोटो शेअर करा"))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Error sharing image: ${e.message}", e)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "फोटो शेअर करता आला नाही: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
      * Saves a PDF or document file (Base64 data or HTTP URL or Content URI) directly to the device's public Downloads folder.
      * Complies with Scoped Storage for Android 10+ (Q, R, S, Tiramisu, UpsideDownCake, etc.)
      */

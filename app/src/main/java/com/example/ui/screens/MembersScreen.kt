@@ -30,6 +30,7 @@ import com.example.ui.viewmodel.MandalViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MembersScreen(viewModel: MandalViewModel) {
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val members by viewModel.filteredMembers.collectAsStateWithLifecycle()
     val searchQuery by viewModel.memberSearchQuery.collectAsStateWithLifecycle()
     val selectedBloodGroup by viewModel.selectedBloodGroupFilter.collectAsStateWithLifecycle()
@@ -213,6 +214,7 @@ fun MembersScreen(viewModel: MandalViewModel) {
         if (!fullscreenPhotoUrl.isNullOrBlank()) {
             FullscreenPhotoDialog(
                 photos = listOf(fullscreenPhotoUrl!!),
+                isAdmin = currentUser?.isAdmin == true,
                 onDismiss = { fullscreenPhotoUrl = null }
             )
         }
