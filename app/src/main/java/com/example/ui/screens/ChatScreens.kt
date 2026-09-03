@@ -801,8 +801,6 @@ fun ChatDetailScreen(
 
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var showPhotoDialog by remember { mutableStateOf(false) }
-    var showVideoDialog by remember { mutableStateOf(false) }
-    var showDocDialog by remember { mutableStateOf(false) }
     var showContactDialog by remember { mutableStateOf(false) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var isSavingPhoto by remember { mutableStateOf(false) }
@@ -1364,7 +1362,11 @@ fun ChatDetailScreen(
                         color = Color(0xFF2563EB),
                         onClick = {
                             showAttachmentMenu = false
-                            showDocDialog = true
+                            try {
+                                docPickerLauncher.launch("application/pdf")
+                            } catch (_: Exception) {
+                                docPickerLauncher.launch("*/*")
+                            }
                         }
                     )
 
@@ -1375,7 +1377,7 @@ fun ChatDetailScreen(
                         color = Color(0xFF7C3AED),
                         onClick = {
                             showAttachmentMenu = false
-                            showVideoDialog = true
+                            videoGalleryLauncher.launch("video/*")
                         }
                     )
 
@@ -1616,212 +1618,7 @@ fun ChatDetailScreen(
         )
     }
 
-    // 2. Video Attachment Dialog
-    if (showVideoDialog) {
-        var videoTitle by remember { mutableStateOf("मंडळ गणेशोत्सव आरती व उत्सव व्हिडिओ") }
-        var videoUrl by remember { mutableStateOf("https://www.youtube.com/watch?v=dQw4w9WgXcQ") }
-        var thumbUrl by remember { mutableStateOf("https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=600&auto=format&fit=crop&q=80") }
-        var videoMsg by remember { mutableStateOf("") }
-
-        AlertDialog(
-            onDismissRequest = { showVideoDialog = false },
-            title = { Text("व्हिडिओ पाठवा (Send Video)", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            showVideoDialog = false
-                            videoGalleryLauncher.launch("video/*")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.VideoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("मोबाईल गॅलरीतून व्हिडिओ निवडा")
-                    }
-
-                    HorizontalDivider(color = DividerColor)
-                    Text("किंवा व्हिडिओ लिंक / माहिती टाका:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-
-                    OutlinedTextField(
-                        value = videoTitle,
-                        onValueChange = { videoTitle = it },
-                        label = { Text("व्हिडिओचे नाव (Title)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = videoUrl,
-                        onValueChange = { videoUrl = it },
-                        label = { Text("व्हिडिओ लिंक (YouTube / MP4 URL)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = thumbUrl,
-                        onValueChange = { thumbUrl = it },
-                        label = { Text("थंबनेल इमेज URL (Thumbnail)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = videoMsg,
-                        onValueChange = { videoMsg = it },
-                        label = { Text("संदेश (Message text)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (videoUrl.isNotBlank()) {
-                            viewModel.sendChatMessage(
-                                text = videoMsg,
-                                attachmentType = "VIDEO",
-                                attachmentUrl = videoUrl,
-                                attachmentName = videoTitle,
-                                attachmentExtra = thumbUrl
-                            )
-                            showVideoDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
-                ) {
-                    Text("पाठवा (Send)")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showVideoDialog = false }) {
-                    Text("रद्द करा")
-                }
-            }
-        )
-    }
-
-    // 3. Document / PDF Attachment Dialog
-    if (showDocDialog) {
-        val sampleDocs = listOf(
-            Triple("बैठक इतिवृत्त व ठराव अहवाल.pdf", "PDF • 1.2 MB", "https://jayhindmandal.org/docs/minutes.pdf"),
-            Triple("गणेशोत्सव नियोजन व कार्यक्रम अहवाल.pdf", "PDF • 3.2 MB", "https://jayhindmandal.org/docs/ganeshotsav.pdf"),
-            Triple("मंडळ नियमावली व घटना २०२६.pdf", "PDF • 1.8 MB", "https://jayhindmandal.org/docs/bylaws.pdf"),
-            Triple("वार्षिक जमा-खर्च हिशोब अहवाल.pdf", "PDF • 2.1 MB", "https://jayhindmandal.org/docs/accounts.pdf"),
-            Triple("क्रीडा महोत्सव वेळापत्रक व नियम.pdf", "PDF • 950 KB", "https://jayhindmandal.org/docs/sports.pdf")
-        )
-        var selectedDoc by remember { mutableStateOf(sampleDocs.first()) }
-        var customDocName by remember { mutableStateOf("") }
-        var customDocUrl by remember { mutableStateOf("https://jayhindmandal.org/docs/document.pdf") }
-
-        AlertDialog(
-            onDismissRequest = { showDocDialog = false },
-            title = { Text("दस्तावेज / PDF पाठवा (Send PDF)", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            showDocDialog = false
-                            docPickerLauncher.launch("application/pdf")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("मोबाईलमधून PDF निवडा (Pick from Device)")
-                    }
-
-                    HorizontalDivider(color = DividerColor)
-                    Text("किंवा अधिकृत मंडळ दस्तऐवज निवडा:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-
-                    sampleDocs.forEach { doc ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (selectedDoc == doc && customDocName.isBlank()) SaffronLight.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (selectedDoc == doc && customDocName.isBlank()) SaffronPrimary else DividerColor
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedDoc = doc
-                                    customDocName = ""
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = BloodRed, modifier = Modifier.size(24.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(doc.first, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text(doc.second, fontSize = 11.sp, color = TextSecondary)
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("किंवा स्वतःचे नाव टाका:", style = MaterialTheme.typography.bodySmall)
-
-                    OutlinedTextField(
-                        value = customDocName,
-                        onValueChange = { customDocName = it },
-                        label = { Text("दस्तऐवजाचे नाव") },
-                        placeholder = { Text("उदा. बैठक_इतिवृत्त_२०२६.pdf") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val docName = if (customDocName.isNotBlank()) customDocName else selectedDoc.first
-                        val docExtra = if (customDocName.isNotBlank()) "PDF Document • 1.5 MB" else selectedDoc.second
-                        val docUrl = if (customDocName.isNotBlank()) customDocUrl else selectedDoc.third
-
-                        viewModel.sendChatMessage(
-                            text = "",
-                            attachmentType = "DOCUMENT",
-                            attachmentUrl = docUrl,
-                            attachmentName = docName,
-                            attachmentExtra = docExtra
-                        )
-                        showDocDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
-                ) {
-                    Text("पाठवा (Send Doc)")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDocDialog = false }) {
-                    Text("रद्द करा")
-                }
-            }
-        )
-    }
-
-    // 4. Contact Attachment Dialog
+    // 2. Contact Attachment Dialog
     if (showContactDialog) {
         var contactSearch by remember { mutableStateOf("") }
         var customContactName by remember { mutableStateOf("") }

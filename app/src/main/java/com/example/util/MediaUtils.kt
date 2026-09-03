@@ -1158,7 +1158,11 @@ startxref
                 val tempDir = File(context.cacheDir, "temp_videos").apply { if (!exists()) mkdirs() }
                 val tempFile = File(tempDir, "play_${System.currentTimeMillis()}.mp4")
                 FileOutputStream(tempFile).use { it.write(videoBytes) }
-                return@withContext Uri.fromFile(tempFile)
+                return@withContext try {
+                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                } catch (_: Exception) {
+                    Uri.fromFile(tempFile)
+                }
             }
 
             // 2. HTTP / HTTPS streaming URL
@@ -1166,26 +1170,44 @@ startxref
                 return@withContext Uri.parse(trimmed)
             }
 
-            // 3. Local content:// or file:// URI
-            if (trimmed.startsWith("content://") || trimmed.startsWith("file://")) {
-                val sourceUri = Uri.parse(trimmed)
-                if (trimmed.startsWith("file://")) {
-                    val path = sourceUri.path
-                    if (path != null && File(path).exists()) {
-                        return@withContext sourceUri
+            // 3. Local file:// or raw path
+            if (trimmed.startsWith("file://") || trimmed.startsWith("/")) {
+                val filePath = if (trimmed.startsWith("file://")) Uri.parse(trimmed).path else trimmed
+                if (filePath != null) {
+                    val localFile = File(filePath)
+                    if (localFile.exists()) {
+                        return@withContext try {
+                            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", localFile)
+                        } catch (_: Exception) {
+                            Uri.fromFile(localFile)
+                        }
                     }
+                }
+            }
+
+            // 4. Local content:// URI
+            if (trimmed.startsWith("content://")) {
+                val sourceUri = Uri.parse(trimmed)
+                // If it's already a FileProvider URI from our package, return it directly
+                if (trimmed.contains(context.packageName)) {
+                    return@withContext sourceUri
                 }
                 try {
                     val stream = context.contentResolver.openInputStream(sourceUri)
                     if (stream != null) {
                         val tempDir = File(context.cacheDir, "temp_videos").apply { if (!exists()) mkdirs() }
-                        val tempFile = File(tempDir, "play_local_${System.currentTimeMillis()}.mp4")
+                        val tempFile = File(tempDir, "play_content_${System.currentTimeMillis()}.mp4")
                         FileOutputStream(tempFile).use { out -> stream.copyTo(out) }
                         stream.close()
-                        return@withContext Uri.fromFile(tempFile)
+                        return@withContext try {
+                            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                        } catch (_: Exception) {
+                            Uri.fromFile(tempFile)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.w("MediaUtils", "Content URI read fallback: ${e.message}")
+                    return@withContext sourceUri
                 }
             }
 
@@ -1206,7 +1228,7 @@ startxref
         fileNamePrefix: String = "JayHind_Video"
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            val fileName = "${fileNamePrefix}_${System.currentTimeMillis()}.mp4"
+            val fileName = "${fileNamePrefix.replace(Regex("[^a-zA-Z0-9_]"), "_")}_${System.currentTimeMillis()}.mp4"
             val videoBytes: ByteArray? = when {
                 videoUrlOrBase64.startsWith("data:") -> {
                     val base64Data = videoUrlOrBase64.substringAfter("base64,")
@@ -1218,7 +1240,16 @@ startxref
                     connection.connect()
                     connection.inputStream.use { it.readBytes() }
                 }
-                videoUrlOrBase64.startsWith("content://") || videoUrlOrBase64.startsWith("file://") -> {
+                videoUrlOrBase64.startsWith("file://") -> {
+                    val path = Uri.parse(videoUrlOrBase64).path
+                    if (path != null && File(path).exists()) {
+                        File(path).readBytes()
+                    } else null
+                }
+                videoUrlOrBase64.startsWith("/") && File(videoUrlOrBase64).exists() -> {
+                    File(videoUrlOrBase64).readBytes()
+                }
+                videoUrlOrBase64.startsWith("content://") -> {
                     context.contentResolver.openInputStream(Uri.parse(videoUrlOrBase64))?.use { it.readBytes() }
                 }
                 else -> {
@@ -1270,7 +1301,7 @@ startxref
 
             withContext(Dispatchers.Main) {
                 if (isSaved) {
-                    Toast.makeText(context, "✅ व्हिडिओ मोबाईल गॅलरीत सेव्ह झाला! 📥", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "✅ व्हिडिओ मोबाईल गॅलरी / Movies मध्ये डाऊनलोड झाला! 📥", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(context, "व्हिडिओ सेव्ह करण्यात अडचण आली", Toast.LENGTH_SHORT).show()
                 }

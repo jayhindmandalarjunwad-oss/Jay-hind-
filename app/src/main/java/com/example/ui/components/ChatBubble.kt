@@ -57,6 +57,7 @@ fun ChatBubble(
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var isDownloadingDoc by remember { mutableStateOf(false) }
+    var isDownloadingVideo by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showContactActionDialog by remember { mutableStateOf(false) }
@@ -412,6 +413,47 @@ fun ChatBubble(
                                     tint = Color.White,
                                     modifier = Modifier.size(28.dp)
                                 )
+                            }
+                        }
+
+                        // Direct Download Button for Video
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.65f),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(34.dp)
+                                .clickable {
+                                    val vidUrl = message.attachmentUrl ?: ""
+                                    if (vidUrl.isNotBlank() && !isDownloadingVideo) {
+                                        scope.launch {
+                                            isDownloadingVideo = true
+                                            MediaUtils.saveVideoToGallery(
+                                                context = context,
+                                                videoUrlOrBase64 = vidUrl,
+                                                fileNamePrefix = message.attachmentName ?: "JayHind_Video"
+                                            )
+                                            isDownloadingVideo = false
+                                        }
+                                    }
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (isDownloadingVideo) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "व्हिडिओ डाऊनलोड करा",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
 

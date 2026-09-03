@@ -73,6 +73,8 @@ import com.example.util.MediaUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.core.content.FileProvider
+import java.io.File
 import java.util.Locale
 
 /**
@@ -242,7 +244,19 @@ fun VideoPlayerDialog(
                 AndroidView(
                     factory = { ctx ->
                         VideoView(ctx).apply {
-                            setVideoURI(playableUri)
+                            setZOrderMediaOverlay(true)
+                            val uriToPlay = if (playableUri?.scheme == "file") {
+                                val file = File(playableUri?.path ?: "")
+                                if (file.exists()) {
+                                    try {
+                                        FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+                                    } catch (_: Exception) {
+                                        playableUri
+                                    }
+                                } else playableUri
+                            } else playableUri
+
+                            setVideoURI(uriToPlay)
                             setOnPreparedListener { mp ->
                                 mp.isLooping = false
                                 totalDuration = mp.duration
@@ -257,7 +271,7 @@ fun VideoPlayerDialog(
                             }
                             setOnErrorListener { _, what, extra ->
                                 hasError = true
-                                errorMessage = "त्रुटी कोड: $what, $extra"
+                                errorMessage = "व्हिडिओ प्ले करताना अडचण आली (त्रुटी: $what, $extra)"
                                 true
                             }
                             videoViewRef = this
