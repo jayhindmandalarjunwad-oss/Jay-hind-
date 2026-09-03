@@ -1,14 +1,14 @@
 package com.example.data.model
 
 data class User(
-    val id: String,
-    val fullName: String,
-    val mobileNumber: String,
-    val password: String,
+    val id: String = "",
+    val fullName: String = "सभासद",
+    val mobileNumber: String = "",
+    val password: String = "",
     val profilePhotoUrl: String = "",
     val gender: String = "पुरुष",
     val bloodGroup: String = "O+",
-    val dateOfBirth: String = "1998-08-22",
+    val dateOfBirth: String = "",
     val address: String = "अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर",
     val role: String = "MEMBER", // ADMIN, MEMBER, PRESIDENT, SECRETARY, TREASURER
     val designation: String = "सभासद",
@@ -19,8 +19,14 @@ data class User(
     val fcmToken: String = "",
     val activeSessionId: String = ""
 ) {
-    val isAdmin: Boolean get() = role == "ADMIN" || role == "PRESIDENT" || role == "SECRETARY"
-    val isApproved: Boolean get() = status == "APPROVED"
+    val isAdmin: Boolean get() {
+        val r = (role as String?).orEmpty().uppercase()
+        return r == "ADMIN" || r == "PRESIDENT" || r == "SECRETARY"
+    }
+    val isApproved: Boolean get() {
+        val s = (status as String?).orEmpty().uppercase()
+        return s == "APPROVED"
+    }
 }
 
 data class Post(

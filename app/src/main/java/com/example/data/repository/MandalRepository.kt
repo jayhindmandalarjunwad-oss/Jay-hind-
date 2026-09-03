@@ -2036,25 +2036,31 @@ class MandalRepository(context: Context) {
 }
 
 // Domain Mapping Extensions
-fun UserEntity.toDomain() = User(
-    id = id,
-    fullName = fullName,
-    mobileNumber = mobileNumber,
-    password = password,
-    profilePhotoUrl = profilePhotoUrl,
-    gender = gender,
-    bloodGroup = bloodGroup,
-    dateOfBirth = dateOfBirth,
-    address = address,
-    role = role,
-    designation = designation,
-    status = status,
-    createdAt = createdAt,
-    isOnline = isOnline,
-    lastSeen = lastSeen,
-    fcmToken = fcmToken,
-    activeSessionId = activeSessionId
-)
+fun UserEntity.toDomain(): User {
+    val cleanRole = (role as String?).orEmpty().trim().ifBlank { "MEMBER" }
+    val cleanDesig = (designation as String?).orEmpty().trim().ifBlank {
+        if (cleanRole == "ADMIN" || cleanRole == "PRESIDENT" || cleanRole == "SECRETARY") "कार्यकारणी सदस्य" else "सभासद"
+    }
+    return User(
+        id = (id as String?).orEmpty(),
+        fullName = (fullName as String?).orEmpty().ifBlank { "सभासद" },
+        mobileNumber = (mobileNumber as String?).orEmpty(),
+        password = (password as String?).orEmpty(),
+        profilePhotoUrl = (profilePhotoUrl as String?).orEmpty(),
+        gender = (gender as String?).orEmpty().ifBlank { "पुरुष" },
+        bloodGroup = (bloodGroup as String?).orEmpty().ifBlank { "O+" },
+        dateOfBirth = (dateOfBirth as String?).orEmpty(),
+        address = (address as String?).orEmpty().ifBlank { "अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर" },
+        role = cleanRole,
+        designation = cleanDesig,
+        status = (status as String?).orEmpty().ifBlank { "APPROVED" },
+        createdAt = try { createdAt } catch (_: Throwable) { System.currentTimeMillis() },
+        isOnline = try { isOnline } catch (_: Throwable) { false },
+        lastSeen = try { lastSeen } catch (_: Throwable) { 0L },
+        fcmToken = (fcmToken as String?).orEmpty(),
+        activeSessionId = (activeSessionId as String?).orEmpty()
+    )
+}
 
 fun parsePostImageUrls(raw: String): List<String> {
     if (raw.isBlank()) return emptyList()
@@ -2233,19 +2239,21 @@ fun UserEntity.toMap(): Map<String, Any?> = mapOf(
 fun DocumentSnapshot.toUserEntity(): UserEntity? {
     val id = getString("id") ?: id
     val mobile = getString("mobileNumber") ?: return null
+    val roleStr = (getString("role") ?: "MEMBER").trim().ifBlank { "MEMBER" }
+    val desigStr = (getString("designation") ?: "").trim()
     return UserEntity(
         id = id,
-        fullName = getString("fullName") ?: "",
-        mobileNumber = mobile,
+        fullName = (getString("fullName") ?: "").trim().ifBlank { "सभासद" },
+        mobileNumber = mobile.trim(),
         password = getString("password") ?: "",
         profilePhotoUrl = getString("profilePhotoUrl") ?: "",
-        gender = getString("gender") ?: "",
-        bloodGroup = getString("bloodGroup") ?: "",
+        gender = (getString("gender") ?: "").trim().ifBlank { "पुरुष" },
+        bloodGroup = (getString("bloodGroup") ?: "").trim().ifBlank { "O+" },
         dateOfBirth = getString("dateOfBirth") ?: "",
-        address = getString("address") ?: "",
-        role = getString("role") ?: "MEMBER",
-        designation = getString("designation") ?: "",
-        status = getString("status") ?: "APPROVED",
+        address = (getString("address") ?: "").trim().ifBlank { "अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर" },
+        role = roleStr,
+        designation = desigStr,
+        status = (getString("status") ?: "APPROVED").trim().ifBlank { "APPROVED" },
         createdAt = getLong("createdAt") ?: System.currentTimeMillis(),
         isOnline = getBoolean("isOnline") ?: false,
         lastSeen = getLong("lastSeen") ?: 0L,

@@ -221,9 +221,10 @@ fun PendingApprovalsTab(pendingList: List<User>, viewModel: MandalViewModel) {
                                     color = SaffronPrimary,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                if (user.password.isNotBlank()) {
+                                val safePass = (user.password as String?).orEmpty()
+                                if (safePass.isNotBlank()) {
                                     Text(
-                                        text = "🔑 पासवर्ड: ${user.password}",
+                                        text = "🔑 पासवर्ड: $safePass",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color(0xFF92400E),
                                         fontWeight = FontWeight.Bold
@@ -232,10 +233,11 @@ fun PendingApprovalsTab(pendingList: List<User>, viewModel: MandalViewModel) {
                             }
                         }
 
-                        if (user.address.isNotBlank()) {
+                        val safeAddr = (user.address as String?).orEmpty()
+                        if (safeAddr.isNotBlank()) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "पत्ता: ${user.address}",
+                                text = "पत्ता: $safeAddr",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextMuted
                             )
@@ -896,18 +898,23 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
     // Dialog for Delete & Transfer
     if (memberToManage != null) {
         val target = memberToManage!!
+        val targetName = (target.fullName as String?).orEmpty().ifBlank { "सभासद" }
+        val targetMobile = (target.mobileNumber as String?).orEmpty()
+        val targetBlood = (target.bloodGroup as String?).orEmpty().ifBlank { "O+" }
         AlertDialog(
             onDismissRequest = { memberToManage = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             title = {
                 Text(
-                    text = "${target.fullName} - सभासद व्यवस्थापन",
+                    text = "$targetName - सभासद व्यवस्थापन",
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "मोबाईल: ${target.mobileNumber} • रक्तगट: ${target.bloodGroup}",
+                        text = "मोबाईल: $targetMobile • रक्तगट: $targetBlood",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -1026,8 +1033,17 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
 
         itemsIndexed(filteredMembers, key = { index, member -> "${member.id}_$index" }) { _, member ->
             var isPasswordVisible by remember { mutableStateOf(false) }
-            val currentDesig = if (member.designation.isNotBlank()) {
-                member.designation
+            val memberDesig = (member.designation as String?).orEmpty().trim()
+            val memberPass = (member.password as String?).orEmpty()
+            val memberName = (member.fullName as String?).orEmpty().ifBlank { "सभासद" }
+            val memberMobile = (member.mobileNumber as String?).orEmpty()
+            val memberPhoto = (member.profilePhotoUrl as String?).orEmpty()
+            val memberBlood = (member.bloodGroup as String?).orEmpty().ifBlank { "O+" }
+            val memberDob = (member.dateOfBirth as String?).orEmpty()
+            val memberStatus = (member.status as String?).orEmpty().ifBlank { "APPROVED" }
+
+            val currentDesig = if (memberDesig.isNotBlank()) {
+                memberDesig
             } else if (member.isAdmin) {
                 "कार्यकारणी सदस्य"
             } else {
@@ -1042,7 +1058,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        MemberAvatar(photoUrl = member.profilePhotoUrl, name = member.fullName, size = 48)
+                        MemberAvatar(photoUrl = memberPhoto, name = memberName, size = 48)
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Row(
@@ -1050,7 +1066,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    text = member.fullName,
+                                    text = memberName,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     maxLines = 1,
@@ -1089,16 +1105,16 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                             }
 
                             Spacer(modifier = Modifier.height(3.dp))
-                            Text(text = "📱 मोबाईल: ${member.mobileNumber}", fontSize = 12.sp, color = TextSecondary)
+                            Text(text = "📱 मोबाईल: $memberMobile", fontSize = 12.sp, color = TextSecondary)
                             Spacer(modifier = Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                StatusBadge(status = member.status)
+                                StatusBadge(status = memberStatus)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                BloodGroupBadge(bloodGroup = member.bloodGroup)
-                                if (member.dateOfBirth.isNotBlank()) {
+                                BloodGroupBadge(bloodGroup = memberBlood)
+                                if (memberDob.isNotBlank()) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "🎂 ${member.dateOfBirth}",
+                                        text = "🎂 $memberDob",
                                         fontSize = 11.sp,
                                         color = TextSecondary
                                     )
@@ -1143,9 +1159,13 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                                     )
                                     Text(
                                         text = if (isPasswordVisible) {
-                                            member.password.ifBlank { "उपलब्ध नाही" }
+                                            memberPass.ifBlank { "उपलब्ध नाही" }
                                         } else {
-                                            "•••••••• (${member.password.length} अक्षरे)"
+                                            if (memberPass.isNotBlank()) {
+                                                "•••••••• (${memberPass.length} अक्षरे)"
+                                            } else {
+                                                "•••••••• (सेट केलेला नाही)"
+                                            }
                                         },
                                         fontSize = 13.sp,
                                         color = Color(0xFF78350F),
@@ -1170,9 +1190,9 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                                 IconButton(
                                     onClick = {
                                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                        val clip = android.content.ClipData.newPlainText("Password", member.password)
+                                        val clip = android.content.ClipData.newPlainText("Password", memberPass)
                                         clipboard?.setPrimaryClip(clip)
-                                        viewModel.showSnackbar("${member.fullName} यांचा पासवर्ड कॉपी केला! 📋")
+                                        viewModel.showSnackbar("$memberName यांचा पासवर्ड कॉपी केला! 📋")
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {
@@ -1220,7 +1240,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (!member.isAdmin) {
-                                if (member.status == "BLOCKED") {
+                                if (memberStatus == "BLOCKED") {
                                     OutlinedButton(
                                         onClick = { viewModel.unblockMember(member.id) },
                                         shape = RoundedCornerShape(8.dp),
@@ -1256,7 +1276,20 @@ fun EditMemberDesignationDialog(
     onDismiss: () -> Unit,
     onSave: (newDesignation: String, newRole: String) -> Unit
 ) {
-    val initialDesignation = if (member.designation.isNotBlank()) member.designation else if (member.isAdmin) "कार्यकारणी सदस्य" else "सभासद"
+    val safeDesignation = (member.designation as String?).orEmpty().trim()
+    val safeRole = (member.role as String?).orEmpty().trim().ifBlank { "MEMBER" }
+    val safeName = (member.fullName as String?).orEmpty().ifBlank { "सभासद" }
+    val safeMobile = (member.mobileNumber as String?).orEmpty()
+    val safePhoto = (member.profilePhotoUrl as String?).orEmpty()
+
+    val initialDesignation = if (safeDesignation.isNotBlank()) {
+        safeDesignation
+    } else if (member.isAdmin) {
+        "कार्यकारणी सदस्य"
+    } else {
+        "सभासद"
+    }
+
     val presetDesignations = listOf(
         "कार्यकारणी सदस्य",
         "अध्यक्ष",
@@ -1275,14 +1308,22 @@ fun EditMemberDesignationDialog(
         "सभासद"
     )
 
-    var selectedDesignation by remember(member) { mutableStateOf(initialDesignation) }
-    var customDesignationInput by remember(member) {
+    var selectedDesignation by remember(member.id) { mutableStateOf(initialDesignation) }
+    var customDesignationInput by remember(member.id) {
         mutableStateOf(if (initialDesignation !in presetDesignations) initialDesignation else "")
     }
-    var selectedRole by remember(member) { mutableStateOf(member.role) }
+    var selectedRole by remember(member.id) { mutableStateOf(safeRole) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 24.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -1303,6 +1344,7 @@ fun EditMemberDesignationDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 480.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -1317,18 +1359,18 @@ fun EditMemberDesignationDialog(
                         modifier = Modifier.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        MemberAvatar(photoUrl = member.profilePhotoUrl, name = member.fullName, size = 48)
+                        MemberAvatar(photoUrl = safePhoto, name = safeName, size = 48)
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text(member.fullName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
-                            Text("📱 ${member.mobileNumber}", fontSize = 12.sp, color = TextSecondary)
+                            Text(safeName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                            Text("📱 $safeMobile", fontSize = 12.sp, color = TextSecondary)
                             Spacer(modifier = Modifier.height(2.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = SaffronContainer
                             ) {
                                 Text(
-                                    text = "सध्याचे पद: ${member.designation.ifBlank { if (member.isAdmin) "कार्यकारणी सदस्य" else "सभासद" }}",
+                                    text = "सध्याचे पद: ${safeDesignation.ifBlank { if (member.isAdmin) "कार्यकारणी सदस्य" else "सभासद" }}",
                                     fontSize = 10.sp,
                                     color = SaffronDark,
                                     fontWeight = FontWeight.Bold,
@@ -1456,7 +1498,7 @@ fun EditMemberDesignationDialog(
                     val finalDesignation = if (customDesignationInput.isNotBlank()) {
                         customDesignationInput.trim()
                     } else {
-                        selectedDesignation.trim()
+                        selectedDesignation.trim().ifBlank { "सभासद" }
                     }
                     onSave(finalDesignation, selectedRole)
                 },
