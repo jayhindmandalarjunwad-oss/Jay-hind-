@@ -1269,7 +1269,6 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
 }
 
 // DIALOG FOR CHANGING MEMBER DESIGNATION AND SYSTEM ROLE
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EditMemberDesignationDialog(
     member: User,
@@ -1387,26 +1386,48 @@ fun EditMemberDesignationDialog(
                     color = TextPrimary
                 )
 
-                // Quick Preset Chips
-                FlowRow(
+                // Quick Preset Chips (Safe chunked rows without FlowRow ABI issue)
+                val presetChunks = remember { presetDesignations.chunked(3) }
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    presetDesignations.forEach { desig ->
-                        val isSelected = (selectedDesignation == desig && customDesignationInput.isBlank())
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                selectedDesignation = desig
-                                customDesignationInput = ""
-                            },
-                            label = { Text(desig, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SaffronPrimary,
-                                selectedLabelColor = Color.White
-                            )
-                        )
+                    presetChunks.forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            rowItems.forEach { desig ->
+                                val isSelected = (selectedDesignation == desig && customDesignationInput.isBlank())
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) SaffronPrimary else SurfaceWarm,
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isSelected) SaffronDark else CardBorderColor
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            selectedDesignation = desig
+                                            customDesignationInput = ""
+                                        }
+                                ) {
+                                    Text(
+                                        text = desig,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color.White else TextPrimary,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 7.dp)
+                                    )
+                                }
+                            }
+                            repeat(3 - rowItems.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
 
