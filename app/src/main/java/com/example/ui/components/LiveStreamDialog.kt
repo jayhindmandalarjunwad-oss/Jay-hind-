@@ -48,6 +48,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
@@ -362,6 +363,7 @@ fun LiveStreamDialog(
 
     val commentsListState = rememberLazyListState()
     var lastSeenCommentId by remember { mutableStateOf<String?>(null) }
+    val allowedReactionEmojis = setOf("🚩", "🙏", "👍", "🌸")
     LaunchedEffect(comments.size) {
         if (comments.isNotEmpty()) {
             commentsListState.animateScrollToItem(comments.size - 1)
@@ -369,15 +371,19 @@ fun LiveStreamDialog(
             if (latest.id != lastSeenCommentId) {
                 lastSeenCommentId = latest.id
                 val msg = latest.message.trim()
-                if (msg.startsWith("🚩") || msg.startsWith("❤️") || msg.startsWith("🙏") ||
-                    msg.startsWith("🌸") || msg.startsWith("👏") || msg.startsWith("🔔") ||
-                    msg.length <= 4) {
+                // Synchronized Floating Reactions: triggers for all viewers when any user sends '🚩', '🙏', '👍', '🌸'
+                val matchingEmoji = allowedReactionEmojis.firstOrNull { emoji -> msg.contains(emoji) }
+                if (matchingEmoji != null) {
                     val newParticle = FloatingParticle(
                         id = System.currentTimeMillis() + Random.nextLong(1000),
-                        text = msg.take(2),
+                        text = matchingEmoji,
                         startOffsetX = Random.nextFloat() * 0.7f + 0.15f
                     )
                     floatingParticles = floatingParticles + newParticle
+                    coroutineScope.launch {
+                        delay(2200)
+                        floatingParticles = floatingParticles.filter { it.id != newParticle.id }
+                    }
                 }
             }
         }
@@ -638,26 +644,21 @@ fun LiveStreamDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("प्रतिक्रिया:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        val quickList = listOf(
-                            "🚩 जय हिंद!",
-                            "🙏 बाप्पा मोरया!",
-                            "🌸 आरती व फुले",
-                            "👏 टाळ्या",
-                            "🔔 घंटी"
-                        )
-                        quickList.forEach { reaction ->
+                        val quickReactionList = listOf("🚩", "🙏", "👍", "🌸")
+                        quickReactionList.forEach { reaction ->
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
+                                shape = CircleShape,
                                 color = SaffronPrimary.copy(alpha = 0.9f),
-                                modifier = Modifier.clickable { triggerFloatingReaction(reaction) }
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clickable { triggerFloatingReaction(reaction) }
                             ) {
-                                Text(
-                                    text = reaction,
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = reaction,
+                                        fontSize = 18.sp
+                                    )
+                                }
                             }
                         }
                     }
@@ -865,30 +866,32 @@ fun LiveStreamDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val reactionOptions = listOf(
-                                "🚩 जय हिंद!",
-                                "🙏 बाप्पा मोरया!",
-                                "🌸 आरती व फुले",
-                                "👏 टाळ्या",
-                                "🔔 घंटी"
+                            val reactionOptions = listOf("🚩", "🙏", "👍", "🌸")
+
+                            Text(
+                                text = "प्रतिक्रिया:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(start = 4.dp, end = 2.dp)
                             )
 
                             reactionOptions.forEach { reaction ->
                                 Surface(
-                                    shape = RoundedCornerShape(20.dp),
+                                    shape = CircleShape,
                                     color = SaffronLight.copy(alpha = 0.35f),
-                                    border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)),
+                                    border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.6f)),
                                     modifier = Modifier
+                                        .size(42.dp)
                                         .clickable { triggerFloatingReaction(reaction) }
-                                        .testTag("reaction_btn_${reaction.take(4)}")
+                                        .testTag("reaction_btn_${reaction}")
                                 ) {
-                                    Text(
-                                        text = reaction,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SaffronDark
-                                    )
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = reaction,
+                                            fontSize = 20.sp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -950,7 +953,7 @@ fun LiveStreamDialog(
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = "थेट प्रतिक्रिया व जयघोष सुरू करा!",
+                                    text = "थेट संवाद व प्रतिक्रिया सुरू करा!",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
@@ -2205,21 +2208,25 @@ private fun BoxScope.FloatingReactionOverlay(particles: List<FloatingParticle>) 
             label = "alpha"
         )
 
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Color.Black.copy(alpha = 0.75f * alpha),
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = (particle.startOffsetX * 280).dp)
                 .offset(y = offsetY.dp)
         ) {
-            Text(
-                text = particle.text,
-                color = Color.White.copy(alpha = alpha),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.45f * alpha),
+                modifier = Modifier.size(38.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = particle.text,
+                        fontSize = 22.sp,
+                        modifier = Modifier.alpha(alpha)
+                    )
+                }
+            }
         }
     }
 }

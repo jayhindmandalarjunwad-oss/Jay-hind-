@@ -1094,7 +1094,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.postLiveComment(newComment)
         }
-        showSnackbar("प्रतिक्रिया नोंदवली: $reactionText 🚩")
+        showSnackbar("प्रतिक्रिया पाठवली: $reactionText")
     }
 
     fun setLiveStreamStatus(
