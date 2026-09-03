@@ -5,9 +5,29 @@ import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 
-class MandalApplication : Application() {
+class MandalApplication : Application(), coil.ImageLoaderFactory {
+
+    override fun newImageLoader(): coil.ImageLoader {
+        return coil.ImageLoader.Builder(this)
+            .memoryCache {
+                coil.memory.MemoryCache.Builder(this)
+                    .maxSizePercent(0.20)
+                    .build()
+            }
+            .diskCache {
+                coil.disk.DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(50L * 1024 * 1024)
+                    .build()
+            }
+            .crossfade(true)
+            .respectCacheHeaders(false)
+            .build()
+    }
+
     override fun onCreate() {
         super.onCreate()
+        setupCrashGuard()
         try {
             com.example.util.SystemNotificationHelper.initNotificationChannels(this)
             if (FirebaseApp.getApps(this).isEmpty()) {
@@ -25,5 +45,33 @@ class MandalApplication : Application() {
         } catch (e: Exception) {
             Log.e("MandalApp", "Failed to initialize Firebase: ${e.message}", e)
         }
+    }
+
+    private fun setupCrashGuard() {
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e("MandalAppCrashGuard", "Uncaught exception on thread ${thread.name}: ${throwable.message}", throwable)
+            if (throwable is OutOfMemoryError) {
+                com.example.util.MediaUtils.clearBitmapCache()
+                System.gc()
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        try {
+            com.example.util.MediaUtils.clearBitmapCache()
+            coil.Coil.imageLoader(this).memoryCache?.clear()
+        } catch (_: Throwable) {}
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        try {
+            com.example.util.MediaUtils.clearBitmapCache()
+            coil.Coil.imageLoader(this).memoryCache?.clear()
+        } catch (_: Throwable) {}
     }
 }

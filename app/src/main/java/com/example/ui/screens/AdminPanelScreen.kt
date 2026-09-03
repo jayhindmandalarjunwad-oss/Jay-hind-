@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,7 +73,7 @@ fun AdminPanelScreen(
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
-        viewModel.refreshAllData()
+        viewModel.refreshAllData(silent = true)
     }
 
     Scaffold(
@@ -85,7 +86,7 @@ fun AdminPanelScreen(
                 onBackClick = onBack,
                 actions = {
                     IconButton(
-                        onClick = { viewModel.refreshAllData() },
+                        onClick = { viewModel.refreshAllData(silent = false) },
                         modifier = Modifier.testTag("admin_refresh_btn")
                     ) {
                         Icon(
@@ -190,7 +191,7 @@ fun PendingApprovalsTab(pendingList: List<User>, viewModel: MandalViewModel) {
                 }
             }
 
-            items(pendingList, key = { it.id }) { user ->
+            itemsIndexed(pendingList, key = { index, user -> "${user.id}_$index" }) { _, user ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -575,7 +576,7 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
                 }
             }
         } else {
-            items(banners, key = { it.id }) { banner ->
+            itemsIndexed(banners, key = { index, banner -> "${banner.id}_$index" }) { _, banner ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -1023,7 +1024,7 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
             )
         }
 
-        items(filteredMembers, key = { it.id }) { member ->
+        itemsIndexed(filteredMembers, key = { index, member -> "${member.id}_$index" }) { _, member ->
             var isPasswordVisible by remember { mutableStateOf(false) }
             val currentDesig = if (member.designation.isNotBlank()) {
                 member.designation
@@ -1835,7 +1836,7 @@ fun PostsModerationAdminTab(posts: List<Post>, viewModel: MandalViewModel) {
             )
         }
 
-        items(posts, key = { it.id }) { post ->
+        itemsIndexed(posts, key = { index, post -> "${post.id}_$index" }) { _, post ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),

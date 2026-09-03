@@ -512,14 +512,41 @@ object MediaUtils {
         }
     }
 
+    // In-memory LRU cache for decoded bitmaps (capped at safe 20MB)
+    private val maxCacheMemory = (Runtime.getRuntime().maxMemory() / 8).toInt().coerceAtMost(20 * 1024 * 1024)
+    private val bitmapMemoryCache = object : android.util.LruCache<String, Bitmap>(maxCacheMemory) {
+        override fun sizeOf(key: String, bitmap: Bitmap): Int {
+            return bitmap.byteCount
+        }
+    }
+
+    /**
+     * Clears in-memory decoded bitmap cache when low memory or trim memory is received.
+     */
+    fun clearBitmapCache() {
+        try {
+            bitmapMemoryCache.evictAll()
+            System.gc()
+        } catch (_: Throwable) {}
+    }
+
     /**
      * Converts a Base64 image data string or raw Base64 string into an Android Bitmap.
-     * Supports multiple Base64 encodings, line breaks, and prefixes.
+     * Supports multiple Base64 encodings, line breaks, prefixes, and smart downsampling.
+     * Features:
+     * - LRU caching to eliminate repeated decoding during LazyColumn scrolling
+     * - Downsampling (inSampleSize) to prevent loading massive 48MP photos into RAM for small avatars
+     * - OutOfMemoryError recovery so the app never terminates abruptly
      */
-    fun base64ToBitmap(data: String?): Bitmap? {
+    fun base64ToBitmap(data: String?, maxDimension: Int = 0): Bitmap? {
         if (data.isNullOrBlank()) return null
         return try {
             val trimmed = data.trim()
+            val cacheKey = "${trimmed.hashCode()}_$maxDimension"
+            synchronized(bitmapMemoryCache) {
+                bitmapMemoryCache.get(cacheKey)?.let { return it }
+            }
+
             val base64Clean = if (trimmed.contains("base64,")) {
                 trimmed.substringAfter("base64,").trim()
             } else {
@@ -542,12 +569,48 @@ object MediaUtils {
 
             if (decodedBytes == null || decodedBytes.isEmpty()) return null
 
-            val options = BitmapFactory.Options().apply {
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+            // Determine target dimension: if specified, use it; otherwise cap at safe limit (1280px)
+            val targetMaxDim = if (maxDimension > 0) maxDimension else 1280
+
+            // 1. Measure image bounds first without allocating memory for pixels
+            val boundsOptions = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
             }
-            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size, options)
-        } catch (e: Exception) {
-            Log.e("MediaUtils", "Failed to decode base64 to bitmap: ${e.message}")
+            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size, boundsOptions)
+
+            val rawWidth = boundsOptions.outWidth
+            val rawHeight = boundsOptions.outHeight
+
+            // 2. Calculate optimal inSampleSize
+            var sampleSize = 1
+            if (rawWidth > targetMaxDim || rawHeight > targetMaxDim) {
+                val halfWidth = rawWidth / 2
+                val halfHeight = rawHeight / 2
+                while ((halfWidth / sampleSize) >= targetMaxDim || (halfHeight / sampleSize) >= targetMaxDim) {
+                    sampleSize *= 2
+                }
+            }
+
+            // 3. Decode actual bitmap with downsampling and lightweight config
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize.coerceAtLeast(1)
+                // Use RGB_565 for small avatars to halve memory consumption, ARGB_8888 for high-res
+                inPreferredConfig = if (targetMaxDim <= 200) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+            }
+
+            val decodedBitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size, decodeOptions)
+            if (decodedBitmap != null) {
+                synchronized(bitmapMemoryCache) {
+                    bitmapMemoryCache.put(cacheKey, decodedBitmap)
+                }
+            }
+            decodedBitmap
+        } catch (oom: OutOfMemoryError) {
+            Log.e("MediaUtils", "OutOfMemoryError safely caught during Base64 bitmap decoding", oom)
+            clearBitmapCache()
+            null
+        } catch (t: Throwable) {
+            Log.e("MediaUtils", "Failed to decode base64 to bitmap: ${t.message}")
             null
         }
     }

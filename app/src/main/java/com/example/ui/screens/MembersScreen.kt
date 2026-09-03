@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -166,7 +167,7 @@ fun MembersScreen(viewModel: MandalViewModel) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)
                 ) {
-                    items(members, key = { it.id }) { member ->
+                    itemsIndexed(members, key = { index, member -> "${member.id}_$index" }) { _, member ->
                         MemberCard(
                             member = member,
                             onCardClick = { viewModel.selectMemberForDetail(member) },

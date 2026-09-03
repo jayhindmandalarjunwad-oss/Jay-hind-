@@ -208,7 +208,18 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private var lastSilentSyncTime = 0L
+
     fun refreshAllData(silent: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (silent && (now - lastSilentSyncTime < 45_000L)) {
+            // Real-time Firestore snapshot listeners are already active and syncing data.
+            // Throttle silent background full sync to avoid heavy repeated Firestore downloads.
+            return
+        }
+        if (silent) {
+            lastSilentSyncTime = now
+        }
         viewModelScope.launch {
             if (!silent) showSnackbar("क्लाऊड डेटा सिंक होत आहे...")
             repository.forceSyncFromFirebase()
@@ -1127,14 +1138,6 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 showSnackbar("❌ त्रुटी: ${e.message}")
                 onComplete?.invoke(false)
             }
-        }
-    }
-
-    // REFRESH & SYNC
-    fun refreshAllData() {
-        viewModelScope.launch {
-            repository.refreshAllFromFirestore()
-            showSnackbar("डेटा रिफ्रेश झाला! 🔄")
         }
     }
 }

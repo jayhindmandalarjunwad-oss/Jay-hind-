@@ -48,6 +48,7 @@ fun UniversalAsyncImage(
     contentScale: ContentScale = ContentScale.Crop,
     alignment: Alignment = Alignment.Center,
     alpha: Float = 1.0f,
+    targetDimensionPx: Int = 0,
     placeholder: @Composable (() -> Unit)? = null
 ) {
     if (model == null || (model is String && model.isBlank())) {
@@ -89,7 +90,8 @@ fun UniversalAsyncImage(
                     (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("content://") && !trimmed.startsWith("file://") && trimmed.length > 80)
 
             if (isBase64) {
-                val bitmap = remember(trimmed) { MediaUtils.base64ToBitmap(trimmed) }
+                val targetDim = if (targetDimensionPx > 0) targetDimensionPx else 1024
+                val bitmap = remember(trimmed, targetDim) { MediaUtils.base64ToBitmap(trimmed, targetDim) }
                 if (bitmap != null) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
@@ -113,13 +115,18 @@ fun UniversalAsyncImage(
                 }
             } else {
                 val context = LocalContext.current
+                val imageRequestBuilder = coil.request.ImageRequest.Builder(context)
+                    .data(trimmed)
+                    .crossfade(true)
+                    .error(com.example.R.drawable.ic_jayhind_logo)
+                    .fallback(com.example.R.drawable.ic_jayhind_logo)
+
+                if (targetDimensionPx > 0) {
+                    imageRequestBuilder.size(targetDimensionPx, targetDimensionPx)
+                }
+
                 AsyncImage(
-                    model = coil.request.ImageRequest.Builder(context)
-                        .data(trimmed)
-                        .crossfade(true)
-                        .error(com.example.R.drawable.ic_jayhind_logo)
-                        .fallback(com.example.R.drawable.ic_jayhind_logo)
-                        .build(),
+                    model = imageRequestBuilder.build(),
                     contentDescription = contentDescription,
                     contentScale = contentScale,
                     alignment = alignment,
@@ -130,13 +137,18 @@ fun UniversalAsyncImage(
         }
         else -> {
             val context = LocalContext.current
+            val imageRequestBuilder = coil.request.ImageRequest.Builder(context)
+                .data(model)
+                .crossfade(true)
+                .error(com.example.R.drawable.ic_jayhind_logo)
+                .fallback(com.example.R.drawable.ic_jayhind_logo)
+
+            if (targetDimensionPx > 0) {
+                imageRequestBuilder.size(targetDimensionPx, targetDimensionPx)
+            }
+
             AsyncImage(
-                model = coil.request.ImageRequest.Builder(context)
-                    .data(model)
-                    .crossfade(true)
-                    .error(com.example.R.drawable.ic_jayhind_logo)
-                    .fallback(com.example.R.drawable.ic_jayhind_logo)
-                    .build(),
+                model = imageRequestBuilder.build(),
                 contentDescription = contentDescription,
                 contentScale = contentScale,
                 alignment = alignment,
@@ -555,6 +567,7 @@ fun MemberAvatar(
             model = photoUrl,
             contentDescription = name,
             contentScale = ContentScale.Crop,
+            targetDimensionPx = (size * 3).coerceIn(96, 240),
             modifier = modifier
                 .size(size.dp)
                 .clip(CircleShape)
