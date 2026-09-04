@@ -173,6 +173,6 @@ data class MandalInfoEntity(
     val liveStreamTitle: String = "श्री गणेश महाआरती थेट प्रक्षेपण",
     val liveStreamUrl: String = "https://www.youtube.com/@JayHindMandalArjunwad/live",
     val liveStreamStartedAt: Long = 0L,
-    val liveViewerCount: Int = 148,
+    val liveViewerCount: Int = 0,
     val updatedAt: Long = System.currentTimeMillis()
 )

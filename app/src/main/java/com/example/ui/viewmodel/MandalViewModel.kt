@@ -1066,12 +1066,25 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     // Real-time live comments synced across all viewers in the app
     val liveComments: StateFlow<List<LiveComment>> = repository.liveComments
 
+    // Real-time live active viewers synced across all viewers in the app
+    val realtimeLiveViewerCount: StateFlow<Int> = repository.realtimeLiveViewerCount
+
     fun openLiveStreamPlayer() {
         _showLiveStreamPlayer.value = true
+        enterLivePresence()
     }
 
     fun closeLiveStreamPlayer() {
         _showLiveStreamPlayer.value = false
+        leaveLivePresence()
+    }
+
+    fun enterLivePresence() {
+        repository.enterLivePresence(currentUser.value)
+    }
+
+    fun leaveLivePresence() {
+        repository.leaveLivePresence()
     }
 
     fun postLiveComment(message: String) {

@@ -2666,7 +2666,9 @@ fun LiveStreamAdminTab(
     var notifyMembers by remember { mutableStateOf(true) }
     var isUpdating by remember { mutableStateOf(false) }
 
+    val realtimeLiveViewerCount by viewModel.realtimeLiveViewerCount.collectAsStateWithLifecycle()
     val isLiveActive = mandalInfo.isLiveStreamActive
+    val currentWatchersCount = if (realtimeLiveViewerCount > 0) realtimeLiveViewerCount else mandalInfo.liveViewerCount
 
     LazyColumn(
         modifier = Modifier
@@ -2724,7 +2726,7 @@ fun LiveStreamAdminTab(
                                 color = Color.White.copy(alpha = 0.25f)
                             ) {
                                 Text(
-                                    text = "👁️ ${mandalInfo.liveViewerCount} पाहत आहेत",
+                                    text = "👁️ $currentWatchersCount पाहत आहेत",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,

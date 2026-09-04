@@ -86,6 +86,7 @@ fun MandalApp(viewModel: MandalViewModel) {
     val fullscreenViewerState by viewModel.fullscreenViewerState.collectAsStateWithLifecycle()
     val showLiveStreamPlayer by viewModel.showLiveStreamPlayer.collectAsStateWithLifecycle()
     val liveComments by viewModel.liveComments.collectAsStateWithLifecycle()
+    val realtimeLiveViewerCount by viewModel.realtimeLiveViewerCount.collectAsStateWithLifecycle()
     val sessionSecurityNotice by viewModel.sessionSecurityNotice.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -390,6 +391,9 @@ fun MandalApp(viewModel: MandalViewModel) {
                     mandalInfo = mandalInfo,
                     mandalLogoUrl = mandalLogoUrl,
                     comments = liveComments,
+                    viewerCount = realtimeLiveViewerCount,
+                    onEnterPresence = { viewModel.enterLivePresence() },
+                    onLeavePresence = { viewModel.leaveLivePresence() },
                     onDismiss = { viewModel.closeLiveStreamPlayer() },
                     onSendReaction = { reaction ->
                         viewModel.sendLiveReaction(reaction)

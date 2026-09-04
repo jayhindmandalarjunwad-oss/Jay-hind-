@@ -73,6 +73,6 @@ object SeedData {
         liveStreamTitle = "श्री गणेश महाआरती थेट प्रक्षेपण",
         liveStreamUrl = "https://www.youtube.com/@JayHindMandalArjunwad/live",
         liveStreamStartedAt = 0L,
-        liveViewerCount = 148
+        liveViewerCount = 0
     )
 }

@@ -213,6 +213,9 @@ fun LiveStreamDialog(
     mandalInfo: MandalInfo,
     mandalLogoUrl: String? = null,
     comments: List<LiveComment> = emptyList(),
+    viewerCount: Int = 1,
+    onEnterPresence: () -> Unit = {},
+    onLeavePresence: () -> Unit = {},
     onDismiss: () -> Unit,
     onSendReaction: (String) -> Unit = {},
     onPostComment: (String) -> Unit = {}
@@ -224,9 +227,17 @@ fun LiveStreamDialog(
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
 
+    // Real-time live viewer presence (Automatically registers on enter, removes on leave/dismiss)
+    DisposableEffect(Unit) {
+        onEnterPresence()
+        onDispose {
+            onLeavePresence()
+        }
+    }
+
     var isManualFullscreen by remember { mutableStateOf(false) }
     var typedComment by remember { mutableStateOf("") }
-    var viewerCount by remember { mutableIntStateOf(mandalInfo.liveViewerCount.coerceAtLeast(148)) }
+    val displayViewerCount = maxOf(1, viewerCount)
 
     // Custom Player Controls State
     var isPlaying by remember { mutableStateOf(true) }
@@ -289,7 +300,6 @@ fun LiveStreamDialog(
             startOffsetX = Random.nextFloat() * 0.7f + 0.15f
         )
         floatingParticles = floatingParticles + newParticle
-        viewerCount += 1
         onSendReaction(reactionText)
 
         coroutineScope.launch {
@@ -616,7 +626,7 @@ fun LiveStreamDialog(
                             isPlaying = isPlaying,
                             isMuted = isMuted,
                             isLoading = isPlayerLoading,
-                            viewerCount = viewerCount,
+                            viewerCount = displayViewerCount,
                             isFullscreen = true,
                             platform = platform,
                             onBackClick = { setFullscreenMode(false) },
@@ -748,7 +758,7 @@ fun LiveStreamDialog(
                                 isPlaying = isPlaying,
                                 isMuted = isMuted,
                                 isLoading = isPlayerLoading,
-                                viewerCount = viewerCount,
+                                viewerCount = displayViewerCount,
                                 isFullscreen = false,
                                 platform = platform,
                                 onBackClick = {

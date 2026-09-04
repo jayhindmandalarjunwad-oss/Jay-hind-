@@ -11,11 +11,8 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.SetOptions
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -130,6 +127,13 @@ class MandalRepository(context: Context) {
     // Real-time Live Stream Comments & Reactions StateFlow (Synced instantly across all watchers)
     private val _liveComments = MutableStateFlow<List<LiveComment>>(emptyList())
     val liveComments: StateFlow<List<LiveComment>> = _liveComments.asStateFlow()
+
+    // Real-time Live Stream Active Viewers StateFlow (Synced live across all watching members)
+    private val _realtimeLiveViewerCount = MutableStateFlow(0)
+    val realtimeLiveViewerCount: StateFlow<Int> = _realtimeLiveViewerCount.asStateFlow()
+
+    private var livePresenceHeartbeatJob: Job? = null
+    private var currentLivePresenceSessionId: String? = null
 
     // Firebase Firestore instance
     private val firestore: FirebaseFirestore by lazy {
@@ -661,6 +665,25 @@ class MandalRepository(context: Context) {
                         }
                     }
                     _liveComments.value = list
+                }
+
+            // Real-time Live Stream Active Viewers Sync (Counts actual concurrent viewers)
+            firestore.collection("live_viewers")
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e("FirebaseSync", "Live viewers snapshot listener error: ${e.message}", e)
+                        return@addSnapshotListener
+                    }
+                    if (snapshots == null) return@addSnapshotListener
+                    val now = System.currentTimeMillis()
+                    // Active viewers with heartbeat within 60 seconds
+                    val activeViewers = snapshots.documents.filter { doc ->
+                        val lastHb = doc.getLong("lastHeartbeat") ?: doc.getLong("joinedAt") ?: 0L
+                        (now - lastHb) < 60_000L
+                    }
+                    val isSelfWatching = (currentLivePresenceSessionId != null)
+                    val count = if (isSelfWatching) maxOf(1, activeViewers.size) else activeViewers.size
+                    _realtimeLiveViewerCount.value = count
                 }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "startFirestoreSync error: ${e.message}", e)
@@ -2033,6 +2056,58 @@ class MandalRepository(context: Context) {
             Result.failure(e)
         }
     }
+
+    // REAL-TIME LIVE STREAM VIEWER PRESENCE (Track actual live audience)
+    fun enterLivePresence(user: User?) {
+        val userId = user?.id?.ifEmpty { null } 
+            ?: ("viewer_" + (prefs.getString("device_uuid", null) ?: UUID.randomUUID().toString().take(8)))
+        val userName = user?.fullName?.ifEmpty { "सभासद" } ?: "सभासद"
+        val userPhoto = user?.profilePhotoUrl ?: ""
+        currentLivePresenceSessionId = userId
+
+        livePresenceHeartbeatJob?.cancel()
+        livePresenceHeartbeatJob = repositoryScope.launch {
+            try {
+                val docRef = firestore.collection("live_viewers").document(userId)
+                val data = hashMapOf<String, Any>(
+                    "userId" to userId,
+                    "userName" to userName,
+                    "userPhoto" to userPhoto,
+                    "joinedAt" to System.currentTimeMillis(),
+                    "lastHeartbeat" to System.currentTimeMillis()
+                )
+                docRef.set(data, SetOptions.merge())
+                if (_realtimeLiveViewerCount.value < 1) {
+                    _realtimeLiveViewerCount.value = 1
+                }
+
+                // Heartbeat every 20 seconds while user is actively watching
+                while (isActive) {
+                    delay(20_000L)
+                    docRef.update("lastHeartbeat", System.currentTimeMillis())
+                }
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "enterLivePresence error: ${e.message}", e)
+            }
+        }
+    }
+
+    fun leaveLivePresence() {
+        val sessionId = currentLivePresenceSessionId
+        livePresenceHeartbeatJob?.cancel()
+        livePresenceHeartbeatJob = null
+        currentLivePresenceSessionId = null
+
+        if (sessionId != null) {
+            repositoryScope.launch {
+                try {
+                    firestore.collection("live_viewers").document(sessionId).delete()
+                } catch (e: Exception) {
+                    Log.e("FirebaseSync", "leaveLivePresence delete error: ${e.message}", e)
+                }
+            }
+        }
+    }
 }
 
 // Domain Mapping Extensions
@@ -2585,7 +2660,7 @@ fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
         liveStreamTitle = getString("liveStreamTitle") ?: "श्री गणेश महाआरती थेट प्रक्षेपण",
         liveStreamUrl = getString("liveStreamUrl") ?: "",
         liveStreamStartedAt = getLong("liveStreamStartedAt") ?: 0L,
-        liveViewerCount = (getLong("liveViewerCount") ?: 148L).toInt(),
+        liveViewerCount = (getLong("liveViewerCount") ?: 0L).toInt(),
         updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()
     )
 }
