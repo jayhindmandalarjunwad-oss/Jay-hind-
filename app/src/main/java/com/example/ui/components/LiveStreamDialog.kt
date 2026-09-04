@@ -27,9 +27,11 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTube
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,10 +55,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -207,18 +211,22 @@ private data class FloatingParticle(
  * 100% In-App Dedicated Live Stream Screen (No Dialog, Seamless Fullscreen Rotation, Reliable Hardware Back Key)
  */
 @SuppressLint("SetJavaScriptEnabled")
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun LiveStreamDialog(
     mandalInfo: MandalInfo,
     mandalLogoUrl: String? = null,
     comments: List<LiveComment> = emptyList(),
     viewerCount: Int = 1,
+    currentUserId: String = "",
+    isAdmin: Boolean = false,
     onEnterPresence: () -> Unit = {},
     onLeavePresence: () -> Unit = {},
     onDismiss: () -> Unit,
     onSendReaction: (String) -> Unit = {},
-    onPostComment: (String) -> Unit = {}
+    onPostComment: (String) -> Unit = {},
+    onEditComment: (String, String) -> Unit = { _, _ -> },
+    onDeleteComment: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -238,6 +246,11 @@ fun LiveStreamDialog(
     var isManualFullscreen by remember { mutableStateOf(false) }
     var typedComment by remember { mutableStateOf("") }
     val displayViewerCount = maxOf(1, viewerCount)
+
+    // Comment Moderation State (Edit / Delete)
+    var editingCommentId by remember { mutableStateOf<String?>(null) }
+    var selectedCommentForMenu by remember { mutableStateOf<LiveComment?>(null) }
+    val haptic = LocalHapticFeedback.current
 
     // Custom Player Controls State
     var isPlaying by remember { mutableStateOf(true) }
@@ -984,64 +997,166 @@ fun LiveStreamDialog(
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 items(comments, key = { it.id }) { comment ->
-                                    Row(
+                                    val isOwnComment = currentUserId.isNotBlank() && (comment.userId == currentUserId || comment.userId.isBlank())
+                                    val canModerate = isOwnComment || isAdmin
+
+                                    Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
                                             .background(
-                                                color = SurfaceVariantWarm,
-                                                shape = RoundedCornerShape(12.dp)
+                                                if (editingCommentId == comment.id) SaffronPrimary.copy(alpha = 0.15f) else SurfaceVariantWarm
                                             )
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.Top,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            .combinedClickable(
+                                                onClick = {
+                                                    if (canModerate) {
+                                                        selectedCommentForMenu = comment
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    if (canModerate) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        selectedCommentForMenu = comment
+                                                    }
+                                                }
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(CircleShape)
-                                                .background(SaffronPrimary),
-                                            contentAlignment = Alignment.Center
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.Top,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            if (comment.userPhoto.isNotBlank()) {
-                                                UniversalAsyncImage(
-                                                    model = comment.userPhoto,
-                                                    contentDescription = comment.userName,
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            } else {
-                                                Text(
-                                                    text = comment.userName.take(1).ifEmpty { "स" },
-                                                    color = Color.White,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (isOwnComment) SaffronDark else SaffronPrimary),
+                                                contentAlignment = Alignment.Center
                                             ) {
+                                                if (comment.userPhoto.isNotBlank()) {
+                                                    UniversalAsyncImage(
+                                                        model = comment.userPhoto,
+                                                        contentDescription = comment.userName,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = comment.userName.take(1).ifEmpty { "स" },
+                                                        color = Color.White,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = comment.userName,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = SaffronDark
+                                                        )
+                                                        if (isOwnComment) {
+                                                            Text(
+                                                                text = "(तुम्ही)",
+                                                                fontSize = 10.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = SaffronPrimary
+                                                            )
+                                                        }
+                                                        if (comment.edited) {
+                                                            Text(
+                                                                text = "• संपादित",
+                                                                fontSize = 9.sp,
+                                                                color = TextMuted
+                                                            )
+                                                        }
+                                                    }
+                                                    Text(
+                                                        text = formatTimeAgoShort(comment.timestamp),
+                                                        fontSize = 10.sp,
+                                                        color = TextMuted
+                                                    )
+                                                }
                                                 Text(
-                                                    text = comment.userName,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = SaffronDark
-                                                )
-                                                Text(
-                                                    text = formatTimeAgoShort(comment.timestamp),
-                                                    fontSize = 10.sp,
-                                                    color = TextMuted
+                                                    text = comment.message,
+                                                    fontSize = 13.sp,
+                                                    color = TextPrimary,
+                                                    lineHeight = 16.sp
                                                 )
                                             }
-                                            Text(
-                                                text = comment.message,
-                                                fontSize = 13.sp,
-                                                color = TextPrimary,
-                                                lineHeight = 16.sp
-                                            )
+
+                                            if (canModerate) {
+                                                Box {
+                                                    IconButton(
+                                                        onClick = {
+                                                            selectedCommentForMenu = comment
+                                                        },
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.MoreVert,
+                                                            contentDescription = "Options",
+                                                            tint = TextMuted,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+
+                                                    DropdownMenu(
+                                                        expanded = selectedCommentForMenu?.id == comment.id,
+                                                        onDismissRequest = { selectedCommentForMenu = null }
+                                                    ) {
+                                                        if (isOwnComment) {
+                                                            DropdownMenuItem(
+                                                                text = {
+                                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = SaffronPrimary)
+                                                                        Spacer(Modifier.width(8.dp))
+                                                                        Text("कमेंट संपादित करा (Edit)", fontSize = 13.sp)
+                                                                    }
+                                                                },
+                                                                onClick = {
+                                                                    editingCommentId = comment.id
+                                                                    typedComment = comment.message
+                                                                    selectedCommentForMenu = null
+                                                                }
+                                                            )
+                                                        }
+
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = BloodRed)
+                                                                    Spacer(Modifier.width(8.dp))
+                                                                    Text(
+                                                                        if (isAdmin && !isOwnComment) "कमेंट हटवा (Admin Delete)" else "कमेंट हटवा (Delete)",
+                                                                        fontSize = 13.sp,
+                                                                        color = BloodRed
+                                                                    )
+                                                                }
+                                                            },
+                                                            onClick = {
+                                                                onDeleteComment(comment.id)
+                                                                if (editingCommentId == comment.id) {
+                                                                    editingCommentId = null
+                                                                    typedComment = ""
+                                                                }
+                                                                selectedCommentForMenu = null
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1051,68 +1166,131 @@ fun LiveStreamDialog(
 
                     HorizontalDivider(color = CardBorderColor)
 
-                    // 4. TYPE & SEND LIVE COMMENT INPUT
-                    Row(
+                    // 4. TYPE & SEND LIVE COMMENT INPUT (WITH EDIT MODE & IME PADDING)
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .imePadding()
                             .background(MaterialTheme.colorScheme.surface)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedTextField(
-                            value = typedComment,
-                            onValueChange = { typedComment = it },
-                            placeholder = {
-                                Text(
-                                    "✍️ तुमची प्रतिक्रिया येथे टाईप करा...",
-                                    fontSize = 12.sp,
-                                    color = TextMuted
-                                )
-                            },
+                        // Editing Banner if a comment is currently being edited
+                        if (editingCommentId != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(SaffronPrimary.copy(alpha = 0.12f))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = null,
+                                        tint = SaffronPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "कमेंट संपादित करत आहात...",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = SaffronDark
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        editingCommentId = null
+                                        typedComment = ""
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Cancel Edit",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            HorizontalDivider(color = SaffronPrimary.copy(alpha = 0.2f))
+                        }
+
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .testTag("live_comment_input"),
-                            shape = RoundedCornerShape(24.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = SaffronPrimary,
-                                unfocusedBorderColor = CardBorderColor,
-                                focusedContainerColor = SurfaceWarm,
-                                unfocusedContainerColor = SurfaceVariantWarm
-                            ),
-                            maxLines = 2,
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(
-                                onSend = {
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = typedComment,
+                                onValueChange = { typedComment = it },
+                                placeholder = {
+                                    Text(
+                                        if (editingCommentId != null) "बदललेली कमेंट टाईप करा..." else "✍️ तुमची प्रतिक्रिया येथे टाईप करा...",
+                                        fontSize = 12.sp,
+                                        color = TextMuted
+                                    )
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("live_comment_input"),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = SaffronPrimary,
+                                    unfocusedBorderColor = CardBorderColor,
+                                    focusedContainerColor = SurfaceWarm,
+                                    unfocusedContainerColor = SurfaceVariantWarm
+                                ),
+                                maxLines = 2,
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                keyboardActions = KeyboardActions(
+                                    onSend = {
+                                        if (typedComment.isNotBlank()) {
+                                            val currentEditId = editingCommentId
+                                            if (currentEditId != null) {
+                                                onEditComment(currentEditId, typedComment.trim())
+                                                editingCommentId = null
+                                            } else {
+                                                onPostComment(typedComment.trim())
+                                            }
+                                            typedComment = ""
+                                            focusManager.clearFocus()
+                                        }
+                                    }
+                                )
+                            )
+
+                            IconButton(
+                                onClick = {
                                     if (typedComment.isNotBlank()) {
-                                        onPostComment(typedComment)
+                                        val currentEditId = editingCommentId
+                                        if (currentEditId != null) {
+                                            onEditComment(currentEditId, typedComment.trim())
+                                            editingCommentId = null
+                                        } else {
+                                            onPostComment(typedComment.trim())
+                                        }
                                         typedComment = ""
                                         focusManager.clearFocus()
                                     }
-                                }
-                            )
-                        )
-
-                        IconButton(
-                            onClick = {
-                                if (typedComment.isNotBlank()) {
-                                    onPostComment(typedComment)
-                                    typedComment = ""
-                                    focusManager.clearFocus()
-                                }
-                            },
-                            modifier = Modifier
-                                .size(42.dp)
-                                .background(SaffronPrimary, CircleShape)
-                                .testTag("send_live_comment_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Send,
-                                contentDescription = "Send",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
+                                },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(if (editingCommentId != null) SuccessGreen else SaffronPrimary, CircleShape)
+                                    .testTag("send_live_comment_btn")
+                            ) {
+                                Icon(
+                                    imageVector = if (editingCommentId != null) Icons.Default.Check else Icons.Default.Send,
+                                    contentDescription = if (editingCommentId != null) "Update" else "Send",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
 

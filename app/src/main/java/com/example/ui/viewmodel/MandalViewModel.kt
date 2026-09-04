@@ -1090,10 +1090,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     fun postLiveComment(message: String) {
         if (message.isBlank()) return
         val user = currentUser.value
+        val userId = user?.id ?: ""
         val name = user?.fullName?.ifEmpty { "सभासद" } ?: "जय हिंद सभासद"
         val photo = user?.profilePhotoUrl ?: ""
         val newComment = LiveComment(
             id = "comment_${System.currentTimeMillis()}_${(1000..9999).random()}",
+            userId = userId,
             userName = name,
             userPhoto = photo,
             message = message.trim(),
@@ -1104,12 +1106,46 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun editLiveComment(commentId: String, newMessage: String) {
+        if (newMessage.isBlank()) return
+        viewModelScope.launch {
+            val result = repository.editLiveComment(commentId, newMessage.trim())
+            if (result.isSuccess) {
+                showSnackbar("कमेंट संपादित केली ✅")
+            } else {
+                showSnackbar("कमेंट संपादित करताना त्रुटी आली.")
+            }
+        }
+    }
+
+    fun deleteLiveComment(commentId: String) {
+        viewModelScope.launch {
+            val result = repository.deleteLiveComment(commentId)
+            if (result.isSuccess) {
+                showSnackbar("कमेंट डिलीट केली 🗑️")
+            } else {
+                showSnackbar("कमेंट डिलीट करताना त्रुटी आली.")
+            }
+        }
+    }
+
+    fun clearAllLiveComments() {
+        viewModelScope.launch {
+            val result = repository.clearAllLiveComments()
+            if (result.isSuccess) {
+                showSnackbar("सर्व लाईव्ह कमेंट्स क्लिअर केल्या 🧹")
+            }
+        }
+    }
+
     fun sendLiveReaction(reactionText: String) {
         val user = currentUser.value
+        val userId = user?.id ?: ""
         val name = user?.fullName?.ifEmpty { "सभासद" } ?: "जय हिंद सभासद"
         val photo = user?.profilePhotoUrl ?: ""
         val newComment = LiveComment(
             id = "reaction_${System.currentTimeMillis()}_${(1000..9999).random()}",
+            userId = userId,
             userName = name,
             userPhoto = photo,
             message = reactionText,

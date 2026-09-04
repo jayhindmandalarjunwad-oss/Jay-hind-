@@ -3086,6 +3086,24 @@ fun LiveStreamAdminTab(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("फक्त लिंक व शीर्षक सेव्ह करा", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
+
+                    // Admin Action: Clear all live comments
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.clearAllLiveComments()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("admin_clear_live_comments_btn"),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BloodRed),
+                        border = BorderStroke(1.dp, BloodRed.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp), tint = BloodRed)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("सर्व लाईव्ह कमेंट्स हटवा (Clear All Chat)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BloodRed)
+                    }
                 }
             }
         }

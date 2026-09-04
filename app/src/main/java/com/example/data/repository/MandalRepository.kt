@@ -651,20 +651,39 @@ class MandalRepository(context: Context) {
                         return@addSnapshotListener
                     }
                     if (snapshots == null) return@addSnapshotListener
-                    val list = snapshots.documents.mapNotNull { doc ->
-                        try {
-                            LiveComment(
-                                id = doc.getString("id") ?: doc.id,
-                                userName = doc.getString("userName") ?: "सभासद",
-                                userPhoto = doc.getString("userPhoto") ?: "",
-                                message = doc.getString("message") ?: "",
-                                timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
-                            )
-                        } catch (_: Exception) {
-                            null
+                    repositoryScope.launch {
+                        val currentMandal = mandalInfoDao.getMandalInfoDirect()
+                        val streamStartedAt = currentMandal?.liveStreamStartedAt ?: 0L
+                        val isLiveActive = currentMandal?.isLiveStreamActive ?: false
+
+                        val list = snapshots.documents.mapNotNull { doc ->
+                            try {
+                                val commentTimestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                                val commentStreamStartedAt = doc.getLong("streamStartedAt") ?: 0L
+
+                                // If live stream is active and streamStartedAt is set, only show comments from this current stream session
+                                if (isLiveActive && streamStartedAt > 0L) {
+                                    if (commentTimestamp < (streamStartedAt - 60_000L) && commentStreamStartedAt < streamStartedAt) {
+                                        return@mapNotNull null
+                                    }
+                                }
+
+                                LiveComment(
+                                    id = doc.getString("id") ?: doc.id,
+                                    userId = doc.getString("userId") ?: "",
+                                    userName = doc.getString("userName") ?: "सभासद",
+                                    userPhoto = doc.getString("userPhoto") ?: "",
+                                    message = doc.getString("message") ?: "",
+                                    timestamp = commentTimestamp,
+                                    edited = doc.getBoolean("edited") ?: false,
+                                    streamStartedAt = commentStreamStartedAt
+                                )
+                            } catch (_: Exception) {
+                                null
+                            }
                         }
+                        _liveComments.value = list
                     }
-                    _liveComments.value = list
                 }
 
             // Real-time Live Stream Active Viewers Sync (Counts actual concurrent viewers)
@@ -2010,17 +2029,17 @@ class MandalRepository(context: Context) {
             // 5. Clean up old live comments from past sessions when new stream starts
             if (isLive) {
                 try {
-                    val cutoff = System.currentTimeMillis() - 43200000L // 12 hours
+                    // Delete comments from previous streams so new stream starts completely fresh
                     firestore.collection("live_comments")
-                        .whereLessThan("timestamp", cutoff)
                         .get()
                         .addOnSuccessListener { querySnapshot ->
                             for (doc in querySnapshot.documents) {
                                 doc.reference.delete()
                             }
                         }
+                    _liveComments.value = emptyList()
                 } catch (e: Exception) {
-                    Log.d("LiveStream", "Old live comments cleanup note: ${e.message}")
+                    Log.d("LiveStream", "Past live comments cleanup note: ${e.message}")
                 }
             }
 
@@ -2042,17 +2061,64 @@ class MandalRepository(context: Context) {
     // REAL-TIME LIVE COMMENTS POSTING (INSTANT BROADCAST TO ALL WATCHERS)
     suspend fun postLiveComment(comment: LiveComment): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val currentStreamStartedAt = mandalInfoDao.getMandalInfoDirect()?.liveStreamStartedAt ?: 0L
             val data = hashMapOf<String, Any>(
                 "id" to comment.id,
+                "userId" to comment.userId,
                 "userName" to comment.userName,
                 "userPhoto" to comment.userPhoto,
                 "message" to comment.message,
-                "timestamp" to comment.timestamp
+                "timestamp" to comment.timestamp,
+                "edited" to comment.edited,
+                "streamStartedAt" to if (comment.streamStartedAt > 0L) comment.streamStartedAt else currentStreamStartedAt
             )
             firestore.collection("live_comments").document(comment.id).set(data)
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error posting live comment on Firestore: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // EDIT LIVE COMMENT (BY SENDER)
+    suspend fun editLiveComment(commentId: String, newMessage: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val updates = mapOf<String, Any>(
+                "message" to newMessage.trim(),
+                "edited" to true,
+                "updatedAt" to System.currentTimeMillis()
+            )
+            firestore.collection("live_comments").document(commentId).update(updates)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error editing live comment: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // DELETE LIVE COMMENT (BY SENDER OR ADMIN)
+    suspend fun deleteLiveComment(commentId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            firestore.collection("live_comments").document(commentId).delete()
+            _liveComments.value = _liveComments.value.filter { it.id != commentId }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error deleting live comment: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // CLEAR ALL LIVE COMMENTS (ADMIN SPECIAL ACTION)
+    suspend fun clearAllLiveComments(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val querySnapshot = Tasks.await(firestore.collection("live_comments").get())
+            for (doc in querySnapshot.documents) {
+                Tasks.await(doc.reference.delete())
+            }
+            _liveComments.value = emptyList()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error clearing all live comments: ${e.message}", e)
             Result.failure(e)
         }
     }

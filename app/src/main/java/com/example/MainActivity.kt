@@ -392,6 +392,8 @@ fun MandalApp(viewModel: MandalViewModel) {
                     mandalLogoUrl = mandalLogoUrl,
                     comments = liveComments,
                     viewerCount = realtimeLiveViewerCount,
+                    currentUserId = currentUser?.id ?: "",
+                    isAdmin = currentUser?.isAdmin == true,
                     onEnterPresence = { viewModel.enterLivePresence() },
                     onLeavePresence = { viewModel.leaveLivePresence() },
                     onDismiss = { viewModel.closeLiveStreamPlayer() },
@@ -400,6 +402,12 @@ fun MandalApp(viewModel: MandalViewModel) {
                     },
                     onPostComment = { commentText ->
                         viewModel.postLiveComment(commentText)
+                    },
+                    onEditComment = { commentId, newMsg ->
+                        viewModel.editLiveComment(commentId, newMsg)
+                    },
+                    onDeleteComment = { commentId ->
+                        viewModel.deleteLiveComment(commentId)
                     }
                 )
             }

@@ -197,8 +197,11 @@ data class LiveReaction(
 
 data class LiveComment(
     val id: String = "",
+    val userId: String = "",
     val userName: String = "",
     val userPhoto: String = "",
     val message: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val edited: Boolean = false,
+    val streamStartedAt: Long = 0L
 )
