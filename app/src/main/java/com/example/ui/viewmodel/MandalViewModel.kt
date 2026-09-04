@@ -556,7 +556,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         val user = currentUser.value ?: return
         val isGroup = message.receiverId == "GROUP_MANDAL" || message.conversationId == "conv_mandal_group"
         val canDelete = if (isGroup) {
-            message.senderId == user.id || user.isAdmin
+            message.senderId == user.id || user.isAnyAdmin
         } else {
             message.senderId == user.id
         }

@@ -163,21 +163,23 @@ fun ProfileScreen(viewModel: MandalViewModel) {
             }
         }
 
-        // ADMIN PANEL BUTTON IF USER IS ADMIN
-        if (user.isAdmin) {
+        // ADMIN PANEL BUTTON IF USER IS ADMIN OR CONTENT ADMIN
+        if (user.isAnyAdmin) {
             Button(
                 onClick = { viewModel.navigateTo(AppScreen.ADMIN_PANEL) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
                     .testTag("admin_panel_button"),
-                colors = ButtonDefaults.buttonColors(containerColor = NavySecondary),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (user.isAdmin) NavySecondary else Color(0xFF2563EB)
+                ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(imageVector = Icons.Default.AdminPanelSettings, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "मंडळ ॲडमिन पॅनेल (Admin Panel)",
+                    text = if (user.isAdmin) "मंडळ ॲडमिन पॅनेल (Admin Panel)" else "मंडळ व्यवस्थापन पॅनेल (Content Panel)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )

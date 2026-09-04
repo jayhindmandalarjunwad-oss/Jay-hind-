@@ -60,7 +60,7 @@ fun MemberCard(
                     photoUrl = member.profilePhotoUrl,
                     name = member.fullName,
                     size = 52,
-                    showBlueRing = member.isAdmin
+                    showBlueRing = member.isAnyAdmin
                 )
             }
 
@@ -85,6 +85,8 @@ fun MemberCard(
                     member.designation
                 } else if (member.isAdmin) {
                     "कार्यकारणी सदस्य"
+                } else if (member.isContentAdmin) {
+                    "कन्टेन्ट ॲडमिन"
                 } else {
                     "सभासद"
                 }
@@ -93,12 +95,12 @@ fun MemberCard(
 
                 Surface(
                     shape = RoundedCornerShape(4.dp),
-                    color = if (member.isAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronContainer else Color(0xFFF1F5F9)
+                    color = if (member.isAnyAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronContainer else Color(0xFFF1F5F9)
                 ) {
                     Text(
                         text = "🎖️ $designationText",
                         fontSize = 10.sp,
-                        color = if (member.isAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronDark else TextSecondary,
+                        color = if (member.isAnyAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronDark else TextSecondary,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                     )

@@ -717,10 +717,24 @@ fun ChatMemberPickCard(member: User, onClick: () -> Unit) {
                             color = SaffronPrimary.copy(alpha = 0.15f)
                         ) {
                             Text(
-                                text = "👑 ॲडमिन",
+                                text = "👑 मुख्य ॲडमिन",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SaffronDark,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    } else if (member.isContentAdmin) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFF2563EB).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "✍️ कन्टेन्ट ॲडमिन",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2563EB),
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                             )
                         }
@@ -1300,7 +1314,7 @@ fun ChatDetailScreen(
                             message = msg,
                             isSentByMe = isMe,
                             isGroupChat = isGroupChat,
-                            isAdmin = currentUser?.isAdmin == true,
+                            isAdmin = currentUser?.isAnyAdmin == true,
                             onImageClick = { previewImageUrl = it },
                             onVideoClick = { playingVideoMessage = it },
                             onDeleteClick = { viewModel.deleteChatMessage(it) }

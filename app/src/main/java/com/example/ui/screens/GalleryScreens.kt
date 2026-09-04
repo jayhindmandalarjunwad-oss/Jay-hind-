@@ -66,7 +66,7 @@ fun GalleryScreen(
     val videos by viewModel.videos.collectAsStateWithLifecycle()
     val fullscreenViewerState by viewModel.fullscreenViewerState.collectAsStateWithLifecycle()
 
-    val isAdmin = currentUser?.isAdmin == true
+    val isAdmin = currentUser?.isAnyAdmin == true
 
     var selectedTab by remember { mutableStateOf(GalleryTab.PHOTOS) }
     var showCreateAlbumDialog by remember { mutableStateOf(false) }

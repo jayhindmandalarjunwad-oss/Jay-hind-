@@ -71,6 +71,32 @@ fun AdminPanelScreen(
     val banners by viewModel.banners.collectAsStateWithLifecycle()
     val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+
+    val isSuperAdmin = currentUser?.isAdmin == true
+    val isContentAdmin = currentUser?.isContentAdmin == true
+
+    // Option B: Content Admin gets Post, Gallery, Live Stream, Events, Announcements
+    // Super Admin gets all tabs including Pending Approvals, Members List, Group Banners, About Us, Logo
+    val availableTabs = remember(isSuperAdmin) {
+        if (isSuperAdmin) {
+            AdminTab.values().toList()
+        } else {
+            listOf(
+                AdminTab.LIVE_STREAM,
+                AdminTab.CREATE_EVENT,
+                AdminTab.CREATE_ANNOUNCEMENT,
+                AdminTab.MANAGE_GALLERY,
+                AdminTab.POSTS_MODERATION
+            )
+        }
+    }
+
+    LaunchedEffect(availableTabs) {
+        if (selectedTab !in availableTabs && availableTabs.isNotEmpty()) {
+            selectedTab = availableTabs.first()
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.refreshAllData(silent = true)
@@ -79,8 +105,8 @@ fun AdminPanelScreen(
     Scaffold(
         topBar = {
             MandalTopHeader(
-                title = "मंडळ ॲडमिन पॅनेल (Admin Panel)",
-                subtitle = "सर्व व्यवस्थापन व मंजुरी प्रणाली",
+                title = if (isSuperAdmin) "मंडळ ॲडमिन पॅनेल (Admin Panel)" else "मंडळ व्यवस्थापन पॅनेल (Content Admin)",
+                subtitle = if (isSuperAdmin) "सर्व व्यवस्थापन व मंजुरी प्रणाली" else "पोस्ट्स, गॅलरी, लाईव्ह व कार्यक्रम व्यवस्थापन",
                 logoUrl = mandalLogoUrl,
                 showBackButton = true,
                 onBackClick = onBack,
@@ -107,13 +133,14 @@ fun AdminPanelScreen(
                 .testTag("admin_panel_root")
         ) {
             // Scrollable Admin Tab Bar
+            val selectedTabIndex = availableTabs.indexOf(selectedTab).coerceAtLeast(0)
             ScrollableTabRow(
-                selectedTabIndex = selectedTab.ordinal,
+                selectedTabIndex = selectedTabIndex,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = SaffronPrimary,
                 edgePadding = 12.dp
             ) {
-                AdminTab.values().forEach { tab ->
+                availableTabs.forEach { tab ->
                     val badgeCount = if (tab == AdminTab.PENDING_APPROVALS) pendingMembers.size else 0
                     Tab(
                         selected = selectedTab == tab,
@@ -1046,6 +1073,8 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                 memberDesig
             } else if (member.isAdmin) {
                 "कार्यकारणी सदस्य"
+            } else if (member.isContentAdmin) {
+                "कन्टेन्ट ॲडमिन"
             } else {
                 "सभासद"
             }
@@ -1078,8 +1107,21 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                                         color = Color(0xFFDB2777).copy(alpha = 0.15f)
                                     ) {
                                         Text(
-                                            text = "👑 ॲडमिन",
+                                            text = "👑 मुख्य ॲडमिन",
                                             color = Color(0xFFDB2777),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                } else if (member.isContentAdmin) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFF2563EB).copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = "✍️ कन्टेन्ट ॲडमिन",
+                                            color = Color(0xFF2563EB),
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1364,12 +1406,17 @@ fun EditMemberDesignationDialog(
                             Text(safeName, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                             Text("📱 $safeMobile", fontSize = 12.sp, color = TextSecondary)
                             Spacer(modifier = Modifier.height(2.dp))
+                            val currentRoleDisplay = when {
+                                member.isAdmin -> "मुख्य ॲडमिन"
+                                member.isContentAdmin -> "कन्टेन्ट ॲडमिन"
+                                else -> "सभासद"
+                            }
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = SaffronContainer
                             ) {
                                 Text(
-                                    text = "सध्याचे पद: ${safeDesignation.ifBlank { if (member.isAdmin) "कार्यकारणी सदस्य" else "सभासद" }}",
+                                    text = "सध्याचे पद: ${safeDesignation.ifBlank { currentRoleDisplay }} ($currentRoleDisplay)",
                                     fontSize = 10.sp,
                                     color = SaffronDark,
                                     fontWeight = FontWeight.Bold,
@@ -1455,9 +1502,9 @@ fun EditMemberDesignationDialog(
                     color = TextPrimary
                 )
 
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -1467,47 +1514,94 @@ fun EditMemberDesignationDialog(
                             if (selectedRole == "ADMIN") SaffronPrimary else CardBorderColor
                         ),
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
                             .clickable { selectedRole = "ADMIN" }
                     ) {
-                        Column(
+                        Row(
                             modifier = Modifier.padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "👑 मुख्य ॲडमिन",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = if (selectedRole == "ADMIN") SaffronPrimary else TextPrimary
+                            RadioButton(
+                                selected = selectedRole == "ADMIN",
+                                onClick = { selectedRole = "ADMIN" },
+                                colors = RadioButtonDefaults.colors(selectedColor = SaffronPrimary)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text("सर्व अधिकार व मंजुरी", fontSize = 10.sp, color = TextSecondary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text(
+                                    text = "👑 मुख्य ॲडमिन (Super Admin)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = if (selectedRole == "ADMIN") SaffronPrimary else TextPrimary
+                                )
+                                Text("सर्व अधिकार, सभासद मंजुरी, आर्थिक/अधिकृत सेटिंग्ज", fontSize = 11.sp, color = TextSecondary)
+                            }
                         }
                     }
 
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = if (selectedRole != "ADMIN") Color(0xFFE2E8F0) else SurfaceWarm,
+                        color = if (selectedRole == "CONTENT_ADMIN") Color(0xFF2563EB).copy(alpha = 0.12f) else SurfaceWarm,
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (selectedRole != "ADMIN") Color(0xFF64748B) else CardBorderColor
+                            if (selectedRole == "CONTENT_ADMIN") Color(0xFF2563EB) else CardBorderColor
                         ),
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
+                            .clickable { selectedRole = "CONTENT_ADMIN" }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedRole == "CONTENT_ADMIN",
+                                onClick = { selectedRole = "CONTENT_ADMIN" },
+                                colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF2563EB))
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text(
+                                    text = "✍️ कन्टेन्ट ॲडमिन (Content Admin / Sub-Admin)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = if (selectedRole == "CONTENT_ADMIN") Color(0xFF2563EB) else TextPrimary
+                                )
+                                Text("पोस्ट्स, गॅलरी फोटो/व्हिडिओ, थेट लाईव्ह, कार्यक्रम, सूचना व्यवस्थापन", fontSize = 11.sp, color = TextSecondary)
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (selectedRole != "ADMIN" && selectedRole != "CONTENT_ADMIN") Color(0xFFE2E8F0) else SurfaceWarm,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (selectedRole != "ADMIN" && selectedRole != "CONTENT_ADMIN") Color(0xFF64748B) else CardBorderColor
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
                             .clickable { selectedRole = "MEMBER" }
                     ) {
-                        Column(
+                        Row(
                             modifier = Modifier.padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "👤 सामान्य सभासद",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = if (selectedRole != "ADMIN") Color(0xFF1E293B) else TextPrimary
+                            RadioButton(
+                                selected = selectedRole != "ADMIN" && selectedRole != "CONTENT_ADMIN",
+                                onClick = { selectedRole = "MEMBER" },
+                                colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF475569))
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text("फक्त पाहणे व पोस्ट", fontSize = 10.sp, color = TextSecondary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text(
+                                    text = "👤 सामान्य सभासद (Member)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = if (selectedRole != "ADMIN" && selectedRole != "CONTENT_ADMIN") Color(0xFF1E293B) else TextPrimary
+                                )
+                                Text("ॲप वापरणे, स्वतःच्या पोस्ट टाकणे व पाहणे", fontSize = 11.sp, color = TextSecondary)
+                            }
                         }
                     }
                 }

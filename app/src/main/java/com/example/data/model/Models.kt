@@ -23,6 +23,11 @@ data class User(
         val r = (role as String?).orEmpty().uppercase()
         return r == "ADMIN" || r == "PRESIDENT" || r == "SECRETARY"
     }
+    val isContentAdmin: Boolean get() {
+        val r = (role as String?).orEmpty().uppercase()
+        return r == "CONTENT_ADMIN"
+    }
+    val isAnyAdmin: Boolean get() = isAdmin || isContentAdmin
     val isApproved: Boolean get() {
         val s = (status as String?).orEmpty().uppercase()
         return s == "APPROVED"

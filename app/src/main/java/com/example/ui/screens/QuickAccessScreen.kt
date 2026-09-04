@@ -285,7 +285,8 @@ fun QuickAccessScreen(
                     )
                 }
 
-                if (currentUser?.isAdmin == true) {
+                if (currentUser?.isAnyAdmin == true) {
+                    val isSuperAdmin = currentUser?.isAdmin == true
                     Spacer(modifier = Modifier.height(10.dp))
                     Card(
                         modifier = Modifier
@@ -303,7 +304,7 @@ fun QuickAccessScreen(
                                 modifier = Modifier
                                     .size(44.dp)
                                     .clip(CircleShape)
-                                    .background(GoldenTertiary),
+                                    .background(if (isSuperAdmin) GoldenTertiary else Color(0xFF2563EB)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -316,12 +317,12 @@ fun QuickAccessScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "मंडळ ॲडमिन पॅनेल (Admin Panel)",
+                                    text = if (isSuperAdmin) "मंडळ ॲडमिन पॅनेल (Admin Panel)" else "मंडळ व्यवस्थापन पॅनेल (Content Panel)",
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "सभासद मंजुरी, कार्यक्रम संपादन व सर्व नियंत्रण",
+                                    text = if (isSuperAdmin) "सभासद मंजुरी, कार्यक्रम संपादन व सर्व नियंत्रण" else "पोस्ट्स, गॅलरी, लाईव्ह व कार्यक्रम व्यवस्थापन",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFF5A3E00)
                                 )

@@ -42,8 +42,8 @@ fun PostItemCard(
 ) {
     val context = LocalContext.current
     val isLiked = currentUser?.let { post.isLikedBy(it.id) } == true
-    val canEdit = currentUser != null && (currentUser.isAdmin || currentUser.id == post.authorId)
-    val canDelete = currentUser != null && (currentUser.isAdmin || currentUser.id == post.authorId)
+    val canEdit = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
+    val canDelete = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
 
     var showMenu by remember { mutableStateOf(false) }
 

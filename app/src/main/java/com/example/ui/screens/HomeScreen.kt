@@ -281,11 +281,11 @@ fun HomeScreen(
                             viewModel.setNavigationTab(NavigationTab.MEMBERS)
                         }
                     )
-                    if (currentUser?.isAdmin == true) {
+                    if (currentUser?.isAnyAdmin == true) {
                         QuickButton(
                             icon = Icons.Default.AdminPanelSettings,
-                            label = "Admin",
-                            color = Color(0xFFDB2777),
+                            label = if (currentUser?.isAdmin == true) "Admin" else "कन्टेन्ट ॲडमिन",
+                            color = if (currentUser?.isAdmin == true) Color(0xFFDB2777) else Color(0xFF2563EB),
                             modifier = Modifier.weight(1f),
                             onClick = { viewModel.navigateTo(AppScreen.ADMIN_PANEL) }
                         )

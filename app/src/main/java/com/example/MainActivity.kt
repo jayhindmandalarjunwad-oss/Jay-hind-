@@ -263,7 +263,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                 }
 
                 AppScreen.ADMIN_PANEL -> {
-                    if (currentUser?.isAdmin == true) {
+                    if (currentUser?.isAnyAdmin == true) {
                         AdminPanelScreen(
                             viewModel = viewModel,
                             onBack = { viewModel.navigateTo(AppScreen.MAIN) }
@@ -374,13 +374,13 @@ fun MandalApp(viewModel: MandalViewModel) {
                     photos = fullscreenViewerState!!.photos,
                     titles = fullscreenViewerState!!.titles,
                     initialIndex = fullscreenViewerState!!.initialIndex,
-                    isAdmin = currentUser?.isAdmin == true,
+                    isAdmin = currentUser?.isAnyAdmin == true,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
                 )
             } else if (!fullscreenPhotoUrl.isNullOrBlank()) {
                 FullscreenPhotoDialog(
                     photoUrl = fullscreenPhotoUrl,
-                    isAdmin = currentUser?.isAdmin == true,
+                    isAdmin = currentUser?.isAnyAdmin == true,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
                 )
             }
@@ -393,7 +393,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                     comments = liveComments,
                     viewerCount = realtimeLiveViewerCount,
                     currentUserId = currentUser?.id ?: "",
-                    isAdmin = currentUser?.isAdmin == true,
+                    isAdmin = currentUser?.isAnyAdmin == true,
                     onEnterPresence = { viewModel.enterLivePresence() },
                     onLeavePresence = { viewModel.leaveLivePresence() },
                     onDismiss = { viewModel.closeLiveStreamPlayer() },

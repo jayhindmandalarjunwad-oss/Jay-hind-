@@ -47,7 +47,7 @@ fun EventsScreen(
 ) {
     val events by viewModel.events.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
-    val isAdmin = currentUser?.isAdmin == true
+    val isAdmin = currentUser?.isAnyAdmin == true
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var eventToEdit by remember { mutableStateOf<MandalEvent?>(null) }
@@ -429,7 +429,7 @@ fun AnnouncementsScreen(
 ) {
     val announcements by viewModel.announcements.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
-    val isAdmin = currentUser?.isAdmin == true
+    val isAdmin = currentUser?.isAnyAdmin == true
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var announcementToEdit by remember { mutableStateOf<Announcement?>(null) }
