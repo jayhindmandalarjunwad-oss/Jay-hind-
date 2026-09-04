@@ -387,6 +387,16 @@ fun LiveStreamDialog(
     val commentsListState = rememberLazyListState()
     var lastSeenCommentId by remember { mutableStateOf<String?>(null) }
     val allowedReactionEmojis = setOf("🚩", "🙏", "👍", "🌸")
+
+    val imeBottomPadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val isKeyboardOpen = imeBottomPadding > 0.dp
+
+    LaunchedEffect(isKeyboardOpen) {
+        if (isKeyboardOpen && comments.isNotEmpty()) {
+            delay(100)
+            commentsListState.animateScrollToItem(comments.size - 1)
+        }
+    }
     LaunchedEffect(comments.size) {
         if (comments.isNotEmpty()) {
             commentsListState.animateScrollToItem(comments.size - 1)
@@ -874,46 +884,52 @@ fun LiveStreamDialog(
                         }
                     }
 
-                    // 2. QUICK REACTIONS ROW (5 REACTION BUTTONS)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(SurfaceVariantWarm)
-                            .padding(vertical = 8.dp)
+                    // 2. QUICK REACTIONS ROW (Hidden when keyboard is open to maximize chat visibility)
+                    AnimatedVisibility(
+                        visible = !isKeyboardOpen,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .background(SurfaceVariantWarm)
+                                .padding(vertical = 8.dp)
                         ) {
-                            val reactionOptions = listOf("🚩", "🙏", "👍", "🌸")
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val reactionOptions = listOf("🚩", "🙏", "👍", "🌸")
 
-                            Text(
-                                text = "प्रतिक्रिया:",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextSecondary,
-                                modifier = Modifier.padding(start = 4.dp, end = 2.dp)
-                            )
+                                Text(
+                                    text = "प्रतिक्रिया:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(start = 4.dp, end = 2.dp)
+                                )
 
-                            reactionOptions.forEach { reaction ->
-                                Surface(
-                                    shape = CircleShape,
-                                    color = SaffronLight.copy(alpha = 0.35f),
-                                    border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.6f)),
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clickable { triggerFloatingReaction(reaction) }
-                                        .testTag("reaction_btn_${reaction}")
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = reaction,
-                                            fontSize = 20.sp
-                                        )
+                                reactionOptions.forEach { reaction ->
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = SaffronLight.copy(alpha = 0.35f),
+                                        border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.6f)),
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clickable { triggerFloatingReaction(reaction) }
+                                            .testTag("reaction_btn_${reaction}")
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = reaction,
+                                                fontSize = 20.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1166,90 +1182,113 @@ fun LiveStreamDialog(
 
                     HorizontalDivider(color = CardBorderColor)
 
-                    // 4. TYPE & SEND LIVE COMMENT INPUT (WITH EDIT MODE & IME PADDING)
-                    Column(
+                    // 4. TYPE & SEND LIVE COMMENT INPUT + 5. WHATSAPP SHARE CONTAINER (SAFE IME PADDING)
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 4.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .imePadding()
-                            .background(MaterialTheme.colorScheme.surface)
+                            .then(
+                                if (isKeyboardOpen) Modifier.imePadding() else Modifier.navigationBarsPadding()
+                            )
                     ) {
-                        // Editing Banner if a comment is currently being edited
-                        if (editingCommentId != null) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Editing Banner if a comment is currently being edited
+                            if (editingCommentId != null) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(SaffronPrimary.copy(alpha = 0.12f))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = null,
+                                            tint = SaffronPrimary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "कमेंट संपादित करत आहात...",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = SaffronDark
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            editingCommentId = null
+                                            typedComment = ""
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Cancel Edit",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                HorizontalDivider(color = SaffronPrimary.copy(alpha = 0.2f))
+                            }
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(SaffronPrimary.copy(alpha = 0.12f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = null,
-                                        tint = SaffronPrimary,
-                                        modifier = Modifier.size(16.dp)
+                                OutlinedTextField(
+                                    value = typedComment,
+                                    onValueChange = { typedComment = it },
+                                    placeholder = {
+                                        Text(
+                                            if (editingCommentId != null) "बदललेली कमेंट टाईप करा..." else "✍️ तुमची प्रतिक्रिया येथे टाईप करा...",
+                                            fontSize = 13.sp,
+                                            color = TextMuted
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("live_comment_input"),
+                                    shape = RoundedCornerShape(24.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = SaffronPrimary,
+                                        unfocusedBorderColor = CardBorderColor,
+                                        focusedContainerColor = SurfaceWarm,
+                                        unfocusedContainerColor = SurfaceVariantWarm
+                                    ),
+                                    maxLines = 2,
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                    keyboardActions = KeyboardActions(
+                                        onSend = {
+                                            if (typedComment.isNotBlank()) {
+                                                val currentEditId = editingCommentId
+                                                if (currentEditId != null) {
+                                                    onEditComment(currentEditId, typedComment.trim())
+                                                    editingCommentId = null
+                                                } else {
+                                                    onPostComment(typedComment.trim())
+                                                }
+                                                typedComment = ""
+                                                focusManager.clearFocus()
+                                            }
+                                        }
                                     )
-                                    Text(
-                                        text = "कमेंट संपादित करत आहात...",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = SaffronDark
-                                    )
-                                }
+                                )
+
                                 IconButton(
                                     onClick = {
-                                        editingCommentId = null
-                                        typedComment = ""
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Cancel Edit",
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            HorizontalDivider(color = SaffronPrimary.copy(alpha = 0.2f))
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = typedComment,
-                                onValueChange = { typedComment = it },
-                                placeholder = {
-                                    Text(
-                                        if (editingCommentId != null) "बदललेली कमेंट टाईप करा..." else "✍️ तुमची प्रतिक्रिया येथे टाईप करा...",
-                                        fontSize = 12.sp,
-                                        color = TextMuted
-                                    )
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("live_comment_input"),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = SaffronPrimary,
-                                    unfocusedBorderColor = CardBorderColor,
-                                    focusedContainerColor = SurfaceWarm,
-                                    unfocusedContainerColor = SurfaceVariantWarm
-                                ),
-                                maxLines = 2,
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                                keyboardActions = KeyboardActions(
-                                    onSend = {
                                         if (typedComment.isNotBlank()) {
                                             val currentEditId = editingCommentId
                                             if (currentEditId != null) {
@@ -1261,88 +1300,78 @@ fun LiveStreamDialog(
                                             typedComment = ""
                                             focusManager.clearFocus()
                                         }
-                                    }
-                                )
-                            )
-
-                            IconButton(
-                                onClick = {
-                                    if (typedComment.isNotBlank()) {
-                                        val currentEditId = editingCommentId
-                                        if (currentEditId != null) {
-                                            onEditComment(currentEditId, typedComment.trim())
-                                            editingCommentId = null
-                                        } else {
-                                            onPostComment(typedComment.trim())
-                                        }
-                                        typedComment = ""
-                                        focusManager.clearFocus()
-                                    }
-                                },
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .background(if (editingCommentId != null) SuccessGreen else SaffronPrimary, CircleShape)
-                                    .testTag("send_live_comment_btn")
-                            ) {
-                                Icon(
-                                    imageVector = if (editingCommentId != null) Icons.Default.Check else Icons.Default.Send,
-                                    contentDescription = if (editingCommentId != null) "Update" else "Send",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                    },
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .background(if (editingCommentId != null) SuccessGreen else SaffronPrimary, CircleShape)
+                                        .testTag("send_live_comment_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = if (editingCommentId != null) Icons.Default.Check else Icons.Default.Send,
+                                        contentDescription = if (editingCommentId != null) "Update" else "Send",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
-                        }
-                    }
 
-                    // 5. INSTANT WHATSAPP SHARE
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(SurfaceWarm)
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val liveUrl = mandalInfo.liveStreamUrl.ifEmpty {
-                                    "https://www.youtube.com/@JayHindMandalArjunwad/live"
-                                }
-                                val shareText = "🚩 *जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड*\n🔴 *$streamTitle*\n\nथेट आरती व सोहळा पाहण्यासाठी खालील लिंकवर क्लिक करा किंवा जय हिंद ॲप उघडा:\n$liveUrl\n\n_जय हिंद मंडळ, अर्जुनवाड परिवार_"
-                                try {
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, shareText)
-                                        setPackage("com.whatsapp")
+                            // 5. INSTANT WHATSAPP SHARE (Hidden when keyboard is open so comment input is completely visible)
+                            AnimatedVisibility(
+                                visible = !isKeyboardOpen,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(SurfaceWarm)
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            val liveUrl = mandalInfo.liveStreamUrl.ifEmpty {
+                                                "https://www.youtube.com/@JayHindMandalArjunwad/live"
+                                            }
+                                            val shareText = "🚩 *जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड*\n🔴 *$streamTitle*\n\nथेट आरती व सोहळा पाहण्यासाठी खालील लिंकवर क्लिक करा किंवा जय हिंद ॲप उघडा:\n$liveUrl\n\n_जय हिंद मंडळ, अर्जुनवाड परिवार_"
+                                            try {
+                                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                                    type = "text/plain"
+                                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                                    setPackage("com.whatsapp")
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {
+                                                val chooserIntent = Intent(Intent.ACTION_SEND).apply {
+                                                    type = "text/plain"
+                                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                                }
+                                                context.startActivity(Intent.createChooser(chooserIntent, "थेट प्रक्षेपण शेअर करा"))
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(44.dp)
+                                            .testTag("whatsapp_share_live_btn"),
+                                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "WhatsApp वर थेट प्रक्षेपण शेअर करा 🟢",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
                                     }
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                    val chooserIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, shareText)
-                                    }
-                                    context.startActivity(Intent.createChooser(chooserIntent, "थेट प्रक्षेपण शेअर करा"))
                                 }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                                .testTag("whatsapp_share_live_btn"),
-                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "WhatsApp वर थेट प्रक्षेपण शेअर करा 🟢",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
+                            }
                         }
                     }
                 }
