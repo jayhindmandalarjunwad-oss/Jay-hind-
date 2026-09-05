@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +45,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
     var showIdCardFullDialog by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
     var showFullscreenPhoto by remember { mutableStateOf(false) }
     var isSavingIdCard by remember { mutableStateOf(false) }
 
@@ -210,6 +212,80 @@ fun ProfileScreen(viewModel: MandalViewModel) {
             }
         }
 
+        // MANDAL FEEDBACK & SUGGESTIONS CARD (Direct & Confidential to Super Admin)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showFeedbackDialog = true }
+                .testTag("profile_feedback_card"),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = SaffronPrimary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.RateReview,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "मंडळासाठी अभिप्राय व सूचना",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = SuccessGreen.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "🔒 ॲडमिनसाठी",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SuccessGreen,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "आपल्या मोलाच्या सूचना थेट मुख्य ॲडमिनकडे नोंदवा",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        fontSize = 11.5.sp
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = TextSecondary
+                )
+            }
+        }
+
         // LOGOUT BUTTON
         OutlinedButton(
             onClick = { viewModel.logout() },
@@ -267,6 +343,24 @@ fun ProfileScreen(viewModel: MandalViewModel) {
         FullscreenPhotoDialog(
             photos = listOf(user.profilePhotoUrl),
             onDismiss = { showFullscreenPhoto = false }
+        )
+    }
+
+    // Member Feedback Dialog (Confidential to Super Admin)
+    if (showFeedbackDialog) {
+        MemberFeedbackDialog(
+            user = user,
+            onDismiss = { showFeedbackDialog = false },
+            onSubmit = { category, rating, message ->
+                viewModel.submitFeedback(
+                    category = category,
+                    rating = rating,
+                    message = message,
+                    onSuccess = {
+                        showFeedbackDialog = false
+                    }
+                )
+            }
         )
     }
 }
@@ -426,6 +520,260 @@ fun ChangePasswordDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("रद्द करा") }
+        }
+    )
+}
+
+@Composable
+fun MemberFeedbackDialog(
+    user: User,
+    onDismiss: () -> Unit,
+    onSubmit: (category: String, rating: Int, message: String) -> Unit
+) {
+    val categories = listOf(
+        "सर्वसाधारण सूचना व मार्गदर्शन",
+        "मंडळाचे उपक्रम व कार्यक्रम",
+        "जय हिंद ॲप सुधारणा / समस्या",
+        "आरोग्य, रक्तदान व सामाजिक मदत",
+        "क्रीडा व स्पर्धा उपक्रम",
+        "तक्रार किंवा अडचण"
+    )
+
+    var selectedCategory by remember { mutableStateOf(categories.first()) }
+    var rating by remember { mutableStateOf(5) }
+    var message by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = SaffronPrimary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.RateReview,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "मंडळासाठी अभिप्राय व सूचना",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "सभासद: ${user.fullName}",
+                        fontSize = 11.5.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Confidential Notice Banner
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = SuccessGreen.copy(alpha = 0.08f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = SuccessGreen,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "🔒 आपली सूचना पूर्णपणे गोपनीय व सुरक्षित आहे. ही सूचना इतर कोणालाही न दिसता केवळ मंडळाच्या मुख्य ॲडमिनलाच दिसेल.",
+                            fontSize = 11.sp,
+                            color = SuccessGreen,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+
+                // Category Selection
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "विषय / प्रकार निवडा:",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary
+                    )
+                    var expanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { expanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = selectedCategory,
+                                    fontSize = 13.sp,
+                                    color = TextPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = TextSecondary
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.fillMaxWidth(0.85f)
+                        ) {
+                            categories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = cat,
+                                            fontWeight = if (selectedCategory == cat) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (selectedCategory == cat) SaffronPrimary else TextPrimary,
+                                            fontSize = 13.sp
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedCategory = cat
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Star Rating
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "आपला अनुभव / रेटिंग (पर्यायी):",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (i in 1..5) {
+                            IconButton(
+                                onClick = { rating = i },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (i <= rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "$i Star",
+                                    tint = if (i <= rating) SaffronPrimary else TextSecondary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Message Text Field
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "आपला अभिप्राय किंवा सूचना:*",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary
+                    )
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = {
+                            message = it
+                            errorMessage = null
+                        },
+                        placeholder = {
+                            Text(
+                                "मंडळाच्या प्रगतीसाठी, उपक्रमांसाठी किंवा ॲपसाठी आपल्या मोलाच्या सूचना येथे सविस्तर लिहा...",
+                                fontSize = 12.5.sp,
+                                color = TextSecondary
+                            )
+                        },
+                        minLines = 4,
+                        maxLines = 7,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("feedback_message_input"),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage ?: "",
+                            color = BloodRed,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (message.trim().isBlank()) {
+                        errorMessage = "कृपया आपला अभिप्राय किंवा सूचना टाईप करा."
+                        return@Button
+                    }
+                    isSubmitting = true
+                    onSubmit(selectedCategory, rating, message.trim())
+                },
+                enabled = !isSubmitting,
+                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.testTag("submit_feedback_btn")
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text("अभिप्राय पाठवा")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSubmitting
+            ) {
+                Text("रद्द करा")
+            }
         }
     )
 }

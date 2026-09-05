@@ -80,6 +80,10 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     val todayBirthdays: StateFlow<List<User>> = repository.todayBirthdayMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Member Feedbacks (Real-time synced, private to Super Admin)
+    val feedbacks: StateFlow<List<MemberFeedback>> = repository.feedbacks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _memberSearchQuery = MutableStateFlow("")
     val memberSearchQuery: StateFlow<String> = _memberSearchQuery.asStateFlow()
 
@@ -1186,6 +1190,52 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             } catch (e: Exception) {
                 showSnackbar("❌ त्रुटी: ${e.message}")
                 onComplete?.invoke(false)
+            }
+        }
+    }
+
+    // MEMBER FEEDBACK OPERATIONS
+    fun submitFeedback(
+        category: String,
+        rating: Int,
+        message: String,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.submitFeedback(
+                category = category,
+                rating = rating,
+                message = message
+            )
+            if (result.isSuccess) {
+                showSnackbar("धन्यवाद! आपला अभिप्राय मंडळाच्या मुख्य ॲडमिनकडे सुरक्षित पोहोचला आहे. 🚩")
+                onSuccess()
+            } else {
+                showSnackbar("❌ त्रुटी: ${result.exceptionOrNull()?.message ?: "अभिप्राय पाठवता आला नाही."}")
+            }
+        }
+    }
+
+    fun deleteFeedback(feedbackId: String) {
+        viewModelScope.launch {
+            val result = repository.deleteFeedback(feedbackId)
+            if (result.isSuccess) {
+                showSnackbar("अभिप्राय यशस्वीरित्या डिलीट केला.")
+            } else {
+                showSnackbar("❌ त्रुटी: अभिप्राय डिलीट करता आला नाही.")
+            }
+        }
+    }
+
+    fun markFeedbackStatus(feedbackId: String, status: String) {
+        viewModelScope.launch {
+            val result = repository.updateFeedbackStatus(feedbackId, status)
+            if (result.isSuccess) {
+                if (status == "READ") {
+                    showSnackbar("अभिप्राय 'वाचलेला' म्हणून चिन्हांकित केला.")
+                } else if (status == "RESOLVED") {
+                    showSnackbar("अभिप्राय 'सोडवला / पूर्ण' म्हणून चिन्हांकित केला.")
+                }
             }
         }
     }

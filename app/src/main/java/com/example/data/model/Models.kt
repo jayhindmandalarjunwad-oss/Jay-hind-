@@ -210,3 +210,17 @@ data class LiveComment(
     val edited: Boolean = false,
     val streamStartedAt: Long = 0L
 )
+
+data class MemberFeedback(
+    val id: String = "",
+    val userId: String = "",
+    val userName: String = "",
+    val userMobile: String = "",
+    val userDesignation: String = "सभासद",
+    val userPhotoUrl: String = "",
+    val category: String = "सर्वसाधारण सूचना",
+    val rating: Int = 5,
+    val message: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+    val status: String = "NEW" // NEW, READ, RESOLVED
+)

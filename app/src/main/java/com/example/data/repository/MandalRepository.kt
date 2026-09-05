@@ -132,6 +132,10 @@ class MandalRepository(context: Context) {
     private val _realtimeLiveViewerCount = MutableStateFlow(0)
     val realtimeLiveViewerCount: StateFlow<Int> = _realtimeLiveViewerCount.asStateFlow()
 
+    // Member Feedbacks StateFlow (Real-time synced, private to Super Admin)
+    private val _feedbacks = MutableStateFlow<List<MemberFeedback>>(emptyList())
+    val feedbacks: StateFlow<List<MemberFeedback>> = _feedbacks.asStateFlow()
+
     private var livePresenceHeartbeatJob: Job? = null
     private var currentLivePresenceSessionId: String? = null
 
@@ -703,6 +707,37 @@ class MandalRepository(context: Context) {
                     val isSelfWatching = (currentLivePresenceSessionId != null)
                     val count = if (isSelfWatching) maxOf(1, activeViewers.size) else activeViewers.size
                     _realtimeLiveViewerCount.value = count
+                }
+
+            // Real-time Member Feedbacks Sync (Admin only)
+            firestore.collection("feedbacks")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null) {
+                        Log.e("FirebaseSync", "Feedbacks snapshot error: ${e.message}", e)
+                        return@addSnapshotListener
+                    }
+                    if (snapshots == null) return@addSnapshotListener
+                    val list = snapshots.documents.mapNotNull { doc ->
+                        try {
+                            MemberFeedback(
+                                id = doc.getString("id") ?: doc.id,
+                                userId = doc.getString("userId") ?: "",
+                                userName = doc.getString("userName") ?: "सभासद",
+                                userMobile = doc.getString("userMobile") ?: "",
+                                userDesignation = doc.getString("userDesignation") ?: "सभासद",
+                                userPhotoUrl = doc.getString("userPhotoUrl") ?: "",
+                                category = doc.getString("category") ?: "सर्वसाधारण सूचना",
+                                rating = (doc.getLong("rating") ?: 5L).toInt(),
+                                message = doc.getString("message") ?: "",
+                                timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
+                                status = doc.getString("status") ?: "NEW"
+                            )
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                    _feedbacks.value = list
                 }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "startFirestoreSync error: ${e.message}", e)
@@ -2172,6 +2207,104 @@ class MandalRepository(context: Context) {
                     Log.e("FirebaseSync", "leaveLivePresence delete error: ${e.message}", e)
                 }
             }
+        }
+    }
+
+    // MEMBER FEEDBACK & SUGGESTIONS OPERATIONS
+    suspend fun submitFeedback(
+        category: String,
+        rating: Int,
+        message: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val user = _currentUser.value ?: return@withContext Result.failure(Exception("अभिप्राय देण्यासाठी कृपया प्रथम लॉगिन करा."))
+            val cleanMessage = message.trim()
+            if (cleanMessage.isBlank()) {
+                return@withContext Result.failure(Exception("कृपया आपला अभिप्राय किंवा सूचना टाईप करा."))
+            }
+
+            val feedbackId = "fb_" + UUID.randomUUID().toString().take(8)
+            val feedback = MemberFeedback(
+                id = feedbackId,
+                userId = user.id,
+                userName = user.fullName,
+                userMobile = user.mobileNumber,
+                userDesignation = user.designation,
+                userPhotoUrl = user.profilePhotoUrl,
+                category = category.trim().ifBlank { "सर्वसाधारण सूचना" },
+                rating = rating.coerceIn(1, 5),
+                message = cleanMessage,
+                timestamp = System.currentTimeMillis(),
+                status = "NEW"
+            )
+
+            // 1. Save to Firestore
+            val feedbackMap = mapOf(
+                "id" to feedback.id,
+                "userId" to feedback.userId,
+                "userName" to feedback.userName,
+                "userMobile" to feedback.userMobile,
+                "userDesignation" to feedback.userDesignation,
+                "userPhotoUrl" to feedback.userPhotoUrl,
+                "category" to feedback.category,
+                "rating" to feedback.rating,
+                "message" to feedback.message,
+                "timestamp" to feedback.timestamp,
+                "status" to feedback.status
+            )
+            Tasks.await(firestore.collection("feedbacks").document(feedback.id).set(feedbackMap))
+
+            // 2. Update local state immediately
+            val current = _feedbacks.value.toMutableList()
+            current.removeAll { it.id == feedback.id }
+            current.add(0, feedback)
+            _feedbacks.value = current
+
+            // 3. Trigger Admin Notification
+            try {
+                val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+                val notif = NotificationEntity(
+                    id = notifId,
+                    title = "💬 नवीन सभासद अभिप्राय!",
+                    message = "${user.fullName} यांनी '${feedback.category}' यावर अभिप्राय पाठवला आहे.",
+                    type = "ADMIN",
+                    timestamp = System.currentTimeMillis(),
+                    isRead = false,
+                    targetUserId = "ADMIN",
+                    targetRoute = "ADMIN_PANEL"
+                )
+                notificationDao.insertNotification(notif)
+                firestore.collection("notifications").document(notif.id).set(notif.toMap())
+            } catch (_: Exception) {}
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("MandalRepo", "submitFeedback error: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteFeedback(feedbackId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Tasks.await(firestore.collection("feedbacks").document(feedbackId).delete())
+            _feedbacks.value = _feedbacks.value.filter { it.id != feedbackId }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("MandalRepo", "deleteFeedback error: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateFeedbackStatus(feedbackId: String, status: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Tasks.await(firestore.collection("feedbacks").document(feedbackId).update("status", status))
+            _feedbacks.value = _feedbacks.value.map {
+                if (it.id == feedbackId) it.copy(status = status) else it
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("MandalRepo", "updateFeedbackStatus error: ${e.message}", e)
+            Result.failure(e)
         }
     }
 }

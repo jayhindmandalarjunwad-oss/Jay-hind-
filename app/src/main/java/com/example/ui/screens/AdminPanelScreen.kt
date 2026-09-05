@@ -52,7 +52,8 @@ enum class AdminTab(val title: String) {
     CREATE_EVENT("नवीन कार्यक्रम"),
     CREATE_ANNOUNCEMENT("सूचना / Broadcast"),
     MANAGE_GALLERY("फोटो व व्हिडिओ"),
-    POSTS_MODERATION("पोस्ट्स नियंत्रण")
+    POSTS_MODERATION("पोस्ट्स नियंत्रण"),
+    MEMBER_FEEDBACK("सभासद अभिप्राय")
 }
 
 @Composable
@@ -72,6 +73,8 @@ fun AdminPanelScreen(
     val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val feedbacks by viewModel.feedbacks.collectAsStateWithLifecycle()
+    val newFeedbacksCount = remember(feedbacks) { feedbacks.count { it.status == "NEW" } }
 
     val isSuperAdmin = currentUser?.isAdmin == true
     val isContentAdmin = currentUser?.isContentAdmin == true
@@ -141,7 +144,11 @@ fun AdminPanelScreen(
                 edgePadding = 12.dp
             ) {
                 availableTabs.forEach { tab ->
-                    val badgeCount = if (tab == AdminTab.PENDING_APPROVALS) pendingMembers.size else 0
+                    val badgeCount = when (tab) {
+                        AdminTab.PENDING_APPROVALS -> pendingMembers.size
+                        AdminTab.MEMBER_FEEDBACK -> newFeedbacksCount
+                        else -> 0
+                    }
                     Tab(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
@@ -184,6 +191,7 @@ fun AdminPanelScreen(
                 AdminTab.CREATE_ANNOUNCEMENT -> CreateAnnouncementAdminTab(viewModel)
                 AdminTab.MANAGE_GALLERY -> ManageGalleryAdminTab(albums, videos, viewModel)
                 AdminTab.POSTS_MODERATION -> PostsModerationAdminTab(posts, viewModel)
+                AdminTab.MEMBER_FEEDBACK -> MemberFeedbacksAdminTab(feedbacks, viewModel)
             }
         }
     }
@@ -3311,6 +3319,455 @@ fun LiveStreamAdminTab(
 
         item {
             Spacer(modifier = Modifier.height(30.dp))
+        }
+    }
+}
+
+// 11. MEMBER FEEDBACKS & SUGGESTIONS (CONFIDENTIAL TO SUPER ADMIN)
+@Composable
+fun MemberFeedbacksAdminTab(
+    feedbacks: List<MemberFeedback>,
+    viewModel: MandalViewModel
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var selectedFilter by remember { mutableStateOf("ALL") } // ALL, NEW, READ
+    var searchQuery by remember { mutableStateOf("") }
+    var feedbackToDelete by remember { mutableStateOf<MemberFeedback?>(null) }
+
+    val filteredList = remember(feedbacks, selectedFilter, searchQuery) {
+        feedbacks.filter { fb ->
+            val matchesFilter = when (selectedFilter) {
+                "NEW" -> fb.status == "NEW"
+                "READ" -> fb.status != "NEW"
+                else -> true
+            }
+            val matchesSearch = searchQuery.isBlank() ||
+                    fb.userName.contains(searchQuery, ignoreCase = true) ||
+                    fb.message.contains(searchQuery, ignoreCase = true) ||
+                    fb.category.contains(searchQuery, ignoreCase = true) ||
+                    fb.userMobile.contains(searchQuery)
+            matchesFilter && matchesSearch
+        }
+    }
+
+    val newCount = feedbacks.count { it.status == "NEW" }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            // Confidential Admin Notice Banner
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = SaffronPrimary.copy(alpha = 0.08f),
+                border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.25f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = SaffronPrimary.copy(alpha = 0.15f),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = SaffronPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "सभासद अभिप्राय व सूचना कक्ष (गोपनीय)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "हे अभिप्राय फक्त मुख्य ॲडमिनला दिसतात. इतर सभासदांना अथवा सहाय्यक ॲडमिनला हे दिसत नाहीत.",
+                            fontSize = 11.5.sp,
+                            color = TextSecondary,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // Filter chips and search bar
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = selectedFilter == "ALL",
+                    onClick = { selectedFilter = "ALL" },
+                    label = { Text("सर्व अभिप्राय (${feedbacks.size})") }
+                )
+                FilterChip(
+                    selected = selectedFilter == "NEW",
+                    onClick = { selectedFilter = "NEW" },
+                    label = { Text("नवीन (${newCount})") }
+                )
+                FilterChip(
+                    selected = selectedFilter == "READ",
+                    onClick = { selectedFilter = "READ" },
+                    label = { Text("वाचलेले (${feedbacks.size - newCount})") }
+                )
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("नाव, मोबाईल किंवा मजकूर शोधा...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
+            )
+        }
+
+        if (filteredList.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.RateReview,
+                            contentDescription = null,
+                            tint = TextSecondary,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "सध्या कोणताही अभिप्राय नाही.",
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "सभासदांनी प्रोफाइलमधून नोंदवलेले अभिप्राय येथे थेट दिसतील.",
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
+        } else {
+            items(filteredList, key = { it.id }) { fb ->
+                FeedbackCardItem(
+                    feedback = fb,
+                    onMarkRead = { viewModel.markFeedbackStatus(fb.id, "READ") },
+                    onDelete = { feedbackToDelete = fb },
+                    onCall = {
+                        if (fb.userMobile.isNotBlank()) {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
+                                    data = android.net.Uri.parse("tel:${fb.userMobile}")
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        }
+                    },
+                    onWhatsApp = {
+                        if (fb.userMobile.isNotBlank()) {
+                            try {
+                                val cleanNum = fb.userMobile.replace("+", "").replace(" ", "").replace("-", "")
+                                val formatted = if (cleanNum.length == 10) "91$cleanNum" else cleanNum
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                    data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$formatted&text=${android.net.Uri.encode("नमस्कार ${fb.userName} जी, आपण जय हिंद मंडळासाठी दिलेल्या अभिप्रायाबद्दल धन्यवाद. 🚩")}")
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                )
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+
+    if (feedbackToDelete != null) {
+        val target = feedbackToDelete!!
+        AlertDialog(
+            onDismissRequest = { feedbackToDelete = null },
+            title = { Text("अभिप्राय हटवायचा का?", fontWeight = FontWeight.Bold) },
+            text = { Text("${target.userName} यांचा अभिप्राय कायमस्वरूपी हटवला जाईल.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteFeedback(target.id)
+                        feedbackToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                ) {
+                    Text("हटवा")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { feedbackToDelete = null }) {
+                    Text("रद्द करा")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun FeedbackCardItem(
+    feedback: MemberFeedback,
+    onMarkRead: () -> Unit,
+    onDelete: () -> Unit,
+    onCall: () -> Unit,
+    onWhatsApp: () -> Unit
+) {
+    val isNew = feedback.status == "NEW"
+    val formattedDate = remember(feedback.timestamp) {
+        try {
+            val sdf = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale("mr", "IN"))
+            sdf.format(java.util.Date(feedback.timestamp))
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isNew) SaffronPrimary.copy(alpha = 0.04f) else MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isNew) 2.dp else 1.dp),
+        border = BorderStroke(
+            width = if (isNew) 1.5.dp else 0.5.dp,
+            color = if (isNew) SaffronPrimary.copy(alpha = 0.5f) else DividerColor
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header: Member info & Status badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Member Avatar
+                if (feedback.userPhotoUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = feedback.userPhotoUrl,
+                        contentDescription = feedback.userName,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Surface(
+                        shape = CircleShape,
+                        color = SaffronPrimary.copy(alpha = 0.15f),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = feedback.userName.take(1).ifBlank { "स" },
+                                fontWeight = FontWeight.Bold,
+                                color = SaffronPrimary,
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = feedback.userName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.5.sp,
+                            color = TextPrimary
+                        )
+                        if (feedback.userDesignation.isNotBlank()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SaffronPrimary.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = feedback.userDesignation,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SaffronPrimary,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (feedback.userMobile.isNotBlank()) {
+                        Text(
+                            text = "📞 ${feedback.userMobile}",
+                            fontSize = 11.5.sp,
+                            color = TextSecondary
+                        )
+                    }
+
+                    if (formattedDate.isNotBlank()) {
+                        Text(
+                            text = formattedDate,
+                            fontSize = 10.5.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                // Status Badge
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isNew) BloodRed.copy(alpha = 0.12f) else SuccessGreen.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = if (isNew) "नवीन" else "वाचलेला",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isNew) BloodRed else SuccessGreen,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            // Category & Rating Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = "🏷️ ${feedback.category}",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+
+                // Stars
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    for (i in 1..5) {
+                        Icon(
+                            imageVector = if (i <= feedback.rating) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            tint = if (i <= feedback.rating) SaffronPrimary else TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${feedback.rating}/5",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SaffronPrimary
+                    )
+                }
+            }
+
+            // Feedback Message Content
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(0.5.dp, DividerColor),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = feedback.message,
+                    fontSize = 13.sp,
+                    color = TextPrimary,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+
+            // Actions Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (feedback.userMobile.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = onCall,
+                        modifier = Modifier.height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(14.dp), tint = SuccessGreen)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("कॉल", fontSize = 11.5.sp, color = SuccessGreen)
+                    }
+
+                    OutlinedButton(
+                        onClick = onWhatsApp,
+                        modifier = Modifier.height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(14.dp), tint = SuccessGreen)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("WhatsApp", fontSize = 11.5.sp, color = SuccessGreen)
+                    }
+                }
+
+                if (isNew) {
+                    FilledTonalButton(
+                        onClick = onMarkRead,
+                        modifier = Modifier.height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("वाचले ✓", fontSize = 11.5.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = BloodRed, modifier = Modifier.size(18.dp))
+                }
+            }
         }
     }
 }
