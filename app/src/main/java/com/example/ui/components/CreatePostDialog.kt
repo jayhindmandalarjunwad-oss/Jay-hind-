@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.model.User
 import com.example.ui.theme.*
+import com.example.util.FirebaseStorageHelper
 import com.example.util.MediaUtils
 import kotlinx.coroutines.launch
 
@@ -59,9 +60,9 @@ fun CreatePostDialog(
                 isProcessingImage = true
                 val newImages = mutableListOf<String>()
                 for (uri in uris) {
-                    val base64 = MediaUtils.uriToBase64(context, uri, maxDimension = 900, quality = 85)
-                    if (!base64.isNullOrBlank()) {
-                        newImages.add(base64)
+                    val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, "posts")
+                    if (uploadedUrl.isNotBlank()) {
+                        newImages.add(uploadedUrl)
                     }
                 }
                 selectedImages = (selectedImages + newImages).distinct().take(10)

@@ -56,6 +56,7 @@ import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
 import com.example.util.AudioPlayerManager
 import com.example.util.AudioRecorderHelper
+import com.example.util.FirebaseStorageHelper
 import com.example.util.MediaUtils
 import kotlinx.coroutines.launch
 import java.io.File
@@ -828,6 +829,11 @@ fun ChatDetailScreen(
     var cameraPhotoCaption by remember { mutableStateOf("") }
     var isSendingCameraPhoto by remember { mutableStateOf(false) }
 
+    // Media Upload Progress States (WhatsApp Style)
+    var isUploadingMedia by remember { mutableStateOf(false) }
+    var uploadProgress by remember { mutableIntStateOf(0) }
+    var uploadStatusText by remember { mutableStateOf("") }
+
     // 1. Camera Launcher & Permissions
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -918,12 +924,23 @@ fun ChatDetailScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                val base64 = MediaUtils.uriToBase64(context, uri) ?: uri.toString()
-                viewModel.sendChatMessage(
-                    text = "",
-                    attachmentType = "IMAGE",
-                    attachmentUrl = base64
-                )
+                try {
+                    isUploadingMedia = true
+                    uploadStatusText = "फोटो कॉम्प्रेस व पाठवत आहे..."
+                    uploadProgress = 0
+                    val downloadUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images") { prog ->
+                        uploadProgress = prog
+                    }
+                    viewModel.sendChatMessage(
+                        text = "",
+                        attachmentType = "IMAGE",
+                        attachmentUrl = downloadUrl
+                    )
+                } catch (e: Exception) {
+                    Toast.makeText(context, "फोटो पाठवण्यात त्रुटी आली", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isUploadingMedia = false
+                }
             }
         }
     }
@@ -933,16 +950,26 @@ fun ChatDetailScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                Toast.makeText(context, "व्हिडिओ तयार होत आहे...", Toast.LENGTH_SHORT).show()
-                val thumbBase64 = MediaUtils.getVideoThumbnailBase64(context, uri) ?: ""
-                val videoData = MediaUtils.uriToVideoData(context, uri)
-                viewModel.sendChatMessage(
-                    text = "",
-                    attachmentType = "VIDEO",
-                    attachmentUrl = videoData,
-                    attachmentName = "व्हिडिओ",
-                    attachmentExtra = thumbBase64
-                )
+                try {
+                    isUploadingMedia = true
+                    uploadStatusText = "व्हिडिओ अपलोड होत आहे..."
+                    uploadProgress = 0
+                    val (videoUrl, thumbUrl, durationLabel) = FirebaseStorageHelper.uploadVideo(context, uri) { prog ->
+                        uploadProgress = prog
+                    }
+                    viewModel.sendChatMessage(
+                        text = "",
+                        attachmentType = "VIDEO",
+                        attachmentUrl = videoUrl,
+                        attachmentName = "व्हिडिओ ($durationLabel)",
+                        attachmentExtra = thumbUrl
+                    )
+                    Toast.makeText(context, "✅ व्हिडिओ पाठवला!", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, e.message ?: "व्हिडिओ पाठवता आला नाही", Toast.LENGTH_LONG).show()
+                } finally {
+                    isUploadingMedia = false
+                }
             }
         }
     }
@@ -953,25 +980,36 @@ fun ChatDetailScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                Toast.makeText(context, "दस्तऐवज जोडत आहे...", Toast.LENGTH_SHORT).show()
-                val (docData, fileSize) = MediaUtils.uriToDocumentData(context, uri)
-                var fileName = "दस्तावेज.pdf"
                 try {
-                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (cursor.moveToFirst() && nameIndex != -1) {
-                            fileName = cursor.getString(nameIndex) ?: fileName
+                    isUploadingMedia = true
+                    uploadStatusText = "कागदपत्र अपलोड होत आहे..."
+                    uploadProgress = 0
+                    var fileName = "दस्तावेज.pdf"
+                    try {
+                        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (cursor.moveToFirst() && nameIndex != -1) {
+                                fileName = cursor.getString(nameIndex) ?: fileName
+                            }
                         }
-                    }
-                } catch (_: Exception) {}
+                    } catch (_: Exception) {}
 
-                viewModel.sendChatMessage(
-                    text = "",
-                    attachmentType = "DOCUMENT",
-                    attachmentUrl = docData,
-                    attachmentName = fileName,
-                    attachmentExtra = fileSize
-                )
+                    val (docUrl, sizeLabel) = FirebaseStorageHelper.uploadDocument(context, uri, fileName) { prog ->
+                        uploadProgress = prog
+                    }
+                    viewModel.sendChatMessage(
+                        text = "",
+                        attachmentType = "DOCUMENT",
+                        attachmentUrl = docUrl,
+                        attachmentName = fileName,
+                        attachmentExtra = sizeLabel
+                    )
+                    Toast.makeText(context, "✅ कागदपत्र पाठवले!", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, e.message ?: "कागदपत्र पाठवता आले नाही", Toast.LENGTH_LONG).show()
+                } finally {
+                    isUploadingMedia = false
+                }
             }
         }
     }
@@ -1007,15 +1045,28 @@ fun ChatDetailScreen(
             val (file, durationMillis) = result
             val seconds = (durationMillis / 1000).toInt().coerceAtLeast(1)
             val durationLabel = String.format(Locale.getDefault(), "%02d:%02d", seconds / 60, seconds % 60)
-            val base64Audio = AudioRecorderHelper.fileToBase64(file)
-            if (base64Audio.isNotBlank()) {
-                viewModel.sendChatMessage(
-                    text = "",
-                    attachmentType = "VOICE",
-                    attachmentUrl = base64Audio,
-                    attachmentName = "व्हॉईस संदेश",
-                    attachmentExtra = durationLabel
-                )
+            scope.launch {
+                try {
+                    isUploadingMedia = true
+                    uploadStatusText = "व्हॉईस संदेश पाठवत आहे..."
+                    uploadProgress = 0
+                    val audioUrl = FirebaseStorageHelper.uploadAudio(context, file) { prog ->
+                        uploadProgress = prog
+                    }
+                    if (audioUrl.isNotBlank()) {
+                        viewModel.sendChatMessage(
+                            text = "",
+                            attachmentType = "VOICE",
+                            attachmentUrl = audioUrl,
+                            attachmentName = "व्हॉईस संदेश",
+                            attachmentExtra = durationLabel
+                        )
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(context, "व्हॉईस मेसेज पाठवता आला नाही", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isUploadingMedia = false
+                }
             }
         }
     }
@@ -1327,6 +1378,47 @@ fun ChatDetailScreen(
                     }
                 }
             }
+
+            // WhatsApp-style Media Uploading Indicator
+            if (isUploadingMedia) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF1E293B).copy(alpha = 0.95f),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .align(Alignment.BottomCenter)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            progress = { (uploadProgress / 100f).coerceIn(0f, 1f) },
+                            color = SaffronPrimary,
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = uploadStatusText,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (uploadProgress > 0) {
+                                Text(
+                                    text = "$uploadProgress%",
+                                    color = Color.LightGray,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1521,11 +1613,11 @@ fun ChatDetailScreen(
                                 if (uri != null && !isSendingCameraPhoto) {
                                     scope.launch {
                                         isSendingCameraPhoto = true
-                                        val base64 = MediaUtils.uriToBase64(context, uri) ?: uri.toString()
+                                        val photoUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images")
                                         viewModel.sendChatMessage(
                                             text = cameraPhotoCaption.trim(),
                                             attachmentType = "IMAGE",
-                                            attachmentUrl = base64
+                                            attachmentUrl = photoUrl
                                         )
                                         isSendingCameraPhoto = false
                                         capturedPhotoUriForPreview = null

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ui.theme.*
+import com.example.util.FirebaseStorageHelper
 import com.example.util.MediaUtils
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -167,11 +168,13 @@ fun GalleryImagePicker(
     helperText: String = "मोबाईल गॅलरीतून फोटो अपलोड करा",
     height: Dp = 140.dp,
     shape: Shape = RoundedCornerShape(12.dp),
+    folder: String = "gallery",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isProcessing by remember { mutableStateOf(false) }
+    var uploadProgress by remember { mutableIntStateOf(0) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -179,10 +182,13 @@ fun GalleryImagePicker(
         if (uri != null) {
             coroutineScope.launch {
                 isProcessing = true
-                val base64 = MediaUtils.uriToBase64(context, uri, maxDimension = 600, quality = 85)
+                uploadProgress = 0
+                val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, folder) { prog ->
+                    uploadProgress = prog
+                }
                 isProcessing = false
-                if (!base64.isNullOrBlank()) {
-                    onImageSelected(base64)
+                if (uploadedUrl.isNotBlank()) {
+                    onImageSelected(uploadedUrl)
                 }
             }
         }
@@ -209,9 +215,19 @@ fun GalleryImagePicker(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(32.dp))
+                    CircularProgressIndicator(
+                        progress = { (uploadProgress / 100f).coerceIn(0f, 1f) },
+                        color = SaffronPrimary,
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("फोटो तयार होत आहे...", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = if (uploadProgress > 0) "फोटो कॉम्प्रेस व अपलोड होत आहे... $uploadProgress%" else "फोटो कॉम्प्रेस होत आहे (WebP)...",
+                        fontSize = 12.sp,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         } else if (!selectedImageUrl.isNullOrBlank()) {
