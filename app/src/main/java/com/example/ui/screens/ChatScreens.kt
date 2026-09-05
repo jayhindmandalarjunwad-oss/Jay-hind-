@@ -928,7 +928,12 @@ fun ChatDetailScreen(
                     isUploadingMedia = true
                     uploadStatusText = "फोटो कॉम्प्रेस व पाठवत आहे..."
                     uploadProgress = 0
-                    val downloadUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images") { prog ->
+                    val downloadUrl = FirebaseStorageHelper.uploadImage(
+                        context = context,
+                        uri = uri,
+                        folder = "chat_media/images",
+                        user = currentUser
+                    ) { prog ->
                         uploadProgress = prog
                     }
                     viewModel.sendChatMessage(
@@ -954,7 +959,11 @@ fun ChatDetailScreen(
                     isUploadingMedia = true
                     uploadStatusText = "व्हिडिओ ऑटो-कॉम्प्रेस व अपलोड होत आहे..."
                     uploadProgress = 0
-                    val (videoUrl, thumbUrl, durationLabel) = FirebaseStorageHelper.uploadVideo(context, uri) { prog ->
+                    val (videoUrl, thumbUrl, durationLabel) = FirebaseStorageHelper.uploadVideo(
+                        context = context,
+                        uri = uri,
+                        user = currentUser
+                    ) { prog ->
                         uploadProgress = prog
                         if (prog < 40) {
                             uploadStatusText = "व्हिडिओ कॉम्प्रेस होत आहे ($prog%)..."
@@ -1618,7 +1627,12 @@ fun ChatDetailScreen(
                                 if (uri != null && !isSendingCameraPhoto) {
                                     scope.launch {
                                         isSendingCameraPhoto = true
-                                        val photoUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images")
+                                        val photoUrl = FirebaseStorageHelper.uploadImage(
+                                            context = context,
+                                            uri = uri,
+                                            folder = "chat_media/images",
+                                            user = currentUser
+                                        )
                                         viewModel.sendChatMessage(
                                             text = cameraPhotoCaption.trim(),
                                             attachmentType = "IMAGE",

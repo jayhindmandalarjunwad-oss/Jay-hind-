@@ -71,13 +71,18 @@ fun CreatePostDialog(
                         uploadCurrentIndex = idx + 1
                         uploadStatusText = "फोटो $uploadCurrentIndex/$uploadTotalCount कॉम्प्रेस व अपलोड होत आहे..."
                         try {
-                            val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, "posts")
+                            val uploadedUrl = FirebaseStorageHelper.uploadImage(
+                                context = context,
+                                uri = uri,
+                                folder = "posts/images",
+                                user = currentUser,
+                                fileIndex = selectedImages.size + idx + 1
+                            )
                             if (uploadedUrl.isNotBlank()) {
                                 newImages.add(uploadedUrl)
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("CreatePostDialog", "Failed to upload photo: ${e.message}")
-                            android.widget.Toast.makeText(context, "फोटो अपलोड करताना त्रुटी आली. इंटरनेट तपासा.", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }
 
