@@ -50,23 +50,41 @@ fun CreatePostDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isProcessingImage by remember { mutableStateOf(false) }
+    var uploadStatusText by remember { mutableStateOf("") }
+    var uploadCurrentIndex by remember { mutableIntStateOf(0) }
+    var uploadTotalCount by remember { mutableIntStateOf(0) }
 
     // Multi-photo gallery picker
     val multiGalleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
-            coroutineScope.launch {
-                isProcessingImage = true
-                val newImages = mutableListOf<String>()
-                for (uri in uris) {
-                    val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, "posts")
-                    if (uploadedUrl.isNotBlank()) {
-                        newImages.add(uploadedUrl)
+            val remainingSlot = 10 - selectedImages.size
+            val urisToProcess = uris.take(remainingSlot)
+            if (urisToProcess.isNotEmpty()) {
+                coroutineScope.launch {
+                    isProcessingImage = true
+                    uploadTotalCount = urisToProcess.size
+                    val newImages = mutableListOf<String>()
+
+                    urisToProcess.forEachIndexed { idx, uri ->
+                        uploadCurrentIndex = idx + 1
+                        uploadStatusText = "फोटो $uploadCurrentIndex/$uploadTotalCount कॉम्प्रेस व अपलोड होत आहे..."
+                        try {
+                            val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, "posts")
+                            if (uploadedUrl.isNotBlank()) {
+                                newImages.add(uploadedUrl)
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("CreatePostDialog", "Failed to upload photo: ${e.message}")
+                            android.widget.Toast.makeText(context, "फोटो अपलोड करताना त्रुटी आली. इंटरनेट तपासा.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }
+
+                    selectedImages = (selectedImages + newImages).distinct().take(10)
+                    isProcessingImage = false
+                    uploadStatusText = ""
                 }
-                selectedImages = (selectedImages + newImages).distinct().take(10)
-                isProcessingImage = false
             }
         }
     }
@@ -191,10 +209,19 @@ fun CreatePostDialog(
                             .background(SurfaceWarm),
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text("फोटो लोड होत आहेत...", color = TextPrimary, fontSize = 13.sp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(28.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = uploadStatusText.ifEmpty { "फोटो लोड व कॉम्प्रेस होत आहेत..." },
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 } else if (selectedImages.isEmpty()) {
@@ -336,6 +363,7 @@ fun CreatePostDialog(
                         } else null
                         onPostCreated(postText, joinedImages, null)
                     },
+                    enabled = !isProcessingImage && (postText.isNotBlank() || selectedImages.isNotEmpty()),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -343,13 +371,19 @@ fun CreatePostDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(imageVector = if (isEdit) Icons.Default.Check else Icons.Default.Send, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isEdit) "पोस्ट अपडेट करा (Update Post)" else "पोस्ट प्रसिद्ध करा (Post)",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
+                    if (isProcessingImage) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "फोटो अपलोड होत आहेत...", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    } else {
+                        Icon(imageVector = if (isEdit) Icons.Default.Check else Icons.Default.Send, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isEdit) "पोस्ट अपडेट करा (Update Post)" else "पोस्ट प्रसिद्ध करा (Post)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
                 }
             }
         }

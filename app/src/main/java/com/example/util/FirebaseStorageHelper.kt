@@ -156,7 +156,12 @@ object FirebaseStorageHelper {
             Log.d(TAG, "Image uploaded successfully: $downloadUrl (Size: ${webpBytes.size / 1024} KB)")
             return@withContext downloadUrl
         } catch (e: Exception) {
-            Log.w(TAG, "Firebase Storage upload failed, falling back to base64: ${e.message}")
+            Log.e(TAG, "Firebase Storage upload failed: ${e.message}", e)
+            // For posts and gallery, giant Base64 strings crash SQLite/Room (CursorWindow limit 2MB).
+            // Only allow fallback for tiny single avatars or raise descriptive error.
+            if (folder.contains("posts") || folder.contains("gallery")) {
+                throw IllegalStateException("फोटो क्लाऊडवर अपलोड करताना त्रुटी आली. कृपया इंटरनेट कनेक्शन तपासा.")
+            }
             return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
         }
     }
@@ -201,8 +206,8 @@ object FirebaseStorageHelper {
     }
 
     /**
-     * Uploads a video file (up to 15MB), extracts first frame thumbnail as WebP,
-     * and uploads both to Firebase Storage.
+     * Uploads a video file (auto-compresses large videos WhatsApp-style to ~5-8MB),
+     * extracts first frame thumbnail as WebP/JPEG, and uploads both to Firebase Storage.
      * Returns Triple(videoDownloadUrl, thumbnailDownloadUrl, durationFormatted)
      */
     suspend fun uploadVideo(
@@ -211,18 +216,27 @@ object FirebaseStorageHelper {
         onProgress: ((Int) -> Unit)? = null
     ): Triple<String, String, String> = withContext(Dispatchers.IO) {
         try {
-            // Check file size (max 15MB)
-            val fileSize = getFileSize(context, uri)
-            if (fileSize > 15 * 1024 * 1024) {
-                throw IllegalStateException("व्हिडिओचा आकार १५ MB पेक्षा कमी असावा (Max 15MB allowed).")
+            val originalSize = getFileSize(context, uri)
+            // Allow videos up to 100MB because VideoCompressor will shrink them down
+            if (originalSize > 100 * 1024 * 1024) {
+                throw IllegalStateException("व्हिडिओचा मूळ आकार खूप मोठा आहे (कमाल 100MB पर्यंत अनुमती आहे).")
             }
+
+            // WhatsApp-style automatic compression step
+            Log.d(TAG, "Starting video auto-compression for size: ${originalSize / 1024 / 1024} MB")
+            val compressedVideoFile = VideoCompressor.compressVideo(context, uri) { compressionProgress ->
+                // Map compression to 0-40% of overall progress
+                val mappedProgress = (compressionProgress * 0.4f).toInt()
+                onProgress?.invoke(mappedProgress)
+            }
+            val uploadUri = Uri.fromFile(compressedVideoFile)
 
             // Extract thumbnail & duration
             var durationMillis = 0L
             var thumbBytes: ByteArray? = null
             try {
                 val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(context, uri)
+                retriever.setDataSource(context, uploadUri)
                 val timeStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 durationMillis = timeStr?.toLongOrNull() ?: 0L
                 val frameBitmap = retriever.getFrameAtTime(1000000) // 1 second
@@ -250,22 +264,32 @@ object FirebaseStorageHelper {
                 thumbUrl = thumbRef.downloadUrl.await().toString()
             }
 
-            // Upload video file
+            // Upload compressed video file
             val videoFileName = "vid_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.mp4"
             val videoRef = storage.reference.child("chat_media/videos/$videoFileName")
             val videoMeta = StorageMetadata.Builder().setContentType("video/mp4").build()
 
-            val uploadTask = videoRef.putFile(uri, videoMeta)
+            val uploadTask = videoRef.putFile(uploadUri, videoMeta)
             uploadTask.addOnProgressListener { taskSnapshot ->
                 if (taskSnapshot.totalByteCount > 0) {
-                    val progress = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toInt()
-                    onProgress?.invoke(progress)
+                    // Map upload to 40-100% of overall progress
+                    val uploadPercent = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toInt()
+                    val overallProgress = 40 + (uploadPercent * 0.6f).toInt()
+                    onProgress?.invoke(overallProgress)
                 }
             }
 
             uploadTask.await()
             val videoUrl = videoRef.downloadUrl.await().toString()
             Log.d(TAG, "Video uploaded successfully: $videoUrl")
+
+            // Clean up temporary compressed file in cache
+            try {
+                if (compressedVideoFile.exists() && compressedVideoFile.absolutePath.contains("cache")) {
+                    compressedVideoFile.delete()
+                }
+            } catch (_: Exception) {}
+
             return@withContext Triple(videoUrl, thumbUrl, durationLabel)
         } catch (e: Exception) {
             Log.e(TAG, "Video upload failed: ${e.message}", e)

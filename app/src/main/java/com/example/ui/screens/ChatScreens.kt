@@ -952,10 +952,15 @@ fun ChatDetailScreen(
             scope.launch {
                 try {
                     isUploadingMedia = true
-                    uploadStatusText = "व्हिडिओ अपलोड होत आहे..."
+                    uploadStatusText = "व्हिडिओ ऑटो-कॉम्प्रेस व अपलोड होत आहे..."
                     uploadProgress = 0
                     val (videoUrl, thumbUrl, durationLabel) = FirebaseStorageHelper.uploadVideo(context, uri) { prog ->
                         uploadProgress = prog
+                        if (prog < 40) {
+                            uploadStatusText = "व्हिडिओ कॉम्प्रेस होत आहे ($prog%)..."
+                        } else {
+                            uploadStatusText = "व्हिडिओ क्लाऊडवर अपलोड होत आहे ($prog%)..."
+                        }
                     }
                     viewModel.sendChatMessage(
                         text = "",
