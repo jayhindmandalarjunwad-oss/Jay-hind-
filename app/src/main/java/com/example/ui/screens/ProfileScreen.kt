@@ -286,6 +286,80 @@ fun ProfileScreen(viewModel: MandalViewModel) {
             }
         }
 
+        // BACKGROUND NOTIFICATION & BATTERY OPTIMIZATION CARD
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    com.example.util.BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(context)
+                    com.example.util.MandalNotificationService.startService(context)
+                    com.example.util.MandalSyncJobService.scheduleJob(context)
+                },
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = SaffronPrimary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.NotificationsActive,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "ॲप बंद असताना पुश नोटिफिकेशन्स",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = SuccessGreen.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "सक्रिय",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SuccessGreen,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "मोबाईल बंद किंवा लॉक असतानाही त्वरित मेसेज येण्यासाठी बॅटरी मर्यादा हटवा",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        fontSize = 11.5.sp
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = TextSecondary
+                )
+            }
+        }
+
         // LOGOUT BUTTON
         OutlinedButton(
             onClick = { viewModel.logout() },

@@ -17,6 +17,7 @@ object SystemNotificationHelper {
     const val CHANNEL_CHAT = "channel_mandal_chat"
     const val CHANNEL_GROUP_CHAT = "channel_mandal_group_chat"
     const val CHANNEL_EMERGENCY_BLOOD = "channel_emergency_blood"
+    const val CHANNEL_BACKGROUND_SERVICE = "channel_mandal_background_service"
 
     private val recentNotificationTimestamps = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private const val DEDUPLICATION_WINDOW_MS = 15_000L // 15 seconds deduplication window
@@ -62,8 +63,43 @@ object SystemNotificationHelper {
                 vibrationPattern = longArrayOf(0, 450, 150, 450, 150, 450)
             }
 
-            notificationManager.createNotificationChannels(listOf(generalChannel, chatChannel, groupChatChannel, bloodChannel))
+            val bgServiceChannel = NotificationChannel(
+                CHANNEL_BACKGROUND_SERVICE,
+                "बॅकग्राउंड पुश सेवा (Background Notification Service)",
+                NotificationManager.IMPORTANCE_MIN
+            ).apply {
+                description = "ॲप बंद असतानाही नवीन मेसेज व सूचना मिळवण्यासाठी"
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
+            }
+
+            notificationManager.createNotificationChannels(
+                listOf(generalChannel, chatChannel, groupChatChannel, bloodChannel, bgServiceChannel)
+            )
         }
+    }
+
+    fun createForegroundServiceNotification(context: Context): android.app.Notification {
+        initNotificationChannels(context)
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            999,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(context, CHANNEL_BACKGROUND_SERVICE)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("🚩 जय हिंद मंडळ")
+            .setContentText("नवीन मेसेज व सूचनांसाठी बॅकग्राउंड सेवा सक्रिय आहे")
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOngoing(true)
+            .setSilent(true)
+            .setContentIntent(pendingIntent)
+            .build()
     }
 
     fun showSystemNotification(

@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
 
         // Initialize Firebase Cloud Messaging for notifications even when closed
         try {
+            com.example.util.MandalNotificationService.startService(this)
+            com.example.util.MandalSyncJobService.scheduleJob(this)
+
             com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("all_members")
             com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful && !task.result.isNullOrBlank()) {
@@ -55,7 +58,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "FCM init error: ${e.message}")
+            android.util.Log.e("MainActivity", "FCM / Services init error: ${e.message}")
         }
 
         setContent {
