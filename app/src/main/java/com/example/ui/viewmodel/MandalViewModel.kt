@@ -84,6 +84,22 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     val feedbacks: StateFlow<List<MemberFeedback>> = repository.feedbacks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Real-time Emergency Blood SOS Alert
+    val activeBloodAlert: StateFlow<EmergencyBloodAlert?> = repository.activeBloodAlert
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Requested Admin Tab (For direct navigation from Push Notification)
+    private val _requestedAdminTab = MutableStateFlow<com.example.ui.screens.AdminTab?>(null)
+    val requestedAdminTab: StateFlow<com.example.ui.screens.AdminTab?> = _requestedAdminTab.asStateFlow()
+
+    fun setRequestedAdminTab(tab: com.example.ui.screens.AdminTab) {
+        _requestedAdminTab.value = tab
+    }
+
+    fun clearRequestedAdminTab() {
+        _requestedAdminTab.value = null
+    }
+
     private val _memberSearchQuery = MutableStateFlow("")
     val memberSearchQuery: StateFlow<String> = _memberSearchQuery.asStateFlow()
 
@@ -748,11 +764,26 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         when (notif.targetRoute) {
             "ADMIN_PENDING" -> {
                 if (currentUser.value?.isAdmin == true) {
+                    _requestedAdminTab.value = com.example.ui.screens.AdminTab.PENDING_APPROVALS
                     _currentScreen.value = AppScreen.ADMIN_PANEL
                 } else {
                     _currentScreen.value = AppScreen.MAIN
                     _currentTab.value = NavigationTab.HOME
                 }
+            }
+            "MEMBER_FEEDBACK" -> {
+                if (currentUser.value?.isAdmin == true) {
+                    _requestedAdminTab.value = com.example.ui.screens.AdminTab.MEMBER_FEEDBACK
+                    _currentScreen.value = AppScreen.ADMIN_PANEL
+                } else {
+                    _currentScreen.value = AppScreen.MAIN
+                    _currentTab.value = NavigationTab.HOME
+                }
+            }
+            "BLOOD_ALERT" -> {
+                _currentScreen.value = AppScreen.MAIN
+                _currentTab.value = NavigationTab.MEMBERS
+                _selectedBloodGroupFilter.value = "सर्व"
             }
             "LIVE" -> {
                 _currentScreen.value = AppScreen.MAIN
@@ -792,6 +823,47 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             }
             else -> {
                 _currentScreen.value = AppScreen.MAIN
+            }
+        }
+    }
+
+    // EMERGENCY BLOOD SOS ALERT
+    fun sendEmergencyBloodAlert(
+        bloodGroup: String,
+        patientName: String,
+        hospital: String,
+        unitsNeeded: String,
+        contactPerson: String,
+        contactNumber: String,
+        additionalNote: String,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val res = repository.sendEmergencyBloodAlert(
+                bloodGroup = bloodGroup,
+                patientName = patientName,
+                hospital = hospital,
+                unitsNeeded = unitsNeeded,
+                contactPerson = contactPerson,
+                contactNumber = contactNumber,
+                additionalNote = additionalNote
+            )
+            if (res.isSuccess) {
+                showSnackbar("🚨 आणीबाणी रक्तदान अलर्ट सर्व सदस्यांना त्वरित पाठवला गेला आहे!")
+                onDone()
+            } else {
+                showSnackbar("अलर्ट पाठवताना त्रुटी: ${res.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    fun resolveEmergencyBloodAlert(alertId: String) {
+        viewModelScope.launch {
+            val res = repository.resolveEmergencyBloodAlert(alertId)
+            if (res.isSuccess) {
+                showSnackbar("आणीबाणी अलर्ट पूर्ण झाला म्हणून चिन्हांकित केला ✅")
+            } else {
+                showSnackbar("त्रुटी: ${res.exceptionOrNull()?.message}")
             }
         }
     }

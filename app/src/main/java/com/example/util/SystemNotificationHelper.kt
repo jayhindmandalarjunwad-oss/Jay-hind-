@@ -16,6 +16,7 @@ object SystemNotificationHelper {
     const val CHANNEL_GENERAL = "channel_mandal_general"
     const val CHANNEL_CHAT = "channel_mandal_chat"
     const val CHANNEL_GROUP_CHAT = "channel_mandal_group_chat"
+    const val CHANNEL_EMERGENCY_BLOOD = "channel_emergency_blood"
 
     fun initNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -48,7 +49,17 @@ object SystemNotificationHelper {
                 enableVibration(true)
             }
 
-            notificationManager.createNotificationChannels(listOf(generalChannel, chatChannel, groupChatChannel))
+            val bloodChannel = NotificationChannel(
+                CHANNEL_EMERGENCY_BLOOD,
+                "🚨 आणीबाणी रक्तदान अलर्ट (Emergency Blood SOS)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "तातडीची रक्ताची गरज व जीवनदायी आणीबाणी अलर्ट्स"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 450, 150, 450, 150, 450)
+            }
+
+            notificationManager.createNotificationChannels(listOf(generalChannel, chatChannel, groupChatChannel, bloodChannel))
         }
     }
 

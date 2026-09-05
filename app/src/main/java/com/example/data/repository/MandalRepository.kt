@@ -136,6 +136,10 @@ class MandalRepository(context: Context) {
     private val _feedbacks = MutableStateFlow<List<MemberFeedback>>(emptyList())
     val feedbacks: StateFlow<List<MemberFeedback>> = _feedbacks.asStateFlow()
 
+    // Real-time Emergency Blood Alert StateFlow (Synced across all devices)
+    private val _activeBloodAlert = MutableStateFlow<EmergencyBloodAlert?>(null)
+    val activeBloodAlert: StateFlow<EmergencyBloodAlert?> = _activeBloodAlert.asStateFlow()
+
     private var livePresenceHeartbeatJob: Job? = null
     private var currentLivePresenceSessionId: String? = null
 
@@ -625,14 +629,21 @@ class MandalRepository(context: Context) {
                                     "COMMENT" -> notif.targetUserId == currentUser?.id
                                     "CHAT" -> notif.targetUserId == currentUser?.id
                                     "ADMIN" -> currentUser?.isAdmin == true
+                                    "POST" -> currentUser != null && notif.targetExtra != currentUser.id
+                                    "BLOOD_ALERT" -> currentUser != null
                                     else -> notif.targetUserId == null || notif.targetUserId == currentUser?.id || (notif.targetUserId == "ADMIN" && currentUser?.isAdmin == true)
                                 }
                                 if (isRelevant && notif.type != "CHAT") {
+                                    val notifChannel = if (notif.type == "BLOOD_ALERT") {
+                                        com.example.util.SystemNotificationHelper.CHANNEL_EMERGENCY_BLOOD
+                                    } else {
+                                        com.example.util.SystemNotificationHelper.CHANNEL_GENERAL
+                                    }
                                     com.example.util.SystemNotificationHelper.showSystemNotification(
                                         context = appContext,
                                         title = notif.title,
                                         message = notif.message,
-                                        channelId = com.example.util.SystemNotificationHelper.CHANNEL_GENERAL,
+                                        channelId = notifChannel,
                                         targetRoute = notif.targetRoute ?: "ANNOUNCEMENTS",
                                         targetId = notif.targetId
                                     )
@@ -738,6 +749,33 @@ class MandalRepository(context: Context) {
                         }
                     }
                     _feedbacks.value = list
+                }
+
+            // Real-time Emergency Blood Alerts Listener
+            firestore.collection("emergency_blood_alerts")
+                .whereEqualTo("isActive", true)
+                .addSnapshotListener { snapshots, e ->
+                    if (e != null || snapshots == null) return@addSnapshotListener
+                    repositoryScope.launch {
+                        val alerts = snapshots.documents.mapNotNull { doc ->
+                            try {
+                                com.example.data.model.EmergencyBloodAlert(
+                                    id = doc.getString("id") ?: doc.id,
+                                    bloodGroup = doc.getString("bloodGroup") ?: "O+",
+                                    patientName = doc.getString("patientName") ?: "",
+                                    hospital = doc.getString("hospital") ?: "",
+                                    unitsNeeded = doc.getString("unitsNeeded") ?: "1",
+                                    contactPerson = doc.getString("contactPerson") ?: "",
+                                    contactNumber = doc.getString("contactNumber") ?: "",
+                                    additionalNote = doc.getString("additionalNote") ?: "",
+                                    createdBy = doc.getString("createdBy") ?: "",
+                                    timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis(),
+                                    isActive = doc.getBoolean("isActive") ?: true
+                                )
+                            } catch (_: Exception) { null }
+                        }
+                        _activeBloodAlert.value = alerts.maxByOrNull { it.timestamp }
+                    }
                 }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "startFirestoreSync error: ${e.message}", e)
@@ -893,8 +931,8 @@ class MandalRepository(context: Context) {
         val notifId = "notif_" + UUID.randomUUID().toString().take(8)
         val notifEntity = NotificationEntity(
             id = notifId,
-            title = "नवीन सभासद नोंदणी (मंजुरी प्रतीक्षा)",
-            message = "${fullName.trim()} यांनी नवीन सभासदत्व नोंदणी केली आहे. कृपया Admin Panel मधून मंजुरी द्या.",
+            title = "👤 नवीन सभासद नोंदणी (मंजुरी प्रतीक्षा)",
+            message = "${fullName.trim()} (📞 $cleanMobile) यांनी नोंदणी केली आहे. मंजुरी देण्यासाठी येथे क्लिक करा.",
             type = "ADMIN",
             targetUserId = "ADMIN",
             targetRoute = "ADMIN_PENDING",
@@ -1125,12 +1163,12 @@ class MandalRepository(context: Context) {
         val notifId = "notif_" + UUID.randomUUID().toString().take(8)
         val notif = NotificationEntity(
             id = notifId,
-            title = "${user.fullName} यांनी नवीन पोस्ट केली 🚩",
-            message = if (content.isNotBlank()) content.take(60) else "नवीन फोटो किंवा माहिती पोस्ट केली आहे.",
+            title = "🚩 नवीन पोस्ट: ${user.fullName}",
+            message = if (content.isNotBlank()) content.take(75).trim() + if (content.length > 75) "..." else "" else "मंडळाच्या फीडमध्ये नवीन छायाचित्र/माहिती पोस्ट केली आहे.",
             type = "POST",
-            targetRoute = "POST_COMMENTS",
+            targetRoute = "POST",
             targetId = newPost.id,
-            targetExtra = content.take(40),
+            targetExtra = user.id, // Author ID so author doesn't get self-notified
             timestamp = System.currentTimeMillis()
         )
         notificationDao.insertNotification(notif)
@@ -2265,13 +2303,14 @@ class MandalRepository(context: Context) {
                 val notifId = "notif_" + UUID.randomUUID().toString().take(8)
                 val notif = NotificationEntity(
                     id = notifId,
-                    title = "💬 नवीन सभासद अभिप्राय!",
-                    message = "${user.fullName} यांनी '${feedback.category}' यावर अभिप्राय पाठवला आहे.",
+                    title = "💬 नवीन सभासद अभिप्राय: ${user.fullName}",
+                    message = "${feedback.category} (${feedback.rating}★): '${cleanMessage.take(50)}'",
                     type = "ADMIN",
                     timestamp = System.currentTimeMillis(),
                     isRead = false,
                     targetUserId = "ADMIN",
-                    targetRoute = "ADMIN_PANEL"
+                    targetRoute = "MEMBER_FEEDBACK",
+                    targetId = "MEMBER_FEEDBACK"
                 )
                 notificationDao.insertNotification(notif)
                 firestore.collection("notifications").document(notif.id).set(notif.toMap())
@@ -2304,6 +2343,94 @@ class MandalRepository(context: Context) {
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("MandalRepo", "updateFeedbackStatus error: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // EMERGENCY BLOOD SOS ALERT FUNCTIONS
+    suspend fun sendEmergencyBloodAlert(
+        bloodGroup: String,
+        patientName: String,
+        hospital: String,
+        unitsNeeded: String,
+        contactPerson: String,
+        contactNumber: String,
+        additionalNote: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("कृपया प्रथम लॉगिन करा"))
+        if (!user.isAdmin) return@withContext Result.failure(Exception("फक्त ॲडमिनच आणीबाणी अलर्ट पाठवू शकतात"))
+
+        val alertId = "blood_alert_" + UUID.randomUUID().toString().take(8)
+        val alert = com.example.data.model.EmergencyBloodAlert(
+            id = alertId,
+            bloodGroup = bloodGroup.trim().uppercase(),
+            patientName = patientName.trim(),
+            hospital = hospital.trim(),
+            unitsNeeded = unitsNeeded.trim().ifBlank { "1" },
+            contactPerson = contactPerson.trim().ifBlank { user.fullName },
+            contactNumber = contactNumber.trim().ifBlank { user.mobileNumber },
+            additionalNote = additionalNote.trim(),
+            createdBy = user.fullName,
+            timestamp = System.currentTimeMillis(),
+            isActive = true
+        )
+
+        try {
+            val alertMap = hashMapOf<String, Any>(
+                "id" to alert.id,
+                "bloodGroup" to alert.bloodGroup,
+                "patientName" to alert.patientName,
+                "hospital" to alert.hospital,
+                "unitsNeeded" to alert.unitsNeeded,
+                "contactPerson" to alert.contactPerson,
+                "contactNumber" to alert.contactNumber,
+                "additionalNote" to alert.additionalNote,
+                "createdBy" to alert.createdBy,
+                "timestamp" to alert.timestamp,
+                "isActive" to true
+            )
+            Tasks.await(firestore.collection("emergency_blood_alerts").document(alertId).set(alertMap))
+            _activeBloodAlert.value = alert
+
+            // Also post to notifications collection for all members
+            val notif = NotificationEntity(
+                id = "notif_" + UUID.randomUUID().toString().take(8),
+                title = "🚨 तातडीची गरज: ${alert.bloodGroup} रक्त हवे आहे!",
+                message = "रुग्ण: ${alert.patientName} | हॉस्पिटल: ${alert.hospital} (${alert.unitsNeeded} बाटल्या). संपर्क: ${alert.contactNumber}",
+                type = "BLOOD_ALERT",
+                timestamp = System.currentTimeMillis(),
+                targetRoute = "BLOOD_ALERT",
+                targetId = alertId
+            )
+            notificationDao.insertNotification(notif)
+            firestore.collection("notifications").document(notif.id).set(notif.toMap())
+
+            // Trigger immediate local notification on device
+            com.example.util.SystemNotificationHelper.showSystemNotification(
+                context = appContext,
+                title = notif.title,
+                message = notif.message,
+                channelId = com.example.util.SystemNotificationHelper.CHANNEL_EMERGENCY_BLOOD,
+                targetRoute = "BLOOD_ALERT",
+                targetId = alertId
+            )
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "sendEmergencyBloodAlert error: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resolveEmergencyBloodAlert(alertId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Tasks.await(firestore.collection("emergency_blood_alerts").document(alertId).update("isActive", false))
+            if (_activeBloodAlert.value?.id == alertId) {
+                _activeBloodAlert.value = null
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "resolveEmergencyBloodAlert error: ${e.message}", e)
             Result.failure(e)
         }
     }

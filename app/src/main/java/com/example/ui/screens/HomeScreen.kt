@@ -59,6 +59,7 @@ fun HomeScreen(
     val announcements by viewModel.announcements.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
     val unreadNotifs by viewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
+    val activeBloodAlert by viewModel.activeBloodAlert.collectAsStateWithLifecycle()
     
     val context = LocalContext.current
     var showIdCardDialog by remember { mutableStateOf(false) }
@@ -82,6 +83,19 @@ fun HomeScreen(
         contentPadding = PaddingValues(bottom = 90.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ==========================================
+        // 0. तातडीचा रक्तदान सायरन अलर्ट (EMERGENCY BLOOD SOS)
+        // ==========================================
+        activeBloodAlert?.let { alert ->
+            item(key = "emergency_blood_sos_${alert.id}") {
+                com.example.ui.components.EmergencyBloodBanner(
+                    alert = alert,
+                    isAdmin = currentUser?.isAdmin == true,
+                    onResolve = { viewModel.resolveEmergencyBloodAlert(it) }
+                )
+            }
+        }
+
         // ==========================================
         // 1. मुख्य बॅनर (HERO BANNER)
         // ==========================================

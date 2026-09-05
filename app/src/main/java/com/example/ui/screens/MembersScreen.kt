@@ -38,9 +38,11 @@ fun MembersScreen(viewModel: MandalViewModel) {
     val selectedMemberForDetail by viewModel.selectedMemberForDetail.collectAsStateWithLifecycle()
     val mandalInfo by viewModel.mandalInfo.collectAsStateWithLifecycle()
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
+    val activeBloodAlert by viewModel.activeBloodAlert.collectAsStateWithLifecycle()
 
     var memberForIdCard by remember { mutableStateOf<User?>(null) }
     var fullscreenPhotoUrl by remember { mutableStateOf<String?>(null) }
+    var showEmergencyBloodDialog by remember { mutableStateOf(false) }
 
     val bloodGroups = listOf("सर्व", "A+", "B+", "AB+", "O+", "A-", "B-", "AB-", "O-")
 
@@ -127,25 +129,64 @@ fun MembersScreen(viewModel: MandalViewModel) {
                 }
             }
 
-            // Members Count
+            // Active Emergency Blood Alert Banner
+            activeBloodAlert?.let { alert ->
+                com.example.ui.components.EmergencyBloodBanner(
+                    alert = alert,
+                    isAdmin = currentUser?.isAdmin == true,
+                    onResolve = { viewModel.resolveEmergencyBloodAlert(it) }
+                )
+            }
+
+            // Members Count & Admin Emergency Trigger
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "एकूण सभासद: ${members.size}",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextSecondary
-                )
-                if (selectedBloodGroup != "सर्व") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
-                        text = "फिल्टर: $selectedBloodGroup",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                        color = BloodRed
+                        text = "एकूण सभासद: ${members.size}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextSecondary
                     )
+                    if (selectedBloodGroup != "सर्व") {
+                        Text(
+                            text = "($selectedBloodGroup)",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = BloodRed
+                        )
+                    }
+                }
+
+                // If Admin: Emergency SOS Trigger button
+                if (currentUser?.isAdmin == true) {
+                    Button(
+                        onClick = { showEmergencyBloodDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "SOS",
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "रक्तदान SOS 🚨",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
 
@@ -217,6 +258,25 @@ fun MembersScreen(viewModel: MandalViewModel) {
                 photos = listOf(fullscreenPhotoUrl!!),
                 isAdmin = currentUser?.isAdmin == true,
                 onDismiss = { fullscreenPhotoUrl = null }
+            )
+        }
+
+        // Admin Create Emergency Blood Alert Dialog
+        if (showEmergencyBloodDialog) {
+            com.example.ui.components.CreateEmergencyBloodAlertDialog(
+                onDismiss = { showEmergencyBloodDialog = false },
+                onSend = { bg, patient, hospital, units, person, number, note ->
+                    viewModel.sendEmergencyBloodAlert(
+                        bloodGroup = bg,
+                        patientName = patient,
+                        hospital = hospital,
+                        unitsNeeded = units,
+                        contactPerson = person,
+                        contactNumber = number,
+                        additionalNote = note,
+                        onDone = { showEmergencyBloodDialog = false }
+                    )
+                }
             )
         }
     }

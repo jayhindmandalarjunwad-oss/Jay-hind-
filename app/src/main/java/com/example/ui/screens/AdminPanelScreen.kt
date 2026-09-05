@@ -75,6 +75,14 @@ fun AdminPanelScreen(
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val feedbacks by viewModel.feedbacks.collectAsStateWithLifecycle()
     val newFeedbacksCount = remember(feedbacks) { feedbacks.count { it.status == "NEW" } }
+    val requestedAdminTab by viewModel.requestedAdminTab.collectAsStateWithLifecycle()
+
+    LaunchedEffect(requestedAdminTab) {
+        requestedAdminTab?.let { targetTab ->
+            selectedTab = targetTab
+            viewModel.clearRequestedAdminTab()
+        }
+    }
 
     val isSuperAdmin = currentUser?.isAdmin == true
     val isContentAdmin = currentUser?.isContentAdmin == true

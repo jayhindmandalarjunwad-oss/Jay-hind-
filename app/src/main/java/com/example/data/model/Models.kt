@@ -224,3 +224,17 @@ data class MemberFeedback(
     val timestamp: Long = System.currentTimeMillis(),
     val status: String = "NEW" // NEW, READ, RESOLVED
 )
+
+data class EmergencyBloodAlert(
+    val id: String = "",
+    val bloodGroup: String = "O+",
+    val patientName: String = "",
+    val hospital: String = "",
+    val unitsNeeded: String = "1",
+    val contactPerson: String = "",
+    val contactNumber: String = "",
+    val additionalNote: String = "",
+    val createdBy: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+    val isActive: Boolean = true
+)
