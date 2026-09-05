@@ -214,6 +214,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     val unreadNotificationsCount: StateFlow<Int> = repository.unreadNotificationsCount
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    fun updateFcmToken(token: String) {
+        viewModelScope.launch {
+            repository.saveFcmToken(token)
+        }
+    }
+
     fun navigateTo(screen: AppScreen) {
         _currentScreen.value = screen
         if (screen == AppScreen.ADMIN_PANEL || screen == AppScreen.NOTIFICATIONS || screen == AppScreen.EVENTS) {

@@ -140,6 +140,9 @@ class MandalRepository(context: Context) {
     private val _activeBloodAlert = MutableStateFlow<EmergencyBloodAlert?>(null)
     val activeBloodAlert: StateFlow<EmergencyBloodAlert?> = _activeBloodAlert.asStateFlow()
 
+    private val processedChatNotificationIds = java.util.Collections.synchronizedSet(java.util.LinkedHashSet<String>())
+    private val processedNotificationIds = java.util.Collections.synchronizedSet(java.util.LinkedHashSet<String>())
+
     private var livePresenceHeartbeatJob: Job? = null
     private var currentLivePresenceSessionId: String? = null
 
@@ -456,27 +459,32 @@ class MandalRepository(context: Context) {
                         if (change.type == DocumentChange.Type.ADDED) {
                             val msg = change.document.toChatMessageEntity()
                             if (msg != null && msg.senderId != currentUserId && (System.currentTimeMillis() - msg.timestamp) < 60000) {
-                                val isGroup = msg.receiverId == "GROUP_MANDAL" || msg.conversationId == "conv_mandal_group"
-                                if (isGroup) {
-                                    val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन संदेश आला आहे"
-                                    com.example.util.SystemNotificationHelper.showSystemNotification(
-                                        context = appContext,
-                                        title = "🚩 जय हिंद ग्रुप: ${msg.senderName}",
-                                        message = previewText,
-                                        channelId = com.example.util.SystemNotificationHelper.CHANNEL_GROUP_CHAT,
-                                        targetRoute = "CHAT",
-                                        targetId = "GROUP_MANDAL"
-                                    )
-                                } else if (msg.receiverId == currentUserId) {
-                                    val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन मेसेज आला आहे"
-                                    com.example.util.SystemNotificationHelper.showSystemNotification(
-                                        context = appContext,
-                                        title = "${msg.senderName} कडून मेसेज 💬",
-                                        message = previewText,
-                                        channelId = com.example.util.SystemNotificationHelper.CHANNEL_CHAT,
-                                        targetRoute = "CHAT",
-                                        targetId = msg.senderId
-                                    )
+                                if (processedChatNotificationIds.add(msg.id)) {
+                                    val notifId = Math.abs(msg.id.hashCode())
+                                    val isGroup = msg.receiverId == "GROUP_MANDAL" || msg.conversationId == "conv_mandal_group"
+                                    if (isGroup) {
+                                        val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन संदेश आला आहे"
+                                        com.example.util.SystemNotificationHelper.showSystemNotification(
+                                            context = appContext,
+                                            title = "🚩 जय हिंद ग्रुप: ${msg.senderName}",
+                                            message = previewText,
+                                            notificationId = notifId,
+                                            channelId = com.example.util.SystemNotificationHelper.CHANNEL_GROUP_CHAT,
+                                            targetRoute = "CHAT",
+                                            targetId = "GROUP_MANDAL"
+                                        )
+                                    } else if (msg.receiverId == currentUserId) {
+                                        val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन मेसेज आला आहे"
+                                        com.example.util.SystemNotificationHelper.showSystemNotification(
+                                            context = appContext,
+                                            title = "${msg.senderName} कडून मेसेज 💬",
+                                            message = previewText,
+                                            notificationId = notifId,
+                                            channelId = com.example.util.SystemNotificationHelper.CHANNEL_CHAT,
+                                            targetRoute = "CHAT",
+                                            targetId = msg.senderId
+                                        )
+                                    }
                                 }
                             }
                         } else if (change.type == DocumentChange.Type.REMOVED) {
@@ -634,19 +642,23 @@ class MandalRepository(context: Context) {
                                     else -> notif.targetUserId == null || notif.targetUserId == currentUser?.id || (notif.targetUserId == "ADMIN" && currentUser?.isAdmin == true)
                                 }
                                 if (isRelevant && notif.type != "CHAT") {
-                                    val notifChannel = if (notif.type == "BLOOD_ALERT") {
-                                        com.example.util.SystemNotificationHelper.CHANNEL_EMERGENCY_BLOOD
-                                    } else {
-                                        com.example.util.SystemNotificationHelper.CHANNEL_GENERAL
+                                    if (processedNotificationIds.add(notif.id)) {
+                                        val notifId = Math.abs(notif.id.hashCode())
+                                        val notifChannel = if (notif.type == "BLOOD_ALERT") {
+                                            com.example.util.SystemNotificationHelper.CHANNEL_EMERGENCY_BLOOD
+                                        } else {
+                                            com.example.util.SystemNotificationHelper.CHANNEL_GENERAL
+                                        }
+                                        com.example.util.SystemNotificationHelper.showSystemNotification(
+                                            context = appContext,
+                                            title = notif.title,
+                                            message = notif.message,
+                                            notificationId = notifId,
+                                            channelId = notifChannel,
+                                            targetRoute = notif.targetRoute ?: "ANNOUNCEMENTS",
+                                            targetId = notif.targetId
+                                        )
                                     }
-                                    com.example.util.SystemNotificationHelper.showSystemNotification(
-                                        context = appContext,
-                                        title = notif.title,
-                                        message = notif.message,
-                                        channelId = notifChannel,
-                                        targetRoute = notif.targetRoute ?: "ANNOUNCEMENTS",
-                                        targetId = notif.targetId
-                                    )
                                 }
                             }
                         } else if (change.type == DocumentChange.Type.REMOVED) {
@@ -1381,7 +1393,7 @@ class MandalRepository(context: Context) {
 
     fun getConversationSummaries(currentUserId: String): Flow<List<ChatConversationSummary>> {
         return combine(
-            chatDao.getAllMessagesForUser(currentUserId),
+            chatDao.getSummaryMessagesForUser(currentUserId),
             allMembers
         ) { messages, members ->
             val memberMap = members.associateBy { it.id }
@@ -1555,8 +1567,14 @@ class MandalRepository(context: Context) {
         }
     }
 
-    // EVENTS
-    val events: Flow<List<MandalEvent>> = eventDao.getAllEvents().map { list -> list.map { it.toDomain() } }
+    // EVENTS (Sorted chronologically by date: earliest date first)
+    val events: Flow<List<MandalEvent>> = eventDao.getAllEvents().map { list ->
+        list.map { it.toDomain() }.sortedWith(
+            compareBy<MandalEvent> { event ->
+                com.example.util.DateUtils.parseEventDateToTimestamp(event.date)
+            }.thenBy { it.date }
+        )
+    }
 
     suspend fun createEvent(
         title: String,
@@ -2432,6 +2450,31 @@ class MandalRepository(context: Context) {
         } catch (e: Exception) {
             Log.e("FirebaseSync", "resolveEmergencyBloodAlert error: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    suspend fun saveFcmToken(token: String) = withContext(Dispatchers.IO) {
+        try {
+            val user = _currentUser.value
+            val data = hashMapOf<String, Any>(
+                "token" to token,
+                "platform" to "android",
+                "updatedAt" to System.currentTimeMillis()
+            )
+            if (user != null) {
+                data["userId"] = user.id
+                data["userName"] = user.fullName
+                data["isAdmin"] = user.isAdmin
+                data["role"] = user.role
+            }
+            firestore.collection("fcm_tokens").document(token)
+                .set(data, com.google.firebase.firestore.SetOptions.merge())
+            if (user != null) {
+                firestore.collection("users").document(user.id)
+                    .update("fcmToken", token)
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error saving FCM token: ${e.message}")
         }
     }
 }

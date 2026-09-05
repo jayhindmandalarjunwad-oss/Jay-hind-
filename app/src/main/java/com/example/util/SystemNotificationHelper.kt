@@ -18,6 +18,9 @@ object SystemNotificationHelper {
     const val CHANNEL_GROUP_CHAT = "channel_mandal_group_chat"
     const val CHANNEL_EMERGENCY_BLOOD = "channel_emergency_blood"
 
+    private val recentNotificationTimestamps = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private const val DEDUPLICATION_WINDOW_MS = 15_000L // 15 seconds deduplication window
+
     fun initNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
@@ -67,12 +70,29 @@ object SystemNotificationHelper {
         context: Context,
         title: String,
         message: String,
-        notificationId: Int = (System.currentTimeMillis() % 100000).toInt(),
+        notificationId: Int? = null,
         channelId: String = CHANNEL_GENERAL,
         targetRoute: String = "NOTIFICATIONS",
         targetId: String? = null
     ) {
+        val deduplicationKey = "$channelId|$title|$message"
+        val now = System.currentTimeMillis()
+        val lastShown = recentNotificationTimestamps[deduplicationKey]
+        if (lastShown != null && (now - lastShown) < DEDUPLICATION_WINDOW_MS) {
+            android.util.Log.d("SystemNotification", "Deduplicated duplicate notification skipped: $title")
+            return
+        }
+        recentNotificationTimestamps[deduplicationKey] = now
+
+        // Housekeeping: clean entries older than 2 minutes
+        if (recentNotificationTimestamps.size > 100) {
+            recentNotificationTimestamps.entries.removeIf { (now - it.value) > 120_000L }
+        }
+
         initNotificationChannels(context)
+
+        // Generate stable deterministic ID if not explicitly provided
+        val effectiveNotificationId = notificationId ?: Math.abs(deduplicationKey.hashCode())
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -84,7 +104,7 @@ object SystemNotificationHelper {
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            notificationId,
+            effectiveNotificationId,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -104,7 +124,7 @@ object SystemNotificationHelper {
 
         try {
             val notificationManager = NotificationManagerCompat.from(context)
-            notificationManager.notify(notificationId, builder.build())
+            notificationManager.notify(effectiveNotificationId, builder.build())
         } catch (e: SecurityException) {
             // Handled when permission not yet granted on Android 13+
         } catch (e: Exception) {

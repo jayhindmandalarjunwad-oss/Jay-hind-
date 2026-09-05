@@ -44,6 +44,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)
+
+        // Initialize Firebase Cloud Messaging for notifications even when closed
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("all_members")
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful && !task.result.isNullOrBlank()) {
+                    val token = task.result
+                    viewModel.updateFcmToken(token)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "FCM init error: ${e.message}")
+        }
+
         setContent {
             MyApplicationTheme {
                 MandalApp(viewModel = viewModel)

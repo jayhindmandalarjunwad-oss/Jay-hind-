@@ -84,7 +84,7 @@ fun ChatListScreen(viewModel: MandalViewModel) {
 
     // Filter active chat summaries by Name, Mobile Number, or Message text
     val filteredSummaries = remember(summaries, searchQuery) {
-        if (searchQuery.isBlank()) {
+        val list = if (searchQuery.isBlank()) {
             summaries
         } else {
             val q = searchQuery.trim()
@@ -94,11 +94,12 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                         it.lastMessage.contains(q, ignoreCase = true)
             }
         }
+        list.distinctBy { it.otherUser.id }
     }
 
     // Filter ALL mandal members by Name or Mobile Number
     val filteredAllMembers = remember(otherMembers, searchQuery) {
-        if (searchQuery.isBlank()) {
+        val list = if (searchQuery.isBlank()) {
             otherMembers
         } else {
             val q = searchQuery.trim()
@@ -108,12 +109,13 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                         it.bloodGroup.contains(q, ignoreCase = true)
             }
         }
+        list.distinctBy { it.id }
     }
 
     // Members who don't have an active conversation yet matching search
     val matchingMembersWithoutSummary = remember(filteredAllMembers, summaries) {
         val existingChatUserIds = summaries.map { it.otherUser.id }.toSet()
-        filteredAllMembers.filter { it.id !in existingChatUserIds }
+        filteredAllMembers.filter { it.id !in existingChatUserIds }.distinctBy { it.id }
     }
 
     Box(
@@ -1092,7 +1094,9 @@ fun ChatDetailScreen(
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 8.dp,
-                modifier = Modifier.navigationBarsPadding()
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .imePadding()
             ) {
                 if (AudioRecorderHelper.isRecording) {
                     // LIVE VOICE RECORDING BAR
@@ -1301,6 +1305,7 @@ fun ChatDetailScreen(
                     }
                 }
             } else {
+                val distinctMessages = remember(messages) { messages.distinctBy { it.id } }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -1308,7 +1313,7 @@ fun ChatDetailScreen(
                         .padding(horizontal = 6.dp),
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    items(messages, key = { it.id }) { msg ->
+                    items(distinctMessages, key = { it.id }) { msg ->
                         val isMe = msg.senderId == currentUser?.id
                         ChatBubble(
                             message = msg,

@@ -82,6 +82,19 @@ interface CommentDao {
     suspend fun insertComments(comments: List<CommentEntity>)
 }
 
+data class ChatMessageSummaryRecord(
+    val id: String,
+    val conversationId: String,
+    val senderId: String,
+    val senderName: String,
+    val receiverId: String,
+    val messageText: String,
+    val timestamp: Long,
+    val isRead: Boolean,
+    val attachmentType: String?,
+    val attachmentName: String?
+)
+
 @Dao
 interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE conversationId = :convId OR (senderId = :userA AND receiverId = :userB) OR (senderId = :userB AND receiverId = :userA) ORDER BY timestamp ASC")
@@ -92,6 +105,9 @@ interface ChatDao {
 
     @Query("SELECT * FROM chat_messages WHERE senderId = :userId OR receiverId = :userId OR conversationId = 'conv_mandal_group' OR receiverId = 'GROUP_MANDAL' ORDER BY timestamp DESC")
     fun getAllMessagesForUser(userId: String): Flow<List<ChatMessageEntity>>
+
+    @Query("SELECT id, conversationId, senderId, senderName, receiverId, messageText, timestamp, isRead, attachmentType, attachmentName FROM chat_messages WHERE senderId = :userId OR receiverId = :userId ORDER BY timestamp DESC")
+    fun getSummaryMessagesForUser(userId: String): Flow<List<ChatMessageSummaryRecord>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessageEntity)
