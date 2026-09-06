@@ -9,8 +9,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.util.Log
-import com.example.data.model.User
-import com.google.firebase.FirebaseApp
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +16,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -28,11 +27,6 @@ import java.util.UUID
  * WhatsApp-style Media Compression and Cloud Storage Engine.
  * Automatically compresses images to WebP (120-180 KB), audio to M4A/AAC,
  * generates video thumbnails, and securely streams media to Firebase Storage.
- *
- * Folder structure:
- * posts/images/{phone}_{name}/IMG_{timestamp}_{index}.webp
- * chat_media/images/{phone}_{name}/IMG_{timestamp}.webp
- * chat_media/videos/{phone}_{name}/VID_{timestamp}.mp4
  */
 object FirebaseStorageHelper {
 
@@ -41,38 +35,18 @@ object FirebaseStorageHelper {
 
     val storage: FirebaseStorage by lazy {
         try {
-            val app = FirebaseApp.getInstance()
-            FirebaseStorage.getInstance(app, STORAGE_BUCKET_URL)
+            val fbStorage = FirebaseStorage.getInstance(STORAGE_BUCKET_URL)
+            // Allow up to 5 minutes for 50MB - 100MB video uploads and downloads
+            fbStorage.maxUploadRetryTimeMillis = 300_000L // 5 minutes
+            fbStorage.maxOperationRetryTimeMillis = 300_000L // 5 minutes
+            fbStorage
         } catch (e: Exception) {
-            Log.w(TAG, "FirebaseStorage initialization fallback: ${e.message}")
-            try {
-                FirebaseStorage.getInstance(STORAGE_BUCKET_URL)
-            } catch (_: Exception) {
-                FirebaseStorage.getInstance()
-            }
+            Log.w(TAG, "Default bucket fallback: ${e.message}")
+            val fbStorage = FirebaseStorage.getInstance()
+            fbStorage.maxUploadRetryTimeMillis = 300_000L
+            fbStorage.maxOperationRetryTimeMillis = 300_000L
+            fbStorage
         }
-    }
-
-    /**
-     * Sanitizes user identifier for Cloud & Google Drive compatibility.
-     * E.g. "9822112233_Vaibhav_Chougule"
-     */
-    fun getUserSubfolder(user: User?): String {
-        val rawPhone = user?.mobileNumber.orEmpty()
-        val digits = rawPhone.filter { it.isDigit() }
-        val phone = if (digits.length >= 10) digits.takeLast(10) else digits.ifBlank { "member" }
-        val rawName = user?.fullName.orEmpty().trim().ifBlank { "user" }
-        val cleanName = rawName.replace(Regex("[^a-zA-Z0-9_\\u0900-\\u097F]"), "_").take(25)
-        return "${phone}_$cleanName"
-    }
-
-    /**
-     * Generates a precise chronological timestamp for filenames:
-     * e.g., "2026-09-05_04-26-15_PM"
-     */
-    fun getFormattedTimestamp(): String {
-        val sdf = SimpleDateFormat("yyyy-MM-dd_hh-mm-ss_a", Locale.US)
-        return sdf.format(Date())
     }
 
     /**
@@ -157,15 +131,12 @@ object FirebaseStorageHelper {
 
     /**
      * Uploads an image to Firebase Storage in WebP format.
-     * Stores in: {folder}/{userSubfolder}/IMG_{timestamp}_{index}.webp
-     * Returns public download URL. Falls back safely if offline.
+     * Returns public download URL. Falls back to base64 if offline/error.
      */
     suspend fun uploadImage(
         context: Context,
         uri: Uri,
         folder: String = "chat_media/images",
-        user: User? = null,
-        fileIndex: Int = 1,
         onProgress: ((Int) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
         try {
@@ -174,16 +145,12 @@ object FirebaseStorageHelper {
                 return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
             }
 
-            val userFolder = getUserSubfolder(user)
-            val timestamp = getFormattedTimestamp()
-            val fileName = "IMG_${timestamp}_${String.format(Locale.US, "%02d", fileIndex)}.webp"
-            val fullPath = "$folder/$userFolder/$fileName"
-            val ref = storage.reference.child(fullPath)
+            val fileName = "img_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.webp"
+            val ref = storage.reference.child("$folder/$fileName")
 
             val metadata = StorageMetadata.Builder()
                 .setContentType("image/webp")
-                .setCustomMetadata("uploadedBy", user?.mobileNumber ?: "member")
-                .setCustomMetadata("timestamp", timestamp)
+                .setCustomMetadata("uploadedBy", "JayHindMandalApp")
                 .build()
 
             val uploadTask = ref.putBytes(webpBytes, metadata)
@@ -194,21 +161,12 @@ object FirebaseStorageHelper {
                 }
             }
 
-            // Await completion with task snapshot
-            val snapshot = uploadTask.await()
-            val downloadUrl = snapshot.storage.downloadUrl.await().toString()
-            Log.d(TAG, "Image uploaded successfully to $fullPath: $downloadUrl (Size: ${webpBytes.size / 1024} KB)")
+            uploadTask.await()
+            val downloadUrl = ref.downloadUrl.await().toString()
+            Log.d(TAG, "Image uploaded successfully: $downloadUrl (Size: ${webpBytes.size / 1024} KB)")
             return@withContext downloadUrl
         } catch (e: Exception) {
-            Log.e(TAG, "Firebase Storage upload failed: ${e.message}", e)
-            // If cloud storage fails or offline, provide a high-compression micro-webp string so the post or chat NEVER fails
-            try {
-                val microBytes = compressImageToWebp(context, uri, maxDimension = 640, initialQuality = 55)
-                if (microBytes.isNotEmpty()) {
-                    val base64 = android.util.Base64.encodeToString(microBytes, android.util.Base64.NO_WRAP)
-                    return@withContext "data:image/webp;base64,$base64"
-                }
-            } catch (_: Exception) {}
+            Log.w(TAG, "Firebase Storage upload failed, falling back to base64: ${e.message}")
             return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
         }
     }
@@ -220,7 +178,6 @@ object FirebaseStorageHelper {
     suspend fun uploadAudio(
         context: Context,
         audioFile: File,
-        user: User? = null,
         onProgress: ((Int) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
         try {
@@ -228,15 +185,11 @@ object FirebaseStorageHelper {
                 return@withContext ""
             }
 
-            val userFolder = getUserSubfolder(user)
-            val timestamp = getFormattedTimestamp()
-            val fileName = "AUD_${timestamp}.m4a"
-            val fullPath = "chat_media/audio/$userFolder/$fileName"
-            val ref = storage.reference.child(fullPath)
+            val fileName = "voice_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.m4a"
+            val ref = storage.reference.child("chat_media/audio/$fileName")
 
             val metadata = StorageMetadata.Builder()
                 .setContentType("audio/m4a")
-                .setCustomMetadata("uploadedBy", user?.mobileNumber ?: "member")
                 .build()
 
             val uploadTask = ref.putFile(Uri.fromFile(audioFile), metadata)
@@ -247,8 +200,8 @@ object FirebaseStorageHelper {
                 }
             }
 
-            val snapshot = uploadTask.await()
-            val downloadUrl = snapshot.storage.downloadUrl.await().toString()
+            uploadTask.await()
+            val downloadUrl = ref.downloadUrl.await().toString()
             Log.d(TAG, "Audio uploaded successfully: $downloadUrl")
             return@withContext downloadUrl
         } catch (e: Exception) {
@@ -258,39 +211,53 @@ object FirebaseStorageHelper {
     }
 
     /**
-     * Uploads a video file (auto-compresses large videos WhatsApp-style to ~5-8MB),
-     * extracts first frame thumbnail as WebP/JPEG, and uploads both to Firebase Storage.
-     * Stores in: chat_media/videos/{phone}_{name}/VID_{timestamp}.mp4
+     * Uploads a video file (supports up to 100MB for WhatsApp-style sharing),
+     * stages into internal local cache to prevent Android content provider stream breakdown,
+     * extracts first frame thumbnail, and uploads both to Firebase Storage with resumable retry session.
      * Returns Triple(videoDownloadUrl, thumbnailDownloadUrl, durationFormatted)
      */
     suspend fun uploadVideo(
         context: Context,
         uri: Uri,
-        user: User? = null,
+        senderName: String = "Member",
+        chatTarget: String = "Chat",
         onProgress: ((Int) -> Unit)? = null
     ): Triple<String, String, String> = withContext(Dispatchers.IO) {
+        var stagedFile: File? = null
         try {
-            val originalSize = getFileSize(context, uri)
-            // Allow videos up to 100MB because VideoCompressor will shrink them down
-            if (originalSize > 100 * 1024 * 1024) {
-                throw IllegalStateException("व्हिडिओचा मूळ आकार खूप मोठा आहे (कमाल 100MB पर्यंत अनुमती आहे).")
+            // Check file size (max 100MB)
+            val fileSize = getFileSize(context, uri)
+            if (fileSize > 100 * 1024 * 1024) {
+                throw IllegalStateException("व्हिडिओचा आकार १०० MB पेक्षा कमी असावा (Max 100MB allowed).")
             }
 
-            // WhatsApp-style automatic compression step
-            Log.d(TAG, "Starting video auto-compression for size: ${originalSize / 1024 / 1024} MB")
-            val compressedVideoFile = VideoCompressor.compressVideo(context, uri) { compressionProgress ->
-                // Map compression to 0-40% of overall progress
-                val mappedProgress = (compressionProgress * 0.4f).toInt()
-                onProgress?.invoke(mappedProgress)
-            }
-            val uploadUri = Uri.fromFile(compressedVideoFile)
+            // Step 1: Stage to safe internal cache file
+            val stageDir = File(context.cacheDir, "chat_staging_videos").apply { if (!exists()) mkdirs() }
+            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val cleanSender = senderName.replace(Regex("[^a-zA-Z0-9_]"), "").ifBlank { "Member" }
+            val cleanTarget = chatTarget.replace(Regex("[^a-zA-Z0-9_]"), "").ifBlank { "Chat" }
+            val formattedVideoName = "JayHind_ChatVideo_${cleanSender}_${cleanTarget}_$timeStamp.mp4"
+            
+            stagedFile = File(stageDir, formattedVideoName)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(stagedFile).use { output ->
+                    val buffer = ByteArray(64 * 1024) // 64KB buffer chunks
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                    }
+                    output.flush()
+                }
+            } ?: throw IllegalStateException("व्हिडिओ फाईल वाचता आली नाही")
 
-            // Extract thumbnail & duration
+            val safeFileUri = Uri.fromFile(stagedFile)
+
+            // Step 2: Extract thumbnail & duration from staged file
             var durationMillis = 0L
             var thumbBytes: ByteArray? = null
             try {
                 val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(context, uploadUri)
+                retriever.setDataSource(stagedFile.absolutePath)
                 val timeStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 durationMillis = timeStr?.toLongOrNull() ?: 0L
                 val frameBitmap = retriever.getFrameAtTime(1000000) // 1 second
@@ -308,58 +275,44 @@ object FirebaseStorageHelper {
             val durationSeconds = (durationMillis / 1000).toInt()
             val durationLabel = String.format(Locale.getDefault(), "%02d:%02d", durationSeconds / 60, durationSeconds % 60)
 
-            val userFolder = getUserSubfolder(user)
-            val timestamp = getFormattedTimestamp()
-
-            // Upload thumbnail safely (if thumb fails, do not block main video)
+            // Step 3: Upload thumbnail
             var thumbUrl = ""
             if (thumbBytes != null && thumbBytes.isNotEmpty()) {
-                try {
-                    val thumbFileName = "THUMB_${timestamp}.jpg"
-                    val thumbRef = storage.reference.child("chat_media/videos/$userFolder/thumbs/$thumbFileName")
-                    val thumbMeta = StorageMetadata.Builder().setContentType("image/jpeg").build()
-                    val thumbSnapshot = thumbRef.putBytes(thumbBytes, thumbMeta).await()
-                    thumbUrl = thumbSnapshot.storage.downloadUrl.await().toString()
-                } catch (te: Exception) {
-                    Log.w(TAG, "Thumbnail upload skipped: ${te.message}")
-                }
+                val thumbFileName = "JayHind_Thumb_${cleanSender}_$timeStamp.jpg"
+                val thumbRef = storage.reference.child("chat_media/videos/thumbs/$thumbFileName")
+                val thumbMeta = StorageMetadata.Builder().setContentType("image/jpeg").build()
+                thumbRef.putBytes(thumbBytes, thumbMeta).await()
+                thumbUrl = thumbRef.downloadUrl.await().toString()
             }
 
-            // Upload compressed video file
-            val videoFileName = "VID_${timestamp}.mp4"
-            val videoFullPath = "chat_media/videos/$userFolder/$videoFileName"
-            val videoRef = storage.reference.child(videoFullPath)
+            // Step 4: Upload video file with Resumable Session and 5-min retry policy
+            val videoRef = storage.reference.child("chat_media/videos/$formattedVideoName")
             val videoMeta = StorageMetadata.Builder()
                 .setContentType("video/mp4")
-                .setCustomMetadata("uploadedBy", user?.mobileNumber ?: "member")
-                .setCustomMetadata("duration", durationLabel)
+                .setCustomMetadata("originalName", formattedVideoName)
+                .setCustomMetadata("senderName", cleanSender)
+                .setCustomMetadata("chatTarget", cleanTarget)
                 .build()
 
-            val uploadTask = videoRef.putFile(uploadUri, videoMeta)
+            val uploadTask = videoRef.putFile(safeFileUri, videoMeta)
             uploadTask.addOnProgressListener { taskSnapshot ->
                 if (taskSnapshot.totalByteCount > 0) {
-                    // Map upload to 40-100% of overall progress
-                    val uploadPercent = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toInt()
-                    val overallProgress = 40 + (uploadPercent * 0.6f).toInt()
-                    onProgress?.invoke(overallProgress)
+                    val progress = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toInt()
+                    onProgress?.invoke(progress)
                 }
             }
 
-            val videoSnapshot = uploadTask.await()
-            val videoUrl = videoSnapshot.storage.downloadUrl.await().toString()
-            Log.d(TAG, "Video uploaded successfully to $videoFullPath: $videoUrl")
-
-            // Clean up temporary compressed file in cache
-            try {
-                if (compressedVideoFile.exists() && compressedVideoFile.absolutePath.contains("cache")) {
-                    compressedVideoFile.delete()
-                }
-            } catch (_: Exception) {}
-
+            uploadTask.await()
+            val videoUrl = videoRef.downloadUrl.await().toString()
+            Log.d(TAG, "Video uploaded successfully: $videoUrl with name: $formattedVideoName")
             return@withContext Triple(videoUrl, thumbUrl, durationLabel)
         } catch (e: Exception) {
             Log.e(TAG, "Video upload failed: ${e.message}", e)
             throw e
+        } finally {
+            try {
+                stagedFile?.delete()
+            } catch (_: Exception) {}
         }
     }
 

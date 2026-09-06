@@ -337,7 +337,12 @@ fun VideoPlayerDialog(
                                 if (!isSaving) {
                                     isSaving = true
                                     scope.launch {
-                                        MediaUtils.saveVideoToGallery(context, videoUrl)
+                                        val prefix = "JayHind_Video_${senderName.replace(Regex("[^a-zA-Z0-9_]"), "")}"
+                                        MediaUtils.saveVideoToGallery(
+                                            context = context,
+                                            videoUrlOrBase64 = videoUrl,
+                                            fileNamePrefix = prefix
+                                        )
                                         isSaving = false
                                     }
                                 }

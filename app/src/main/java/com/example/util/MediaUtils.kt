@@ -19,10 +19,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -1284,6 +1286,7 @@ startxref
 
     /**
      * Saves a video to the device MediaStore / Movies folder for the user.
+     * Streams data directly in 64KB chunks to safely support 50MB - 100MB videos without OutOfMemory.
      */
     suspend fun saveVideoToGallery(
         context: Context,
@@ -1291,47 +1294,57 @@ startxref
         fileNamePrefix: String = "JayHind_Video"
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            val fileName = "${fileNamePrefix.replace(Regex("[^a-zA-Z0-9_]"), "_")}_${System.currentTimeMillis()}.mp4"
-            val videoBytes: ByteArray? = when {
-                videoUrlOrBase64.startsWith("data:") -> {
-                    val base64Data = videoUrlOrBase64.substringAfter("base64,")
-                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+            val cleanPrefix = fileNamePrefix.replace(Regex("[^a-zA-Z0-9_]"), "_").ifBlank { "JayHind_Video" }
+            val fileName = if (cleanPrefix.endsWith(".mp4", ignoreCase = true)) cleanPrefix else "${cleanPrefix}_${System.currentTimeMillis()}.mp4"
+
+            var isSaved = false
+
+            // Function to write input stream directly to output stream in 64KB chunks
+            fun streamCopy(input: InputStream, output: OutputStream) {
+                val buffer = ByteArray(64 * 1024)
+                var bytesRead: Int
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    output.write(buffer, 0, bytesRead)
                 }
-                videoUrlOrBase64.startsWith("http://") || videoUrlOrBase64.startsWith("https://") -> {
-                    val url = URL(videoUrlOrBase64)
-                    val connection = url.openConnection() as HttpURLConnection
-                    connection.connect()
-                    connection.inputStream.use { it.readBytes() }
-                }
-                videoUrlOrBase64.startsWith("file://") -> {
-                    val path = Uri.parse(videoUrlOrBase64).path
-                    if (path != null && File(path).exists()) {
-                        File(path).readBytes()
-                    } else null
-                }
-                videoUrlOrBase64.startsWith("/") && File(videoUrlOrBase64).exists() -> {
-                    File(videoUrlOrBase64).readBytes()
-                }
-                videoUrlOrBase64.startsWith("content://") -> {
-                    context.contentResolver.openInputStream(Uri.parse(videoUrlOrBase64))?.use { it.readBytes() }
-                }
-                else -> {
-                    try {
-                        Base64.decode(videoUrlOrBase64.trim(), Base64.DEFAULT)
-                    } catch (_: Exception) {
-                        null
+                output.flush()
+            }
+
+            fun openSourceInputStream(): InputStream? {
+                val trimmed = videoUrlOrBase64.trim()
+                return when {
+                    trimmed.startsWith("data:") -> {
+                        val base64Data = trimmed.substringAfter("base64,")
+                        val decoded = Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                        ByteArrayInputStream(decoded)
+                    }
+                    trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
+                        val url = URL(trimmed)
+                        val connection = url.openConnection() as HttpURLConnection
+                        connection.connectTimeout = 60_000
+                        connection.readTimeout = 120_000
+                        connection.connect()
+                        connection.inputStream
+                    }
+                    trimmed.startsWith("file://") -> {
+                        val path = Uri.parse(trimmed).path
+                        if (path != null && File(path).exists()) File(path).inputStream() else null
+                    }
+                    trimmed.startsWith("/") && File(trimmed).exists() -> {
+                        File(trimmed).inputStream()
+                    }
+                    trimmed.startsWith("content://") -> {
+                        context.contentResolver.openInputStream(Uri.parse(trimmed))
+                    }
+                    else -> {
+                        try {
+                            val decoded = Base64.decode(trimmed, Base64.DEFAULT)
+                            ByteArrayInputStream(decoded)
+                        } catch (_: Exception) {
+                            null
+                        }
                     }
                 }
             }
-
-            if (videoBytes == null || videoBytes.isEmpty()) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "व्हिडिओ डाऊनलोड करता आला नाही", Toast.LENGTH_SHORT).show()
-                }
-                return@withContext false
-            }
-
-            var isSaved = false
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val contentValues = ContentValues().apply {
@@ -1344,22 +1357,32 @@ startxref
                 val resolver = context.contentResolver
                 val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, contentValues)
                 if (uri != null) {
-                    resolver.openOutputStream(uri)?.use { stream ->
-                        stream.write(videoBytes)
+                    val inStream = openSourceInputStream()
+                    if (inStream != null) {
+                        resolver.openOutputStream(uri)?.use { outStream ->
+                            inStream.use { inp ->
+                                streamCopy(inp, outStream)
+                            }
+                        }
+                        contentValues.clear()
+                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                        resolver.update(uri, contentValues, null, null)
+                        isSaved = true
                     }
-                    contentValues.clear()
-                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                    resolver.update(uri, contentValues, null, null)
-                    isSaved = true
                 }
             } else {
                 val moviesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
                 val mandalDir = File(moviesDir, "JayHindMandal").apply { if (!exists()) mkdirs() }
                 val videoFile = File(mandalDir, fileName)
-                FileOutputStream(videoFile).use { out ->
-                    out.write(videoBytes)
+                val inStream = openSourceInputStream()
+                if (inStream != null) {
+                    FileOutputStream(videoFile).use { outStream ->
+                        inStream.use { inp ->
+                            streamCopy(inp, outStream)
+                        }
+                    }
+                    isSaved = true
                 }
-                isSaved = true
             }
 
             withContext(Dispatchers.Main) {

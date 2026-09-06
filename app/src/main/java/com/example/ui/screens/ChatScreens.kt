@@ -928,12 +928,7 @@ fun ChatDetailScreen(
                     isUploadingMedia = true
                     uploadStatusText = "फोटो कॉम्प्रेस व पाठवत आहे..."
                     uploadProgress = 0
-                    val downloadUrl = FirebaseStorageHelper.uploadImage(
-                        context = context,
-                        uri = uri,
-                        folder = "chat_media/images",
-                        user = currentUser
-                    ) { prog ->
+                    val downloadUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images") { prog ->
                         uploadProgress = prog
                     }
                     viewModel.sendChatMessage(
@@ -957,28 +952,27 @@ fun ChatDetailScreen(
             scope.launch {
                 try {
                     isUploadingMedia = true
-                    uploadStatusText = "व्हिडिओ ऑटो-कॉम्प्रेस व अपलोड होत आहे..."
+                    uploadStatusText = "मोठा व्हिडिओ सुरक्षित तयार व अपलोड होत आहे..."
                     uploadProgress = 0
+                    val myName = currentUser?.fullName?.ifBlank { "Member" } ?: "Member"
+                    val targetName = if (isGroupChat) "Group" else partner.fullName.ifBlank { "Direct" }
                     val (videoUrl, thumbUrl, durationLabel) = FirebaseStorageHelper.uploadVideo(
                         context = context,
                         uri = uri,
-                        user = currentUser
+                        senderName = myName,
+                        chatTarget = targetName
                     ) { prog ->
                         uploadProgress = prog
-                        if (prog < 40) {
-                            uploadStatusText = "व्हिडिओ कॉम्प्रेस होत आहे ($prog%)..."
-                        } else {
-                            uploadStatusText = "व्हिडिओ क्लाऊडवर अपलोड होत आहे ($prog%)..."
-                        }
                     }
+                    val formattedVideoTitle = "व्हिडिओ ($durationLabel)"
                     viewModel.sendChatMessage(
                         text = "",
                         attachmentType = "VIDEO",
                         attachmentUrl = videoUrl,
-                        attachmentName = "व्हिडिओ ($durationLabel)",
+                        attachmentName = formattedVideoTitle,
                         attachmentExtra = thumbUrl
                     )
-                    Toast.makeText(context, "✅ व्हिडिओ पाठवला!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "✅ व्हिडिओ यशस्वीरीत्या पाठवला!", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     Toast.makeText(context, e.message ?: "व्हिडिओ पाठवता आला नाही", Toast.LENGTH_LONG).show()
                 } finally {
@@ -1627,12 +1621,7 @@ fun ChatDetailScreen(
                                 if (uri != null && !isSendingCameraPhoto) {
                                     scope.launch {
                                         isSendingCameraPhoto = true
-                                        val photoUrl = FirebaseStorageHelper.uploadImage(
-                                            context = context,
-                                            uri = uri,
-                                            folder = "chat_media/images",
-                                            user = currentUser
-                                        )
+                                        val photoUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images")
                                         viewModel.sendChatMessage(
                                             text = cameraPhotoCaption.trim(),
                                             attachmentType = "IMAGE",

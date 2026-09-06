@@ -429,10 +429,12 @@ fun ChatBubble(
                                     if (vidUrl.isNotBlank() && !isDownloadingVideo) {
                                         scope.launch {
                                             isDownloadingVideo = true
+                                            val cleanSender = message.senderName.replace(Regex("[^a-zA-Z0-9_]"), "").ifBlank { "Member" }
+                                            val videoPrefix = "JayHind_ChatVideo_${cleanSender}"
                                             MediaUtils.saveVideoToGallery(
                                                 context = context,
                                                 videoUrlOrBase64 = vidUrl,
-                                                fileNamePrefix = message.attachmentName ?: "JayHind_Video"
+                                                fileNamePrefix = videoPrefix
                                             )
                                             isDownloadingVideo = false
                                         }

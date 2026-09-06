@@ -2,8 +2,6 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,8 +47,6 @@ import com.example.ui.components.MandalTopHeader
 import com.example.ui.components.UniversalAsyncImage
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
-import com.example.util.FirebaseStorageHelper
-import kotlinx.coroutines.launch
 
 enum class GalleryTab(val title: String) {
     PHOTOS("फोटो व ॲल्बम्स"),
@@ -981,50 +977,14 @@ fun AddVideoDialog(
     onDismiss: () -> Unit,
     onAdd: (title: String, desc: String, category: String, videoUrl: String, thumbUrl: String) -> Unit
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     var title by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("गणेशोत्सव") }
-    var videoUrl by remember { mutableStateOf("") }
-    var thumbUrl by remember { mutableStateOf("") }
-    var isUploadingVideo by remember { mutableStateOf(false) }
-    var videoUploadProgress by remember { mutableIntStateOf(0) }
-    var videoUploadStatus by remember { mutableStateOf("") }
-
-    val videoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            coroutineScope.launch {
-                isUploadingVideo = true
-                videoUploadProgress = 0
-                videoUploadStatus = "व्हिडिओ ऑटो-कॉम्प्रेस व अपलोड होत आहे..."
-                try {
-                    val (uploadedVideoUrl, extractedThumbUrl, _) = FirebaseStorageHelper.uploadVideo(context, uri) { prog ->
-                        videoUploadProgress = prog
-                        if (prog < 40) {
-                            videoUploadStatus = "व्हिडिओ कॉम्प्रेस होत आहे ($prog%)..."
-                        } else {
-                            videoUploadStatus = "क्लाऊडवर अपलोड होत आहे ($prog%)..."
-                        }
-                    }
-                    videoUrl = uploadedVideoUrl
-                    if (thumbUrl.isBlank() && extractedThumbUrl.isNotBlank()) {
-                        thumbUrl = extractedThumbUrl
-                    }
-                } catch (e: Exception) {
-                    android.widget.Toast.makeText(context, e.message ?: "व्हिडिओ अपलोड अयशस्वी", android.widget.Toast.LENGTH_LONG).show()
-                } finally {
-                    isUploadingVideo = false
-                    videoUploadStatus = ""
-                }
-            }
-        }
-    }
+    var videoUrl by remember { mutableStateOf("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4") }
+    var thumbUrl by remember { mutableStateOf("https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80") }
 
     AlertDialog(
-        onDismissRequest = { if (!isUploadingVideo) onDismiss() },
+        onDismissRequest = onDismiss,
         title = { Text("नवीन व्हिडिओ जोडा", fontWeight = FontWeight.Bold, color = TextPrimary) },
         text = {
             Column(
@@ -1043,66 +1003,11 @@ fun AddVideoDialog(
                     label = { Text("माहिती / वर्णन") },
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                // Device Video Picker Button
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = BloodRed.copy(alpha = 0.08f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed.copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (isUploadingVideo) {
-                            CircularProgressIndicator(
-                                progress = { (videoUploadProgress / 100f).coerceIn(0f, 1f) },
-                                color = BloodRed,
-                                modifier = Modifier.size(32.dp),
-                                strokeWidth = 3.dp
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = videoUploadStatus,
-                                fontSize = 12.sp,
-                                color = BloodRed,
-                                fontWeight = FontWeight.Bold
-                            )
-                        } else {
-                            Button(
-                                onClick = { videoPickerLauncher.launch("video/*") },
-                                colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = if (videoUrl.isNotBlank()) "✅ व्हिडिओ निवडला आहे (बदला)" else "🎥 मोबाईल गॅलरीतून व्हिडिओ निवडा",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                            if (videoUrl.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "व्हिडिओ क्लाऊडवर सुरक्षित सेव्ह झाला आहे.",
-                                    fontSize = 11.sp,
-                                    color = SuccessGreen,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-
                 OutlinedTextField(
                     value = videoUrl,
                     onValueChange = { videoUrl = it },
-                    label = { Text("व्हिडिओ URL (किंवा वरील बटणाने निवडा) *") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    label = { Text("व्हिडिओ लिंक / URL *") },
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Text("व्हिडिओ थंबनेल फोटो (गॅलरीतून निवडा):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
@@ -1118,17 +1023,13 @@ fun AddVideoDialog(
         confirmButton = {
             Button(
                 onClick = { if (title.isNotBlank() && videoUrl.isNotBlank()) onAdd(title, desc, category, videoUrl, thumbUrl) },
-                enabled = !isUploadingVideo && title.isNotBlank() && videoUrl.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
             ) {
                 Text("व्हिडिओ जोडा", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isUploadingVideo
-            ) { Text("रद्द करा") }
+            TextButton(onClick = onDismiss) { Text("रद्द करा") }
         }
     )
 }
