@@ -36,6 +36,7 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
                     .setApiKey("AIzaSyCYuMSSTmTmN9J-9EV0yoUHFBGPWiM7_PU")
                     .setProjectId("jayhindmandal112")
                     .setStorageBucket("jayhindmandal112.firebasestorage.app")
+                    .setGcmSenderId("839410753027")
                     .build()
                 FirebaseApp.initializeApp(this, options)
                 Log.d("MandalApp", "Firebase explicitly initialized with project jayhindmandal112")

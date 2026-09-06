@@ -50,12 +50,23 @@ class MainActivity : ComponentActivity() {
             com.example.util.MandalNotificationService.startService(this)
             com.example.util.MandalSyncJobService.scheduleJob(this)
 
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("all_members")
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                if (task.isSuccessful && !task.result.isNullOrBlank()) {
-                    val token = task.result
-                    viewModel.updateFcmToken(token)
+            val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
+            val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
+            if (resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("all_members")
+                    .addOnFailureListener { e ->
+                        android.util.Log.w("MainActivity", "FCM topic subscription note: ${e.message}")
+                    }
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful && !task.result.isNullOrBlank()) {
+                        val token = task.result
+                        viewModel.updateFcmToken(token)
+                    } else {
+                        android.util.Log.w("MainActivity", "FCM token retrieval note: ${task.exception?.message}")
+                    }
                 }
+            } else {
+                android.util.Log.i("MainActivity", "Google Play Services not ready or available ($resultCode). Falling back to native WebSocket/Firestore real-time listeners and MandalNotificationService.")
             }
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "FCM / Services init error: ${e.message}")
