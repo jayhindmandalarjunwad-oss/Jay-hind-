@@ -184,7 +184,7 @@ fun VideoPlayerDialog(
                     CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "व्हिडिओ तयार होत आहे...",
+                        text = "व्हिडिओ डाऊनलोड व लोड होत आहे...",
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium

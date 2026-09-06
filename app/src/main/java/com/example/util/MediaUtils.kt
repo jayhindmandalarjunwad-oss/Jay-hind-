@@ -1230,8 +1230,57 @@ startxref
                 }
             }
 
-            // 2. HTTP / HTTPS streaming URL
+            // 2. HTTP / HTTPS streaming URL -> Cache locally for 100% reliable VideoView playback!
             if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+                val cacheDir = File(context.cacheDir, "chat_videos").apply { if (!exists()) mkdirs() }
+                val cleanHash = (trimmed.hashCode().toLong() and 0xFFFFFFFFL).toString(16)
+                val cachedFile = File(cacheDir, "vid_$cleanHash.mp4")
+
+                if (cachedFile.exists() && cachedFile.length() > 500L) {
+                    return@withContext try {
+                        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", cachedFile)
+                    } catch (_: Exception) {
+                        Uri.fromFile(cachedFile)
+                    }
+                }
+
+                // Download to temporary cache file with buffered stream
+                try {
+                    val url = URL(trimmed)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.instanceFollowRedirects = true
+                    conn.connectTimeout = 30_000
+                    conn.readTimeout = 60_000
+                    conn.setRequestProperty("User-Agent", "JayHindMandalApp/1.0")
+                    conn.connect()
+
+                    if (conn.responseCode in 200..299) {
+                        val tempFile = File(cacheDir, "temp_dl_$cleanHash.mp4")
+                        conn.inputStream.use { inStream ->
+                            FileOutputStream(tempFile).use { outStream ->
+                                val buffer = ByteArray(64 * 1024)
+                                var bytesRead: Int
+                                while (inStream.read(buffer).also { bytesRead = it } != -1) {
+                                    outStream.write(buffer, 0, bytesRead)
+                                }
+                                outStream.flush()
+                            }
+                        }
+                        if (tempFile.exists() && tempFile.length() > 500L) {
+                            if (cachedFile.exists()) cachedFile.delete()
+                            tempFile.renameTo(cachedFile)
+                            return@withContext try {
+                                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", cachedFile)
+                            } catch (_: Exception) {
+                                Uri.fromFile(cachedFile)
+                            }
+                        }
+                    }
+                } catch (dlErr: Exception) {
+                    Log.w("MediaUtils", "Video download note (${dlErr.message}), falling back to direct URL")
+                }
+
+                // If download failed or slow, fallback to direct streaming URL
                 return@withContext Uri.parse(trimmed)
             }
 
@@ -1248,6 +1297,7 @@ startxref
                         }
                     }
                 }
+                throw IllegalStateException("हा व्हिडिओ पाठवणाऱ्याच्या फोनवर स्थानिक साठवला होता आणि क्लाउडवर उपलब्ध नाही.")
             }
 
             // 4. Local content:// URI

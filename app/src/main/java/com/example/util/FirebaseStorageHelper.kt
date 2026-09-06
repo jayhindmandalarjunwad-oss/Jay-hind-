@@ -302,45 +302,64 @@ object FirebaseStorageHelper {
                 thumbUrl = "data:image/jpeg;base64," + Base64.encodeToString(thumbBytes, Base64.NO_WRAP)
             }
 
-            // Step 4: Video Upload to Cloud Storage with graceful WhatsApp-style local fallback
-            var finalVideoUrl = localVideoPath
-            try {
-                val videoRef = storage.reference.child("chat_media/videos/$formattedVideoName")
-                val videoMeta = StorageMetadata.Builder()
-                    .setContentType("video/mp4")
-                    .setCustomMetadata("originalName", formattedVideoName)
-                    .setCustomMetadata("senderName", cleanSender)
-                    .setCustomMetadata("chatTarget", cleanTarget)
-                    .build()
+            // Step 4: Video Upload to Cloud Storage (ensures public cloud URL for all recipients)
+            var finalVideoUrl = ""
+            var uploadException: Exception? = null
 
-                val uploadTask = videoRef.putFile(safeFileUri, videoMeta)
-                uploadTask.addOnProgressListener { taskSnapshot ->
-                    if (taskSnapshot.totalByteCount > 0) {
-                        val progress = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toInt()
-                        onProgress?.invoke(progress)
+            val candidateStorages = listOf(
+                storage,
+                try { FirebaseStorage.getInstance("gs://jayhindmandal112.appspot.com") } catch (_: Exception) { null },
+                try { FirebaseStorage.getInstance() } catch (_: Exception) { null }
+            ).filterNotNull()
+
+            for (targetStorage in candidateStorages) {
+                try {
+                    val videoRef = targetStorage.reference.child("chat_media/videos/$formattedVideoName")
+                    val videoMeta = StorageMetadata.Builder()
+                        .setContentType("video/mp4")
+                        .setCustomMetadata("originalName", formattedVideoName)
+                        .setCustomMetadata("senderName", cleanSender)
+                        .setCustomMetadata("chatTarget", cleanTarget)
+                        .build()
+
+                    val uploadTask = videoRef.putFile(safeFileUri, videoMeta)
+                    uploadTask.addOnProgressListener { taskSnapshot ->
+                        if (taskSnapshot.totalByteCount > 0) {
+                            val progress = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount).toInt()
+                            onProgress?.invoke(progress)
+                        }
                     }
-                }
 
-                uploadTask.await()
-                val cloudUrl = videoRef.downloadUrl.await().toString()
-                if (cloudUrl.isNotBlank()) {
-                    finalVideoUrl = cloudUrl
-                    Log.d(TAG, "Video uploaded to Firebase Cloud Storage: $finalVideoUrl")
-                    // Free up device storage memory immediately since video is safely on Cloud
-                    try {
-                        persistentFile.delete()
-                    } catch (_: Exception) {}
+                    uploadTask.await()
+                    val cloudUrl = videoRef.downloadUrl.await().toString()
+                    if (cloudUrl.isNotBlank() && cloudUrl.startsWith("http")) {
+                        finalVideoUrl = cloudUrl
+                        Log.d(TAG, "Video uploaded to Firebase Cloud Storage: $finalVideoUrl")
+                        break
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Attempt with candidate storage failed: ${e.message}")
+                    uploadException = e
                 }
-            } catch (cloudErr: Exception) {
-                Log.w(TAG, "Firebase Cloud Storage offline/unprovisioned (${cloudErr.message}). Safely using local persistent vault.")
-                // Smoothly finish progress bar for the user
-                for (p in 20..100 step 20) {
-                    onProgress?.invoke(p)
-                    delay(30)
-                }
-                // Enforce strict local memory quota so phone storage never fills up
-                cleanupOldVideos(mediaDir)
             }
+
+            if (finalVideoUrl.isBlank() || !finalVideoUrl.startsWith("http")) {
+                val errMsg = uploadException?.localizedMessage ?: "क्लाउड स्टोरेज कनेक्शन अपयशी"
+                Log.e(TAG, "All cloud storage attempts failed: $errMsg", uploadException)
+                throw IllegalStateException("व्हिडिओ क्लाउडवर अपलोड होऊ शकला नाही ($errMsg). कृपया इंटरनेट तपासा.")
+            }
+
+            // Seed local cache for sender so sender plays instantly without re-downloading
+            try {
+                val cacheDir = File(context.cacheDir, "chat_videos").apply { if (!exists()) mkdirs() }
+                val cleanHash = (finalVideoUrl.hashCode().toLong() and 0xFFFFFFFFL).toString(16)
+                val cachedFile = File(cacheDir, "vid_$cleanHash.mp4")
+                persistentFile.copyTo(cachedFile, overwrite = true)
+                persistentFile.delete()
+            } catch (_: Exception) {}
+
+            // Enforce cleanup on vault
+            cleanupOldVideos(mediaDir)
 
             Log.d(TAG, "Video prepared successfully: $finalVideoUrl with name: $formattedVideoName")
             return@withContext Triple(finalVideoUrl, thumbUrl, durationLabel)
