@@ -952,7 +952,7 @@ fun ChatDetailScreen(
             scope.launch {
                 try {
                     isUploadingMedia = true
-                    uploadStatusText = "मोठा व्हिडिओ सुरक्षित तयार व अपलोड होत आहे..."
+                    uploadStatusText = "क्लाउड स्टोरेज बचत करून व्हिडिओ अपलोड होत आहे..."
                     uploadProgress = 0
                     val myName = currentUser?.fullName?.ifBlank { "Member" } ?: "Member"
                     val targetName = if (isGroupChat) "Group" else partner.fullName.ifBlank { "Direct" }

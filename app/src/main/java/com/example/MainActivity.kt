@@ -12,6 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,7 +47,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleIntent(intent)
 
-        // Initialize Firebase Cloud Messaging for notifications even when closed
+        // Initialize background notification services & Cloud Messaging
         try {
             com.example.util.MandalNotificationService.startService(this)
             com.example.util.MandalSyncJobService.scheduleJob(this)
@@ -53,23 +55,25 @@ class MainActivity : ComponentActivity() {
             val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
             val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
             if (resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
-                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("all_members")
-                    .addOnFailureListener { e ->
-                        android.util.Log.w("MainActivity", "FCM topic subscription note: ${e.message}")
-                    }
-                com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                    if (task.isSuccessful && !task.result.isNullOrBlank()) {
-                        val token = task.result
-                        viewModel.updateFcmToken(token)
-                    } else {
-                        android.util.Log.w("MainActivity", "FCM token retrieval note: ${task.exception?.message}")
+                // Safely check FCM token without forcing auto-init or topic synchronization
+                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val fcm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                        fcm.isAutoInitEnabled = false
+                        fcm.token.addOnSuccessListener { token ->
+                            if (!token.isNullOrBlank()) {
+                                viewModel.updateFcmToken(token)
+                            }
+                        }
+                    } catch (fcmErr: Exception) {
+                        android.util.Log.d("MainActivity", "FCM token lookup note: ${fcmErr.message}")
                     }
                 }
             } else {
-                android.util.Log.i("MainActivity", "Google Play Services not ready or available ($resultCode). Falling back to native WebSocket/Firestore real-time listeners and MandalNotificationService.")
+                android.util.Log.i("MainActivity", "Google Play Services note ($resultCode). Using native real-time Firestore listeners and MandalNotificationService.")
             }
         } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "FCM / Services init error: ${e.message}")
+            android.util.Log.w("MainActivity", "Background notification services note: ${e.message}")
         }
 
         setContent {

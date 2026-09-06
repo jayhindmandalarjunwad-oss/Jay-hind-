@@ -28,6 +28,7 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         setupCrashGuard()
+        sanitizeFcmTopicQueue()
         try {
             com.example.util.SystemNotificationHelper.initNotificationChannels(this)
             if (FirebaseApp.getApps(this).isEmpty()) {
@@ -49,6 +50,15 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
         } catch (e: Exception) {
             Log.e("MandalApp", "Failed to initialize Firebase or background services: ${e.message}", e)
         }
+    }
+
+    private fun sanitizeFcmTopicQueue() {
+        try {
+            getSharedPreferences("com.google.android.gms.appid", android.content.Context.MODE_PRIVATE)
+                .edit().remove("topic_operation_queue").apply()
+            getSharedPreferences("com.google.firebase.messaging", android.content.Context.MODE_PRIVATE)
+                .edit().remove("topic_operation_queue").apply()
+        } catch (_: Exception) {}
     }
 
     private fun setupCrashGuard() {
