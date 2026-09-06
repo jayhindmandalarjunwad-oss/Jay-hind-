@@ -5,6 +5,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -400,83 +403,76 @@ fun PostImagesGallery(
         }
 
         else -> {
-            // 4 or more photos: 2x2 grid with +N indicator
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            // 4 or more photos: Swipeable Carousel with smooth swipe & page indicator
+            val pagerState = rememberPagerState(pageCount = { images.size })
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .clip(RoundedCornerShape(8.dp))
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    for (i in 0..1) {
-                        val img = images[i]
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clickable { handlePhotoClick(i) }
-                        ) {
-                            UniversalAsyncImage(
-                                model = img,
-                                contentDescription = "Post photo ${i + 1}",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val img = images[page]
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { handlePhotoClick(page) }
+                    ) {
+                        UniversalAsyncImage(
+                            model = img,
+                            contentDescription = "Post photo ${page + 1}",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
 
+                // Photo Counter Badge (e.g. "1/6 📸") at top right
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.Black.copy(alpha = 0.65f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = "${pagerState.currentPage + 1}/${images.size}",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                // Dot Indicators at bottom center
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable { handlePhotoClick(2) }
-                    ) {
-                        UniversalAsyncImage(
-                            model = images[2],
-                            contentDescription = "Post photo 3",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                    repeat(images.size.coerceAtMost(8)) { index ->
+                        val isSelected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .size(if (isSelected) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) SaffronPrimary else Color.White.copy(alpha = 0.6f))
                         )
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable { handlePhotoClick(3) }
-                    ) {
-                        UniversalAsyncImage(
-                            model = images[3],
-                            contentDescription = "Post photo 4",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                    if (images.size > 8) {
+                        Text(
+                            text = "+",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
                         )
-
-                        if (images.size > 4) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.65f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "+${images.size - 3}",
-                                    color = Color.White,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
                     }
                 }
             }

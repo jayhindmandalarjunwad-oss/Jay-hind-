@@ -37,14 +37,19 @@ import java.util.UUID
 object FirebaseStorageHelper {
 
     private const val TAG = "FirebaseStorageHelper"
+    private const val STORAGE_BUCKET_URL = "gs://jayhindmandal112.firebasestorage.app"
 
     val storage: FirebaseStorage by lazy {
         try {
             val app = FirebaseApp.getInstance()
-            FirebaseStorage.getInstance(app)
+            FirebaseStorage.getInstance(app, STORAGE_BUCKET_URL)
         } catch (e: Exception) {
             Log.w(TAG, "FirebaseStorage initialization fallback: ${e.message}")
-            FirebaseStorage.getInstance()
+            try {
+                FirebaseStorage.getInstance(STORAGE_BUCKET_URL)
+            } catch (_: Exception) {
+                FirebaseStorage.getInstance()
+            }
         }
     }
 
