@@ -928,7 +928,13 @@ fun ChatDetailScreen(
                     isUploadingMedia = true
                     uploadStatusText = "फोटो कॉम्प्रेस व पाठवत आहे..."
                     uploadProgress = 0
-                    val downloadUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images") { prog ->
+                    val currentSenderName = currentUser?.fullName?.ifBlank { "Member" } ?: "Member"
+                    val downloadUrl = FirebaseStorageHelper.uploadImage(
+                        context = context,
+                        uri = uri,
+                        folder = "chat_media/images",
+                        senderName = currentSenderName
+                    ) { prog ->
                         uploadProgress = prog
                     }
                     viewModel.sendChatMessage(
@@ -965,7 +971,13 @@ fun ChatDetailScreen(
                         }
                     } catch (_: Exception) {}
 
-                    val (docUrl, sizeLabel) = FirebaseStorageHelper.uploadDocument(context, uri, fileName) { prog ->
+                    val currentSenderName = currentUser?.fullName?.ifBlank { "Member" } ?: "Member"
+                    val (docUrl, sizeLabel) = FirebaseStorageHelper.uploadDocument(
+                        context = context,
+                        uri = uri,
+                        fileName = fileName,
+                        senderName = currentSenderName
+                    ) { prog ->
                         uploadProgress = prog
                     }
                     viewModel.sendChatMessage(
@@ -1021,7 +1033,12 @@ fun ChatDetailScreen(
                     isUploadingMedia = true
                     uploadStatusText = "व्हॉईस संदेश पाठवत आहे..."
                     uploadProgress = 0
-                    val audioUrl = FirebaseStorageHelper.uploadAudio(context, file) { prog ->
+                    val currentSenderName = currentUser?.fullName?.ifBlank { "Member" } ?: "Member"
+                    val audioUrl = FirebaseStorageHelper.uploadAudio(
+                        context = context,
+                        audioFile = file,
+                        senderName = currentSenderName
+                    ) { prog ->
                         uploadProgress = prog
                     }
                     if (audioUrl.isNotBlank()) {
@@ -1573,7 +1590,13 @@ fun ChatDetailScreen(
                                 if (uri != null && !isSendingCameraPhoto) {
                                     scope.launch {
                                         isSendingCameraPhoto = true
-                                        val photoUrl = FirebaseStorageHelper.uploadImage(context, uri, "chat_media/images")
+                                        val currentSenderName = currentUser?.fullName?.ifBlank { "Member" } ?: "Member"
+                                        val photoUrl = FirebaseStorageHelper.uploadImage(
+                                            context = context,
+                                            uri = uri,
+                                            folder = "chat_media/images",
+                                            senderName = currentSenderName
+                                        )
                                         viewModel.sendChatMessage(
                                             text = cameraPhotoCaption.trim(),
                                             attachmentType = "IMAGE",
@@ -1883,10 +1906,15 @@ fun ChatDetailScreen(
                                 previewImageUrl?.let { url ->
                                     scope.launch {
                                         isSavingPhoto = true
-                                        val success = MediaUtils.saveImageToGallery(context, url, "JayHind_ChatPhoto")
+                                        val success = MediaUtils.saveImageToGallery(
+                                            context = context,
+                                            imageUrlOrBase64 = url,
+                                            fileNamePrefix = "JayHind_ChatPhoto",
+                                            subFolder = "JayHind_Mandal_Chat"
+                                        )
                                         isSavingPhoto = false
                                         if (success) {
-                                            Toast.makeText(context, "फोटो गॅलरीमध्ये सेव्ह केला! (Saved to Gallery)", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "फोटो गॅलरीमध्ये सेव्ह केला! (Pictures/JayHind_Mandal_Chat)", Toast.LENGTH_SHORT).show()
                                         } else {
                                             Toast.makeText(context, "फोटो सेव्ह करण्यात अयशस्वी झाले.", Toast.LENGTH_SHORT).show()
                                         }

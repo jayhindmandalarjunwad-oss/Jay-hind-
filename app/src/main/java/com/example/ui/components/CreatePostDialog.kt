@@ -51,7 +51,7 @@ fun CreatePostDialog(
     val coroutineScope = rememberCoroutineScope()
     var isProcessingImage by remember { mutableStateOf(false) }
 
-    // Multi-photo gallery picker
+    // Multi-photo gallery picker with standardized naming: JayHind_Post_[Author]_[Timestamp]_[Index].webp
     val multiGalleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
@@ -59,8 +59,14 @@ fun CreatePostDialog(
             coroutineScope.launch {
                 isProcessingImage = true
                 val newImages = mutableListOf<String>()
-                for (uri in uris) {
-                    val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, "posts")
+                val rawAuthor = currentUser?.fullName ?: "Member"
+                val cleanAuthor = rawAuthor.replace(Regex("[^a-zA-Z0-9_]"), "").ifBlank { "Member" }
+                val timeStamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
+                val startIdx = selectedImages.size
+
+                for ((idx, uri) in uris.withIndex()) {
+                    val customName = "JayHind_Post_${cleanAuthor}_${timeStamp}_${startIdx + idx + 1}.webp"
+                    val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, folder = "posts", customFileName = customName)
                     if (uploadedUrl.isNotBlank()) {
                         newImages.add(uploadedUrl)
                     }

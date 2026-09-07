@@ -45,6 +45,7 @@ import com.example.ui.components.FullscreenPhotoDialog
 import com.example.ui.components.GalleryImagePicker
 import com.example.ui.components.MandalTopHeader
 import com.example.ui.components.UniversalAsyncImage
+import com.example.ui.components.VideoPlayerDialog
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
 
@@ -73,6 +74,7 @@ fun GalleryScreen(
     var showAddPhotoDialog by remember { mutableStateOf(false) }
     var showAddVideoDialog by remember { mutableStateOf(false) }
     var editingPhoto by remember { mutableStateOf<GalleryPhoto?>(null) }
+    var activePlayingVideo by remember { mutableStateOf<VideoItem?>(null) }
 
     val context = LocalContext.current
 
@@ -453,8 +455,7 @@ fun GalleryScreen(
                                                 video = video,
                                                 isAdmin = isAdmin,
                                                 onClick = {
-                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(video.videoUrl))
-                                                    context.startActivity(intent)
+                                                    activePlayingVideo = video
                                                 },
                                                 onDelete = { viewModel.deleteVideo(video.id) }
                                             )
@@ -520,6 +521,17 @@ fun GalleryScreen(
                         viewModel.addVideo(title, desc, cat, videoUrl, thumbUrl)
                         showAddVideoDialog = false
                     }
+                )
+            }
+
+            // IN-APP VIDEO PLAYER DIALOG (YouTube Embed & Cloud Video Player with Fullscreen Landscape)
+            if (activePlayingVideo != null) {
+                VideoPlayerDialog(
+                    videoUrl = activePlayingVideo!!.videoUrl,
+                    title = activePlayingVideo!!.title,
+                    senderName = "जय हिंद तरुण मंडळ • ${activePlayingVideo!!.category}",
+                    thumbnailUrl = activePlayingVideo!!.thumbnailUrl,
+                    onDismiss = { activePlayingVideo = null }
                 )
             }
         }

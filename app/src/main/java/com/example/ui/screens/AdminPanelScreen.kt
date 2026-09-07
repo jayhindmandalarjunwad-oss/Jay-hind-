@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,7 +54,8 @@ enum class AdminTab(val title: String) {
     CREATE_ANNOUNCEMENT("सूचना / Broadcast"),
     MANAGE_GALLERY("फोटो व व्हिडिओ"),
     POSTS_MODERATION("पोस्ट्स नियंत्रण"),
-    MEMBER_FEEDBACK("सभासद अभिप्राय")
+    MEMBER_FEEDBACK("सभासद अभिप्राय"),
+    DATABASE_BACKUP("💾 बॅकअप व डेटा सुरक्षा")
 }
 
 @Composable
@@ -200,6 +202,7 @@ fun AdminPanelScreen(
                 AdminTab.MANAGE_GALLERY -> ManageGalleryAdminTab(albums, videos, viewModel)
                 AdminTab.POSTS_MODERATION -> PostsModerationAdminTab(posts, viewModel)
                 AdminTab.MEMBER_FEEDBACK -> MemberFeedbacksAdminTab(feedbacks, viewModel)
+                AdminTab.DATABASE_BACKUP -> DatabaseBackupAdminTab(viewModel)
             }
         }
     }
@@ -3774,6 +3777,842 @@ fun FeedbackCardItem(
                     modifier = Modifier.size(34.dp)
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = BloodRed, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+// 12. DATABASE BACKUP & CLOUD / GOOGLE DRIVE SYNC TAB
+@Composable
+fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
+    val context = LocalContext.current
+    val localBackups by viewModel.localBackups.collectAsStateWithLifecycle()
+    val backupStatusInfo by viewModel.backupStatusInfo.collectAsStateWithLifecycle()
+    val cloudBackupInfo by viewModel.cloudBackupInfo.collectAsStateWithLifecycle()
+    val isOperationRunning by viewModel.isBackupOperationRunning.collectAsStateWithLifecycle()
+    val isCloudSyncing by viewModel.isCloudSyncing.collectAsStateWithLifecycle()
+    val cloudProgress by viewModel.cloudProgress.collectAsStateWithLifecycle()
+
+    var selectedBackupForRestore by remember { mutableStateOf<com.example.util.BackupItem?>(null) }
+    var selectedBackupForDelete by remember { mutableStateOf<com.example.util.BackupItem?>(null) }
+    var showCloudRestoreConfirm by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshBackups()
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // 1. SYSTEM SECURITY & AUTO-SCHEDULE BANNER
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.25f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = SaffronPrimary.copy(alpha = 0.12f),
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = SaffronPrimary,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "दैनिक ऑटोमॅटिक बॅकअप सिस्टीम",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = SuccessGreen.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "● ऑटो-बॅकअप कार्यरत (Active)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SuccessGreen,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "• दररोज २४ तासांनी आपोआप बॅकअप: मंडळाचा सर्व डेटा स्थानिक मेमरीमध्ये व थेट Firebase क्लाउडवर आपोआप सुरक्षित होतो.\n• ७ दिवसांची ऑटो-क्लीनअप सायकल: फोनचे स्टोरेज न भरता ७ दिवसांपेक्षा जुने बॅकअप्स आपोआप सुरक्षितरीत्या डिलीट केले जातात.\n• गुगल ड्राईव्ह (Google Drive) एक-क्लिक सेव्ह: कोणत्याही बॅकअपवर 'Drive' बटण दाबून मंडळाच्या खात्यावर (jayhindmandalarjunwad@gmail.com) सुरक्षित जतन करा.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 19.sp
+                    )
+                }
+            }
+        }
+
+        // 2. FIREBASE CLOUD & GOOGLE DRIVE INTEGRATION CARD
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, Color(0xFF1976D2).copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF1976D2).copy(alpha = 0.12f),
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudQueue,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1976D2),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "क्लाउड व गुगल ड्राईव्ह स्टोरेज",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "अधिकृत ईमेल: jayhindmandalarjunwad@gmail.com",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF1976D2),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (isCloudSyncing) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { cloudProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp),
+                                color = Color(0xFF1976D2)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "क्लाउड प्रक्रिया सुरू आहे (${(cloudProgress * 100).toInt()}%)... कृपया प्रतीक्षा करा",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF1976D2),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    } else if (cloudBackupInfo != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = SuccessGreen,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "मास्टर क्लाउड बॅकअप उपलब्ध",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SuccessGreen
+                                    )
+                                }
+                                Text(
+                                    text = "तारीख: ${cloudBackupInfo?.formattedDate}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "आकार: ${cloudBackupInfo?.formattedSize}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Button(
+                                onClick = { showCloudRestoreConfirm = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SettingsBackupRestore,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "क्लाउड रिस्टोअर",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "✅ Google Drive (शिफारस केलेले): खालील बटण दाबून थेट मंडळाच्या jayhindmandalarjunwad@gmail.com ड्राईव्हवर सुरक्षित सेव्ह करा.\n☁️ Firebase Cloud: बकेट सक्रिय असल्यास आपोआप क्लाउडवर बॅकअप सिंक होतो.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { viewModel.saveLatestBackupToGoogleDrive() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F9D58)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddToDrive,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Google Drive वर थेट बॅकअप जतन करा",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. BACKUP STATUS & QUICK STATS
+        item {
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "स्थानिक बॅकअप स्थिती व तपशील",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        IconButton(
+                            onClick = { viewModel.refreshBackups() },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "रीफ्रेश करा",
+                                tint = SaffronPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "शेवटचा स्थानिक बॅकअप",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = backupStatusInfo?.lastBackupDateStr ?: "माहिती उपलब्ध नाही",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "उपलब्ध स्थानिक फाइल्स",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${localBackups.size} फाइल्स (७ दिवस सायकल)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SaffronPrimary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. ACTION BUTTON - TAKE MANUAL BACKUP NOW
+        item {
+            Button(
+                onClick = { viewModel.triggerManualBackup() },
+                enabled = !isOperationRunning && !isCloudSyncing,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                if (isOperationRunning) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "बॅकअप तयार करत आहे...",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Save,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "आता लगेच मॅन्युअल बॅकअप घ्या (Take Backup Now)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
+        // 5. HEADER FOR LOCAL BACKUPS LIST
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "स्थानिक बॅकअप सूची (${localBackups.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "रोलिंग सायकल: ७ दिवस",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // 6. BACKUP ITEMS
+        if (localBackups.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Storage,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "कोणताही स्थानिक बॅकअप अद्याप तयार नाही",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "वरील 'मॅन्युअल बॅकअप घ्या' बटणावर क्लिक करा किंवा मध्यरात्री ऑटोमॅटिक बॅकअपची प्रतीक्षा करा.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(localBackups, key = { it.fileName }) { backup ->
+                BackupItemCard(
+                    backup = backup,
+                    isOperationRunning = isOperationRunning || isCloudSyncing,
+                    onRestore = { selectedBackupForRestore = backup },
+                    onCloudUpload = { viewModel.uploadToCloudStorage(backup) },
+                    onGoogleDriveSave = { viewModel.saveBackupToGoogleDrive(backup) },
+                    onShare = { viewModel.shareBackup(backup) },
+                    onExport = {
+                        viewModel.exportBackup(backup) { _ -> }
+                    },
+                    onDelete = { selectedBackupForDelete = backup }
+                )
+            }
+        }
+    }
+
+    // CLOUD RESTORE CONFIRMATION DIALOG
+    if (showCloudRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { if (!isCloudSyncing) showCloudRestoreConfirm = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CloudDownload,
+                    contentDescription = null,
+                    tint = Color(0xFF1976D2),
+                    modifier = Modifier.size(38.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Firebase क्लाउडवरून डेटा रिस्टोअर करायचा का?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "हा पर्याय निवडल्यास क्लाउडवरील सर्वात नवीन मास्टर बॅकअप डाऊनलोड होऊन ॲपच्या स्थानिक डेटाबेसमध्ये पूर्ववत (Restore) केला जाईल.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    cloudBackupInfo?.let { info ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "तारीख: ${info.formattedDate}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "आकार: ${info.formattedSize}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCloudRestoreConfirm = false
+                        viewModel.restoreFromCloudBackup()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
+                ) {
+                    Text("होय, क्लाउडवरून रिस्टोअर करा", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCloudRestoreConfirm = false }) {
+                    Text("रद्द करा")
+                }
+            }
+        )
+    }
+
+    // RESTORE CONFIRMATION DIALOG
+    selectedBackupForRestore?.let { targetBackup ->
+        AlertDialog(
+            onDismissRequest = { if (!isOperationRunning) selectedBackupForRestore = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.SettingsBackupRestore,
+                    contentDescription = null,
+                    tint = SaffronPrimary,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "स्थानिक डेटाबेस पुनर्संचयित (Restore) करायचा का?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "⚠️ सावधानता: या बॅकअपमधील डेटा लागू केल्यानंतर ॲपची सद्यस्थिती या बॅकअप वेळेनुसार सेट होईल.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "फाइल: ${targetBackup.fileName}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "तारीख: ${targetBackup.formattedDate}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = "आकार: ${targetBackup.formattedSize}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val backupToRestore = targetBackup
+                        selectedBackupForRestore = null
+                        viewModel.restoreDatabase(backupToRestore)
+                    },
+                    enabled = !isOperationRunning,
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
+                ) {
+                    Text("होय, पुनर्संचयित करा", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { selectedBackupForRestore = null },
+                    enabled = !isOperationRunning
+                ) {
+                    Text("रद्द करा")
+                }
+            }
+        )
+    }
+
+    // DELETE CONFIRMATION DIALOG
+    selectedBackupForDelete?.let { targetBackup ->
+        AlertDialog(
+            onDismissRequest = { selectedBackupForDelete = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = BloodRed,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "बॅकअप फाइल डिलीट करायची का?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "ही स्थानिक बॅकअप फाइल कायमस्वरूपी डिलीट होईल:\n${targetBackup.fileName} (${targetBackup.formattedSize})",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val backupToDelete = targetBackup
+                        selectedBackupForDelete = null
+                        viewModel.deleteBackupFile(backupToDelete)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                ) {
+                    Text("डिलीट करा", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedBackupForDelete = null }) {
+                    Text("रद्द करा")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun BackupItemCard(
+    backup: com.example.util.BackupItem,
+    isOperationRunning: Boolean,
+    onRestore: () -> Unit,
+    onCloudUpload: () -> Unit,
+    onGoogleDriveSave: () -> Unit,
+    onShare: () -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = SaffronPrimary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Storage,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = backup.fileName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = backup.formattedDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = backup.formattedSize,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = SaffronPrimary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action Buttons Row 1: Primary Sync & Restore (Cloud, Google Drive, Restore)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Google Drive Save
+                FilledTonalButton(
+                    onClick = onGoogleDriveSave,
+                    enabled = !isOperationRunning,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFF0F9D58).copy(alpha = 0.15f),
+                        contentColor = Color(0xFF0F9D58)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddToDrive,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = Color(0xFF0F9D58)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Drive",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Cloud Storage Upload
+                FilledTonalButton(
+                    onClick = onCloudUpload,
+                    enabled = !isOperationRunning,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFF1976D2).copy(alpha = 0.15f),
+                        contentColor = Color(0xFF1976D2)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CloudUpload,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = Color(0xFF1976D2)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "क्लाउड",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Restore
+                OutlinedButton(
+                    onClick = onRestore,
+                    enabled = !isOperationRunning,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SettingsBackupRestore,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = SaffronPrimary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "रिस्टोअर",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SaffronPrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Export to Downloads
+                IconButton(
+                    onClick = onExport,
+                    enabled = !isOperationRunning,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Downloads मध्ये सेव्ह करा",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Share
+                IconButton(
+                    onClick = onShare,
+                    enabled = !isOperationRunning,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "शेअर करा",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Delete
+                IconButton(
+                    onClick = onDelete,
+                    enabled = !isOperationRunning,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "हटवा",
+                        tint = BloodRed,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }

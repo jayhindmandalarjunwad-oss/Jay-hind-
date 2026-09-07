@@ -27,6 +27,9 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object MediaUtils {
 
@@ -476,6 +479,25 @@ object MediaUtils {
     }
 
     /**
+     * Extracts the 11-character YouTube video ID from various YouTube URL formats
+     * (e.g., youtu.be, youtube.com/watch?v=..., youtube.com/shorts/..., youtube.com/embed/...)
+     */
+    fun extractYouTubeVideoId(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        val patterns = listOf(
+            "(?:youtu\\.be\\/|youtube\\.com\\/(?:embed\\/|v\\/|watch\\?v=|watch\\?.+&v=|shorts\\/))([\\w-]{11})",
+            "^[\\w-]{11}$"
+        )
+        for (p in patterns) {
+            val matcher = java.util.regex.Pattern.compile(p).matcher(url.trim())
+            if (matcher.find()) {
+                return matcher.group(1) ?: matcher.group(0)
+            }
+        }
+        return null
+    }
+
+    /**
      * Opens a video in an external video player or web browser as a fallback.
      */
     fun openVideo(context: Context, videoUrl: String) {
@@ -679,12 +701,19 @@ object MediaUtils {
     }
 
     /**
-     * Downloads/saves an image (Base64 data, content URI, or HTTP URL) directly to the Android MediaStore/Gallery.
+     * Downloads/saves an image (WebP, Base64 data, content URI, or HTTP URL) directly to the Android MediaStore/Gallery.
+     * Supports standardized subfolders:
+     * - Posts: Pictures/JayHind_Mandal_Posts
+     * - Chat Photos: Pictures/JayHind_Mandal_Chat
+     * Preserves exact official filename:
+     * - JayHind_Post_[Author]_[Timestamp]_[Index].webp
+     * - JayHind_ChatPhoto_[Author]_[Timestamp].webp
      */
     suspend fun saveImageToGallery(
         context: Context,
         imageUrlOrBase64: String,
-        fileNamePrefix: String = "JayHind_Photo"
+        fileNamePrefix: String = "JayHind_Photo",
+        subFolder: String = "JayHind_Mandal_Posts"
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             if (imageUrlOrBase64.isBlank()) {
@@ -693,7 +722,39 @@ object MediaUtils {
                 }
                 return@withContext false
             }
-            val fileName = "${fileNamePrefix}_${System.currentTimeMillis()}.jpg"
+
+            // Determine if this is a chat photo or post photo to route to the correct subfolder
+            val isChatPhoto = subFolder == "JayHind_Mandal_Chat" ||
+                    fileNamePrefix.contains("ChatPhoto", ignoreCase = true) ||
+                    imageUrlOrBase64.contains("JayHind_ChatPhoto_")
+
+            val targetSubFolder = if (isChatPhoto) "JayHind_Mandal_Chat" else subFolder
+
+            // Extract existing standardized filename from URL or prefix
+            var fileName = when {
+                fileNamePrefix.endsWith(".webp", ignoreCase = true) || fileNamePrefix.endsWith(".jpg", ignoreCase = true) || fileNamePrefix.endsWith(".png", ignoreCase = true) -> {
+                    fileNamePrefix
+                }
+                imageUrlOrBase64.contains("JayHind_ChatPhoto_") -> {
+                    val raw = imageUrlOrBase64.substringAfter("JayHind_ChatPhoto_").substringBefore("?").substringBefore("&")
+                    "JayHind_ChatPhoto_$raw"
+                }
+                imageUrlOrBase64.contains("JayHind_Post_") -> {
+                    val raw = imageUrlOrBase64.substringAfter("JayHind_Post_").substringBefore("?").substringBefore("&")
+                    "JayHind_Post_$raw"
+                }
+                isChatPhoto -> {
+                    val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                    "JayHind_ChatPhoto_${dateStr}.webp"
+                }
+                else -> {
+                    "${fileNamePrefix}_${System.currentTimeMillis()}.webp"
+                }
+            }
+
+            if (!fileName.contains(".")) {
+                fileName = "$fileName.webp"
+            }
 
             val imageBytes: ByteArray? = when {
                 imageUrlOrBase64.startsWith("data:") -> {
@@ -703,6 +764,8 @@ object MediaUtils {
                 imageUrlOrBase64.startsWith("http://") || imageUrlOrBase64.startsWith("https://") -> {
                     val url = URL(imageUrlOrBase64)
                     val connection = url.openConnection() as HttpURLConnection
+                    connection.connectTimeout = 30_000
+                    connection.readTimeout = 30_000
                     connection.connect()
                     connection.inputStream.use { it.readBytes() }
                 }
@@ -725,13 +788,14 @@ object MediaUtils {
                 return@withContext false
             }
 
+            val mimeType = if (fileName.endsWith(".webp", ignoreCase = true)) "image/webp" else "image/jpeg"
             var isSaved = false
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val contentValues = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/JayHindMandal")
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/$targetSubFolder")
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
 
@@ -748,7 +812,7 @@ object MediaUtils {
                 }
             } else {
                 val picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-                val mandalDir = File(picturesDir, "JayHindMandal").apply { if (!exists()) mkdirs() }
+                val mandalDir = File(picturesDir, targetSubFolder).apply { if (!exists()) mkdirs() }
                 val imageFile = File(mandalDir, fileName)
                 FileOutputStream(imageFile).use { out ->
                     out.write(imageBytes)
@@ -758,7 +822,7 @@ object MediaUtils {
 
             withContext(Dispatchers.Main) {
                 if (isSaved) {
-                    Toast.makeText(context, "✅ फोटो मोबाईल गॅलरीमध्ये सेव्ह झाला! 📥", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "✅ फोटो गॅलरीमध्ये ($targetSubFolder) सेव्ह झाला! 📥", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(context, "फोटो सेव्ह करण्यात अडचण आली", Toast.LENGTH_SHORT).show()
                 }
@@ -840,18 +904,27 @@ object MediaUtils {
     }
 
     /**
-     * Saves a PDF or document file (Base64 data or HTTP URL or Content URI) directly to the device's public Downloads folder.
+     * Saves a PDF or document file directly to device's public Downloads/JayHind_Mandal_Chat folder.
      * Complies with Scoped Storage for Android 10+ (Q, R, S, Tiramisu, UpsideDownCake, etc.)
+     * Enforces standardized naming: JayHind_Doc_[Sender]_[Timestamp]_[OriginalName]
      */
     suspend fun saveDocumentToDownloads(
         context: Context,
         docUrlOrBase64: String,
         suggestedFileName: String = "JayHind_Document.pdf",
+        subFolder: String = "JayHind_Mandal_Chat",
         mimeType: String = "application/pdf"
     ): Uri? = withContext(Dispatchers.IO) {
         try {
             val cleanName = if (suggestedFileName.contains(".")) suggestedFileName else "$suggestedFileName.pdf"
-            val timestampedName = "${System.currentTimeMillis()}_$cleanName"
+            val finalFileName = if (cleanName.startsWith("JayHind_Doc_")) {
+                cleanName
+            } else if (docUrlOrBase64.contains("JayHind_Doc_")) {
+                val raw = docUrlOrBase64.substringAfter("JayHind_Doc_").substringBefore("?").substringBefore("&")
+                "JayHind_Doc_$raw"
+            } else {
+                "JayHind_Doc_${System.currentTimeMillis()}_$cleanName"
+            }
 
             val fileBytes: ByteArray? = when {
                 docUrlOrBase64.startsWith("data:") -> {
@@ -868,7 +941,6 @@ object MediaUtils {
                     context.contentResolver.openInputStream(Uri.parse(docUrlOrBase64))?.use { it.readBytes() }
                 }
                 else -> {
-                    // Try decoding as raw base64 string
                     try {
                         Base64.decode(docUrlOrBase64.trim(), Base64.DEFAULT)
                     } catch (e: Exception) {
@@ -888,9 +960,9 @@ object MediaUtils {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val contentValues = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, timestampedName)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, finalFileName)
                     put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/JayHindMandal")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/$subFolder")
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
 
@@ -907,8 +979,8 @@ object MediaUtils {
                 }
             } else {
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                val mandalDir = File(downloadsDir, "JayHindMandal").apply { if (!exists()) mkdirs() }
-                val docFile = File(mandalDir, timestampedName)
+                val mandalDir = File(downloadsDir, subFolder).apply { if (!exists()) mkdirs() }
+                val docFile = File(mandalDir, finalFileName)
                 FileOutputStream(docFile).use { out ->
                     out.write(fileBytes)
                 }
@@ -917,7 +989,7 @@ object MediaUtils {
 
             withContext(Dispatchers.Main) {
                 if (savedUri != null) {
-                    Toast.makeText(context, "✅ $cleanName डाऊनलोड फोल्डरमध्ये सेव्ह झाले! 📥", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "✅ $finalFileName डाऊनलोड फोल्डरमध्ये ($subFolder) सेव्ह झाले! 📥", Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(context, "दस्तऐवज सेव्ह करण्यात अडचण आली", Toast.LENGTH_SHORT).show()
                 }
@@ -929,6 +1001,106 @@ object MediaUtils {
                 Toast.makeText(context, "डाऊनलोड अयशस्वी: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             }
             null
+        }
+    }
+
+    /**
+     * Saves a voice note audio file (.m4a) to device storage (Music/JayHind_Mandal_Chat)
+     * with official standardized naming: JayHind_Voice_[Sender]_[Timestamp].m4a
+     */
+    suspend fun saveVoiceNoteToStorage(
+        context: Context,
+        voiceUrlOrBase64: String,
+        suggestedFileName: String = "JayHind_Voice.m4a",
+        subFolder: String = "JayHind_Mandal_Chat"
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            if (voiceUrlOrBase64.isBlank()) return@withContext false
+
+            val finalFileName = when {
+                suggestedFileName.startsWith("JayHind_Voice_") && suggestedFileName.endsWith(".m4a") -> suggestedFileName
+                voiceUrlOrBase64.contains("JayHind_Voice_") -> {
+                    val raw = voiceUrlOrBase64.substringAfter("JayHind_Voice_").substringBefore("?").substringBefore("&")
+                    "JayHind_Voice_$raw"
+                }
+                else -> {
+                    val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                    "JayHind_Voice_${dateStr}.m4a"
+                }
+            }
+
+            val audioBytes: ByteArray? = when {
+                voiceUrlOrBase64.startsWith("data:") -> {
+                    val base64Data = voiceUrlOrBase64.substringAfter("base64,")
+                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                }
+                voiceUrlOrBase64.startsWith("http://") || voiceUrlOrBase64.startsWith("https://") -> {
+                    val url = URL(voiceUrlOrBase64)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connectTimeout = 30_000
+                    connection.readTimeout = 30_000
+                    connection.connect()
+                    connection.inputStream.use { it.readBytes() }
+                }
+                voiceUrlOrBase64.startsWith("content://") || voiceUrlOrBase64.startsWith("file://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(voiceUrlOrBase64))?.use { it.readBytes() }
+                }
+                else -> {
+                    try {
+                        Base64.decode(voiceUrlOrBase64.trim(), Base64.DEFAULT)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
+
+            if (audioBytes == null || audioBytes.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "व्हॉईस नोट डाऊनलोड करता आली नाही", Toast.LENGTH_SHORT).show()
+                }
+                return@withContext false
+            }
+
+            var isSaved = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, finalFileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "audio/m4a")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/$subFolder")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+
+                val resolver = context.contentResolver
+                val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { it.write(audioBytes) }
+                    contentValues.clear()
+                    contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+                    isSaved = true
+                }
+            } else {
+                val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+                val mandalDir = File(musicDir, subFolder).apply { if (!exists()) mkdirs() }
+                val audioFile = File(mandalDir, finalFileName)
+                FileOutputStream(audioFile).use { it.write(audioBytes) }
+                isSaved = true
+            }
+
+            withContext(Dispatchers.Main) {
+                if (isSaved) {
+                    Toast.makeText(context, "✅ व्हॉईस नोट ($subFolder) मध्ये डाऊनलोड झाली! 📥", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "व्हॉईस नोट सेव्ह करण्यात अडचण आली", Toast.LENGTH_SHORT).show()
+                }
+            }
+            isSaved
+        } catch (e: Exception) {
+            Log.e("MediaUtils", "Error saving voice note: ${e.message}", e)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "व्हॉईस सेव्ह अयशस्वी: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+            false
         }
     }
 

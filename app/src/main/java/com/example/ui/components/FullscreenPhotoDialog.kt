@@ -64,6 +64,9 @@ fun FullscreenPhotoDialog(
         pageCount = { validPhotos.size }
     )
 
+    // Allow download for admin or if viewing community post photos
+    val canDownload = allowDownload || isAdmin || validPhotos.any { it.contains("posts") || it.contains("JayHind_Post_") }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -197,12 +200,12 @@ fun FullscreenPhotoDialog(
                         }
                     }
 
-                    if (allowDownload) {
+                    if (canDownload) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Share Button for Admin
+                            // Share Button
                             IconButton(
                                 onClick = {
                                     val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
@@ -236,14 +239,18 @@ fun FullscreenPhotoDialog(
                                 }
                             }
 
-                            // Download Button for Admin
+                            // Download Button for Gallery Saving to Pictures/JayHind_Mandal_Posts
                             IconButton(
                                 onClick = {
                                     val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
                                     if (activePhotoUrl != null && !isDownloading) {
                                         coroutineScope.launch {
                                             isDownloading = true
-                                            MediaUtils.saveImageToGallery(context, activePhotoUrl)
+                                            MediaUtils.saveImageToGallery(
+                                                context = context,
+                                                imageUrlOrBase64 = activePhotoUrl,
+                                                subFolder = "JayHind_Mandal_Posts"
+                                            )
                                             isDownloading = false
                                         }
                                     }
@@ -343,8 +350,8 @@ fun FullscreenPhotoDialog(
                         }
                     }
 
-                    if (allowDownload) {
-                        // Admin Actions: Download & Share
+                    if (canDownload) {
+                        // Actions: Download & Share
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -355,7 +362,11 @@ fun FullscreenPhotoDialog(
                                     if (activePhotoUrl != null && !isDownloading) {
                                         coroutineScope.launch {
                                             isDownloading = true
-                                            MediaUtils.saveImageToGallery(context, activePhotoUrl)
+                                            MediaUtils.saveImageToGallery(
+                                                context = context,
+                                                imageUrlOrBase64 = activePhotoUrl,
+                                                subFolder = "JayHind_Mandal_Posts"
+                                            )
                                             isDownloading = false
                                         }
                                     }

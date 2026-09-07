@@ -34,7 +34,7 @@ object AudioRecorderHelper {
             stopRecording() // ensure any previous is stopped
 
             val outputDir = File(context.cacheDir, "voice_notes").apply { if (!exists()) mkdirs() }
-            val outputFile = File(outputDir, "voice_${System.currentTimeMillis()}.m4a")
+            val outputFile = File(outputDir, "JayHind_Voice_${System.currentTimeMillis()}.m4a")
             currentOutputFile = outputFile
 
             val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -48,8 +48,10 @@ object AudioRecorderHelper {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioEncodingBitRate(64000)
-                setAudioSamplingRate(44100)
+                setAudioChannels(1) // Mono for voice - reduces size by 50%
+                // Ultra-low data bitrate (24 kbps = ~180 KB/min sweet spot between 120-200 KB)
+                setAudioEncodingBitRate(24000)
+                setAudioSamplingRate(22050) // Crisp speech clarity with minimal bandwidth
                 setOutputFile(outputFile.absolutePath)
                 prepare()
                 start()

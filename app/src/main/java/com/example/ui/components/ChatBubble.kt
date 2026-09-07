@@ -56,6 +56,7 @@ fun ChatBubble(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    var isDownloadingImage by remember { mutableStateOf(false) }
     var isDownloadingDoc by remember { mutableStateOf(false) }
     var isDownloadingVideo by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
@@ -348,12 +349,57 @@ fun ChatBubble(
                             .clickable { onImageClick(imageToDisplay) }
                     }
 
-                    UniversalAsyncImage(
-                        model = bitmap ?: imageToDisplay,
-                        contentDescription = "Chat Image",
-                        contentScale = ContentScale.Fit,
-                        modifier = imageModifier
-                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        UniversalAsyncImage(
+                            model = bitmap ?: imageToDisplay,
+                            contentDescription = "Chat Image",
+                            contentScale = ContentScale.Fit,
+                            modifier = imageModifier
+                        )
+
+                        // Direct Download Button for Image (Pictures/JayHind_Mandal_Chat)
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.65f),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(34.dp)
+                                .clickable {
+                                    if (!isDownloadingImage) {
+                                        scope.launch {
+                                            isDownloadingImage = true
+                                            val cleanSender = message.senderName.replace(Regex("[^a-zA-Z0-9_]"), "").ifBlank { "Member" }
+                                            val photoPrefix = "JayHind_ChatPhoto_${cleanSender}"
+                                            MediaUtils.saveImageToGallery(
+                                                context = context,
+                                                imageUrlOrBase64 = imageToDisplay,
+                                                fileNamePrefix = photoPrefix,
+                                                subFolder = "JayHind_Mandal_Chat"
+                                            )
+                                            isDownloadingImage = false
+                                        }
+                                    }
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (isDownloadingImage) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "फोटो गॅलरीमध्ये सेव्ह करा",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                 }
 
@@ -550,7 +596,12 @@ fun ChatBubble(
                                         if (docUrl.isNotBlank() && !isDownloadingDoc) {
                                             scope.launch {
                                                 isDownloadingDoc = true
-                                                MediaUtils.saveDocumentToDownloads(context, docUrl, docName)
+                                                MediaUtils.saveDocumentToDownloads(
+                                                    context = context,
+                                                    docUrlOrBase64 = docUrl,
+                                                    suggestedFileName = docName,
+                                                    subFolder = "JayHind_Mandal_Chat"
+                                                )
                                                 isDownloadingDoc = false
                                             }
                                         }
@@ -779,6 +830,8 @@ fun VoiceNotePlayerCard(
     isPlaying: Boolean
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isSavingAudio by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "audioWave")
     val waveAnim by infiniteTransition.animateFloat(
         initialValue = 0.3f,
@@ -879,6 +932,47 @@ fun VoiceNotePlayerCard(
                         fontSize = 10.sp,
                         color = TextSecondary
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Direct Download Button for Voice Note (Music/JayHind_Mandal_Chat)
+            Surface(
+                shape = CircleShape,
+                color = SaffronPrimary.copy(alpha = 0.12f),
+                modifier = Modifier
+                    .size(30.dp)
+                    .clickable {
+                        if (!isSavingAudio && audioSource.isNotBlank()) {
+                            scope.launch {
+                                isSavingAudio = true
+                                MediaUtils.saveVoiceNoteToStorage(
+                                    context = context,
+                                    voiceUrlOrBase64 = audioSource,
+                                    suggestedFileName = "JayHind_Voice_${messageId}.m4a",
+                                    subFolder = "JayHind_Mandal_Chat"
+                                )
+                                isSavingAudio = false
+                            }
+                        }
+                    }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (isSavingAudio) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = SaffronPrimary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "व्हॉईस नोट सेव्ह करा",
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }

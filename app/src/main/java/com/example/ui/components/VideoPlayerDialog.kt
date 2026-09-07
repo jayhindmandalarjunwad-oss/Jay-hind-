@@ -1,8 +1,14 @@
 package com.example.ui.components
 
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.media.MediaPlayer
 import android.net.Uri
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
@@ -30,6 +36,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -78,7 +86,11 @@ import java.io.File
 import java.util.Locale
 
 /**
- * WhatsApp-style In-App Video Player Dialog for Chat & Group Chat
+ * WhatsApp & Gallery In-App Video Player Dialog
+ * Supports:
+ * 1. Direct In-App YouTube playback (Embed IFrame, No External Redirection)
+ * 2. Full-Screen Edge-to-Edge Landscape Mode
+ * 3. MP4 / Cloud video playback with scrubber, play/pause, time tracker
  */
 @Composable
 fun VideoPlayerDialog(
@@ -90,31 +102,57 @@ fun VideoPlayerDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val activity = context as? Activity
 
-    var isPreparing by remember { mutableStateOf(true) }
+    val youtubeVideoId = remember(videoUrl) { MediaUtils.extractYouTubeVideoId(videoUrl) }
+    val isYouTube = youtubeVideoId != null
+
+    var isPreparing by remember { mutableStateOf(!isYouTube) }
     var playableUri by remember { mutableStateOf<Uri?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var isCompleted by remember { mutableStateOf(false) }
     var hasError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
     var currentPosition by remember { mutableIntStateOf(0) }
     var totalDuration by remember { mutableIntStateOf(0) }
     var isControlsVisible by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
 
-    // Prepare video URI (decode base64 to temp mp4 or parse URI/URL)
+    // Toggle Landscape Fullscreen orientation
+    fun toggleFullscreen() {
+        isFullscreen = !isFullscreen
+        if (isFullscreen) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
+    // Reset screen orientation safely when dialog is closed
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                videoViewRef?.stopPlayback()
+                webViewRef?.destroy()
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Prepare non-YouTube video URI
     LaunchedEffect(videoUrl) {
+        if (isYouTube) {
+            isPreparing = false
+            hasError = false
+            return@LaunchedEffect
+        }
         isPreparing = true
         hasError = false
         try {
-            if (videoUrl.contains("youtube.com") || videoUrl.contains("youtu.be")) {
-                // YouTube link: directly open via external intent
-                MediaUtils.openVideo(context, videoUrl)
-                onDismiss()
-                return@LaunchedEffect
-            }
             val uri = MediaUtils.prepareVideoUriForPlayback(context, videoUrl)
             playableUri = uri
         } catch (e: Exception) {
@@ -125,9 +163,9 @@ fun VideoPlayerDialog(
         }
     }
 
-    // Auto-hide controls timer
+    // Auto-hide controls timer (for standard player)
     LaunchedEffect(isControlsVisible, isPlaying) {
-        if (isControlsVisible && isPlaying) {
+        if (!isYouTube && isControlsVisible && isPlaying) {
             delay(3500)
             isControlsVisible = false
         }
@@ -149,14 +187,11 @@ fun VideoPlayerDialog(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            videoViewRef?.stopPlayback()
-        }
-    }
-
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            onDismiss()
+        },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnBackPress = true,
@@ -173,10 +208,74 @@ fun VideoPlayerDialog(
                 ) {
                     isControlsVisible = !isControlsVisible
                 }
-                .testTag("whatsapp_video_player_dialog")
+                .testTag("in_app_video_player_dialog")
         ) {
-            // Central Video View
-            if (isPreparing) {
+            // 1. YouTube In-App Player (HTML5 IFrame Embedded)
+            if (isYouTube && youtubeVideoId != null) {
+                AndroidView(
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            settings.apply {
+                                javaScriptEnabled = true
+                                domStorageEnabled = true
+                                mediaPlaybackRequiresUserGesture = false
+                                allowFileAccess = false
+                                loadWithOverviewMode = true
+                                useWideViewPort = true
+                            }
+                            webChromeClient = WebChromeClient()
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    isPreparing = false
+                                }
+                            }
+                            setBackgroundColor(android.graphics.Color.BLACK)
+
+                            val embedHtml = """
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                  <style>
+                                    html, body {
+                                      margin: 0;
+                                      padding: 0;
+                                      width: 100%;
+                                      height: 100%;
+                                      background-color: #000000;
+                                      display: flex;
+                                      align-items: center;
+                                      justify-content: center;
+                                      overflow: hidden;
+                                    }
+                                    iframe {
+                                      width: 100%;
+                                      height: 100%;
+                                      border: none;
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <iframe 
+                                    src="https://www.youtube-nocookie.com/embed/$youtubeVideoId?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1" 
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
+                                    allowfullscreen>
+                                  </iframe>
+                                </body>
+                                </html>
+                            """.trimIndent()
+
+                            loadDataWithBaseURL("https://www.youtube-nocookie.com", embedHtml, "text/html", "UTF-8", null)
+                            webViewRef = this
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .align(Alignment.Center)
+                )
+            } else if (isPreparing) {
+                // Loading State
                 Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -184,13 +283,14 @@ fun VideoPlayerDialog(
                     CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "व्हिडिओ डाऊनलोड व लोड होत आहे...",
+                        text = "व्हिडिओ लोड होत आहे...",
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
             } else if (hasError) {
+                // Error State
                 Column(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -247,6 +347,7 @@ fun VideoPlayerDialog(
                     }
                 }
             } else if (playableUri != null) {
+                // 2. Standard MP4 / Cloud VideoView Player
                 AndroidView(
                     factory = { ctx ->
                         VideoView(ctx).apply {
@@ -277,11 +378,7 @@ fun VideoPlayerDialog(
                             }
                             setOnErrorListener { _, what, extra ->
                                 hasError = true
-                                errorMessage = if (videoUrl.startsWith("file://") || videoUrl.startsWith("/")) {
-                                    "हा व्हिडिओ स्थानिक फाईलमधून उघडता आला नाही. कृपया प्रेषकाला हा व्हिडिओ पुन्हा पाठवण्यास सांगा."
-                                } else {
-                                    "व्हिडिओ प्ले करताना अडचण आली (त्रुटी: $what, $extra). 'बाह्य ॲपमध्ये उघडा' बटण वापरून पहा."
-                                }
+                                errorMessage = "व्हिडिओ प्ले करताना अडचण आली (त्रुटी: $what, $extra)."
                                 true
                             }
                             videoViewRef = this
@@ -296,7 +393,7 @@ fun VideoPlayerDialog(
                 )
             }
 
-            // WhatsApp Style Semi-transparent Top Header Controls
+            // Top Header Bar with Close, Title, Fullscreen, and Options
             AnimatedVisibility(
                 visible = isControlsVisible,
                 enter = fadeIn(),
@@ -304,7 +401,7 @@ fun VideoPlayerDialog(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
-                    color = Color.Black.copy(alpha = 0.65f),
+                    color = Color.Black.copy(alpha = 0.70f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -314,7 +411,10 @@ fun VideoPlayerDialog(
                             .padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = onDismiss) {
+                        IconButton(onClick = {
+                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                            onDismiss()
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close Video",
@@ -325,7 +425,7 @@ fun VideoPlayerDialog(
 
                         Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
                             Text(
-                                text = title.ifEmpty { "व्हिडिओ संदेश" },
+                                text = title.ifEmpty { if (isYouTube) "मंडळ व्हिडिओ (YouTube)" else "व्हिडिओ संदेश" },
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 maxLines = 1,
@@ -333,7 +433,7 @@ fun VideoPlayerDialog(
                             )
                             if (senderName.isNotBlank()) {
                                 Text(
-                                    text = "प्रेषक: $senderName",
+                                    text = senderName,
                                     color = Color.White.copy(alpha = 0.8f),
                                     fontSize = 12.sp,
                                     maxLines = 1
@@ -341,36 +441,48 @@ fun VideoPlayerDialog(
                             }
                         }
 
-                        // Save to Gallery button
-                        IconButton(
-                            onClick = {
-                                if (!isSaving) {
-                                    isSaving = true
-                                    scope.launch {
-                                        val prefix = "JayHind_Video_${senderName.replace(Regex("[^a-zA-Z0-9_]"), "")}"
-                                        MediaUtils.saveVideoToGallery(
-                                            context = context,
-                                            videoUrlOrBase64 = videoUrl,
-                                            fileNamePrefix = prefix
-                                        )
-                                        isSaving = false
+                        // Fullscreen Toggle Button (Portrait <-> Landscape)
+                        IconButton(onClick = { toggleFullscreen() }) {
+                            Icon(
+                                imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = if (isFullscreen) "Exit Fullscreen" else "Fullscreen",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        // Save to Gallery button (only for non-YouTube media files)
+                        if (!isYouTube) {
+                            IconButton(
+                                onClick = {
+                                    if (!isSaving) {
+                                        isSaving = true
+                                        scope.launch {
+                                            val prefix = "JayHind_Video_${senderName.replace(Regex("[^a-zA-Z0-9_]"), "")}"
+                                            MediaUtils.saveVideoToGallery(
+                                                context = context,
+                                                videoUrlOrBase64 = videoUrl,
+                                                fileNamePrefix = prefix
+                                            )
+                                            isSaving = false
+                                        }
                                     }
                                 }
-                            }
-                        ) {
-                            if (isSaving) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Download,
-                                    contentDescription = "Save to Gallery",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                            ) {
+                                if (isSaving) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "Save to Gallery",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         }
 
-                        // Open in External Player
+                        // Open in External Player / Browser (Fallback)
                         IconButton(
                             onClick = {
                                 MediaUtils.openVideo(context, videoUrl)
@@ -387,110 +499,113 @@ fun VideoPlayerDialog(
                 }
             }
 
-            // Big Center Play/Pause/Replay Button Overlay
-            AnimatedVisibility(
-                visible = isControlsVisible && !isPreparing && !hasError,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.align(Alignment.Center)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color.Black.copy(alpha = 0.65f),
-                    modifier = Modifier.size(68.dp)
+            // Big Center Play/Pause Button Overlay (for non-YouTube videos)
+            if (!isYouTube) {
+                AnimatedVisibility(
+                    visible = isControlsVisible && !isPreparing && !hasError,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.Center)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        IconButton(
-                            onClick = {
-                                videoViewRef?.let { vv ->
-                                    if (isCompleted) {
-                                        vv.seekTo(0)
-                                        vv.start()
-                                        isPlaying = true
-                                        isCompleted = false
-                                    } else if (vv.isPlaying) {
-                                        vv.pause()
-                                        isPlaying = false
-                                    } else {
-                                        vv.start()
-                                        isPlaying = true
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.65f),
+                        modifier = Modifier.size(68.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            IconButton(
+                                onClick = {
+                                    videoViewRef?.let { vv ->
+                                        if (isCompleted) {
+                                            vv.seekTo(0)
+                                            vv.start()
+                                            isPlaying = true
+                                            isCompleted = false
+                                        } else if (vv.isPlaying) {
+                                            vv.pause()
+                                            isPlaying = false
+                                        } else {
+                                            vv.start()
+                                            isPlaying = true
+                                        }
                                     }
-                                }
-                            },
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Icon(
-                                imageVector = when {
-                                    isCompleted -> Icons.Default.Replay
-                                    isPlaying -> Icons.Default.Pause
-                                    else -> Icons.Default.PlayArrow
                                 },
-                                contentDescription = if (isPlaying) "Pause" else "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(38.dp)
-                            )
+                                modifier = Modifier.size(64.dp)
+                            ) {
+                                Icon(
+                                    imageVector = when {
+                                        isCompleted -> Icons.Default.Replay
+                                        isPlaying -> Icons.Default.Pause
+                                        else -> Icons.Default.PlayArrow
+                                    },
+                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(38.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Bottom Progress Bar & Time Controls
-            AnimatedVisibility(
-                visible = isControlsVisible && !isPreparing && !hasError,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.70f),
-                    modifier = Modifier.fillMaxWidth()
+            // Bottom Progress Bar & Time Controls (for non-YouTube videos)
+            if (!isYouTube) {
+                AnimatedVisibility(
+                    visible = isControlsVisible && !isPreparing && !hasError,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.70f),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Time & Scrubber Slider
-                        val progress = if (totalDuration > 0) (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f) else 0f
-                        var sliderPosition by remember(progress) { mutableFloatStateOf(progress) }
-
-                        Slider(
-                            value = sliderPosition,
-                            onValueChange = { newPos ->
-                                sliderPosition = newPos
-                                videoViewRef?.let { vv ->
-                                    val targetMs = (newPos * totalDuration).toInt()
-                                    vv.seekTo(targetMs)
-                                    currentPosition = targetMs
-                                }
-                            },
-                            colors = SliderDefaults.colors(
-                                thumbColor = SaffronPrimary,
-                                activeTrackColor = SaffronPrimary,
-                                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.fillMaxWidth().height(24.dp)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
-                            val currSec = currentPosition / 1000
-                            val totalSec = totalDuration / 1000
-                            Text(
-                                text = String.format(Locale.getDefault(), "%02d:%02d", currSec / 60, currSec % 60),
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
+                            val progress = if (totalDuration > 0) (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f) else 0f
+                            var sliderPosition by remember(progress) { mutableFloatStateOf(progress) }
+
+                            Slider(
+                                value = sliderPosition,
+                                onValueChange = { newPos ->
+                                    sliderPosition = newPos
+                                    videoViewRef?.let { vv ->
+                                        val targetMs = (newPos * totalDuration).toInt()
+                                        vv.seekTo(targetMs)
+                                        currentPosition = targetMs
+                                    }
+                                },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = SaffronPrimary,
+                                    activeTrackColor = SaffronPrimary,
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                               ),
+                                modifier = Modifier.fillMaxWidth().height(24.dp)
                             )
-                            Text(
-                                text = String.format(Locale.getDefault(), "%02d:%02d", totalSec / 60, totalSec % 60),
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                val currSec = currentPosition / 1000
+                                val totalSec = totalDuration / 1000
+                                Text(
+                                    text = String.format(Locale.getDefault(), "%02d:%02d", currSec / 60, currSec % 60),
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = String.format(Locale.getDefault(), "%02d:%02d", totalSec / 60, totalSec % 60),
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -498,3 +613,4 @@ fun VideoPlayerDialog(
         }
     }
 }
+

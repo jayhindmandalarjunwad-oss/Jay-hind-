@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.model.*
 import com.example.data.repository.MandalRepository
 import com.example.util.IdCardUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class AppScreen {
     SPLASH,
@@ -1316,6 +1318,192 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         }
+    }
+
+    // -------------------------------------------------------------
+    // LOCAL & CLOUD BACKUP (FIREBASE + GOOGLE DRIVE)
+    // -------------------------------------------------------------
+    private val _localBackups = MutableStateFlow<List<com.example.util.BackupItem>>(emptyList())
+    val localBackups: StateFlow<List<com.example.util.BackupItem>> = _localBackups.asStateFlow()
+
+    private val _backupStatusInfo = MutableStateFlow<com.example.util.BackupStatusInfo?>(null)
+    val backupStatusInfo: StateFlow<com.example.util.BackupStatusInfo?> = _backupStatusInfo.asStateFlow()
+
+    private val _cloudBackupInfo = MutableStateFlow<com.example.util.CloudBackupInfo?>(null)
+    val cloudBackupInfo: StateFlow<com.example.util.CloudBackupInfo?> = _cloudBackupInfo.asStateFlow()
+
+    private val _isBackupOperationRunning = MutableStateFlow(false)
+    val isBackupOperationRunning: StateFlow<Boolean> = _isBackupOperationRunning.asStateFlow()
+
+    private val _isCloudSyncing = MutableStateFlow(false)
+    val isCloudSyncing: StateFlow<Boolean> = _isCloudSyncing.asStateFlow()
+
+    private val _cloudProgress = MutableStateFlow(0f)
+    val cloudProgress: StateFlow<Float> = _cloudProgress.asStateFlow()
+
+    init {
+        refreshBackups()
+    }
+
+    fun refreshBackups() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = com.example.util.LocalBackupManager.getBackupsList(getApplication())
+            val status = com.example.util.LocalBackupManager.getBackupStatusInfo(getApplication())
+            val cloud = com.example.util.CloudBackupManager.getLatestCloudBackupInfo(getApplication())
+            _localBackups.value = list
+            _backupStatusInfo.value = status
+            _cloudBackupInfo.value = cloud
+        }
+    }
+
+    fun triggerManualBackup(onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        if (_isBackupOperationRunning.value) return
+        _isBackupOperationRunning.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = com.example.util.LocalBackupManager.performBackup(getApplication(), isAuto = false)
+            _isBackupOperationRunning.value = false
+            if (result.isSuccess) {
+                val file = result.getOrNull()
+                refreshBackups()
+                withContext(Dispatchers.Main) {
+                    showSnackbar("स्थानिक बॅकअप यशस्वीरित्या सेव्ह झाला: ${file?.name}")
+                    onComplete(true, "बॅकअप यशस्वी!")
+                }
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "बॅकअप घेण्यात त्रुटी आली."
+                withContext(Dispatchers.Main) {
+                    showSnackbar("❌ त्रुटी: $err")
+                    onComplete(false, err)
+                }
+            }
+        }
+    }
+
+    fun uploadToCloudStorage(backupItem: com.example.util.BackupItem) {
+        if (_isCloudSyncing.value) return
+        _isCloudSyncing.value = true
+        _cloudProgress.value = 0f
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = com.example.util.CloudBackupManager.uploadBackupToCloud(
+                context = getApplication(),
+                backupFile = backupItem.file,
+                onProgress = { prog -> _cloudProgress.value = prog }
+            )
+            _isCloudSyncing.value = false
+            if (result.isSuccess) {
+                refreshBackups()
+                withContext(Dispatchers.Main) {
+                    showSnackbar("☁️ बॅकअप Firebase Cloud Storage वर यशस्वीरित्या अपलोड झाला!")
+                }
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "क्लाउड अपलोड अयशस्वी."
+                withContext(Dispatchers.Main) {
+                    showSnackbar(err)
+                }
+            }
+        }
+    }
+
+    fun restoreFromCloudBackup() {
+        if (_isCloudSyncing.value || _isBackupOperationRunning.value) return
+        _isCloudSyncing.value = true
+        _cloudProgress.value = 0f
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = com.example.util.CloudBackupManager.downloadAndRestoreFromCloud(
+                context = getApplication(),
+                onProgress = { prog -> _cloudProgress.value = prog }
+            )
+            _isCloudSyncing.value = false
+            if (result.isSuccess) {
+                refreshBackups()
+                withContext(Dispatchers.Main) {
+                    showSnackbar("☁️ क्लाउडवरून डेटाबेस यशस्वीरित्या पुनर्संचयित (Restored) केला!")
+                }
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "क्लाउड रिस्टोअर अयशस्वी."
+                withContext(Dispatchers.Main) {
+                    showSnackbar("ℹ️ $err")
+                }
+            }
+        }
+    }
+
+    fun saveBackupToGoogleDrive(backupItem: com.example.util.BackupItem) {
+        com.example.util.CloudBackupManager.saveToGoogleDrive(getApplication(), backupItem.file)
+    }
+
+    fun saveLatestBackupToGoogleDrive() {
+        val latest = _localBackups.value.firstOrNull()
+        if (latest != null) {
+            saveBackupToGoogleDrive(latest)
+        } else {
+            viewModelScope.launch(Dispatchers.IO) {
+                val result = com.example.util.LocalBackupManager.performBackup(getApplication(), isAuto = false)
+                if (result.isSuccess) {
+                    val file = result.getOrNull()
+                    if (file != null) {
+                        refreshBackups()
+                        withContext(Dispatchers.Main) {
+                            com.example.util.CloudBackupManager.saveToGoogleDrive(getApplication(), file)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun restoreDatabase(backupItem: com.example.util.BackupItem, onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        if (_isBackupOperationRunning.value) return
+        _isBackupOperationRunning.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = com.example.util.LocalBackupManager.restoreBackup(getApplication(), backupItem.file)
+            _isBackupOperationRunning.value = false
+            if (result.isSuccess) {
+                refreshBackups()
+                withContext(Dispatchers.Main) {
+                    showSnackbar("स्थानिक डेटाबेस यशस्वीरित्या पुनर्संचयित (Restored) केला!")
+                    onComplete(true, "पुनर्संचयित यशस्वी!")
+                }
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "रिस्टोअर अयशस्वी."
+                withContext(Dispatchers.Main) {
+                    showSnackbar("❌ त्रुटी: $err")
+                    onComplete(false, err)
+                }
+            }
+        }
+    }
+
+    fun deleteBackupFile(backupItem: com.example.util.BackupItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = com.example.util.LocalBackupManager.deleteBackup(backupItem)
+            refreshBackups()
+            withContext(Dispatchers.Main) {
+                if (success) {
+                    showSnackbar("बॅकअप फाइल डिलीट केली.")
+                } else {
+                    showSnackbar("❌ फाइल डिलीट करता आली नाही.")
+                }
+            }
+        }
+    }
+
+    fun exportBackup(backupItem: com.example.util.BackupItem, onExported: (String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val path = com.example.util.LocalBackupManager.exportBackupToDownloads(getApplication(), backupItem.file)
+            withContext(Dispatchers.Main) {
+                if (path != null) {
+                    showSnackbar("बॅकअप Downloads मध्ये सेव्ह केला: $path")
+                } else {
+                    showSnackbar("❌ एक्सपोर्ट अयशस्वी.")
+                }
+                onExported(path)
+            }
+        }
+    }
+
+    fun shareBackup(backupItem: com.example.util.BackupItem) {
+        com.example.util.LocalBackupManager.shareBackup(getApplication(), backupItem.file)
     }
 }
 

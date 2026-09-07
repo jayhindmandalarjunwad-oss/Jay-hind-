@@ -133,12 +133,17 @@ object FirebaseStorageHelper {
 
     /**
      * Uploads an image to Firebase Storage in WebP format.
+     * Supports standardized unique naming convention:
+     * - Posts: JayHind_Post_[Author]_[Timestamp]_[Index].webp
+     * - Chat: JayHind_ChatPhoto_[Author]_[Timestamp].webp
      * Returns public download URL. Falls back to base64 if offline/error.
      */
     suspend fun uploadImage(
         context: Context,
         uri: Uri,
         folder: String = "chat_media/images",
+        customFileName: String? = null,
+        senderName: String? = null,
         onProgress: ((Int) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
         try {
@@ -147,12 +152,24 @@ object FirebaseStorageHelper {
                 return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
             }
 
-            val fileName = "img_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.webp"
+            val fileName = if (!customFileName.isNullOrBlank()) {
+                if (customFileName.endsWith(".webp", ignoreCase = true)) customFileName else "$customFileName.webp"
+            } else {
+                val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)
+                val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                val shortUuid = UUID.randomUUID().toString().take(4)
+                if (folder.contains("chat")) {
+                    "JayHind_ChatPhoto_${cleanSender}_${dateStr}_$shortUuid.webp"
+                } else {
+                    "JayHind_Post_${cleanSender}_${dateStr}_$shortUuid.webp"
+                }
+            }
             val ref = storage.reference.child("$folder/$fileName")
 
             val metadata = StorageMetadata.Builder()
                 .setContentType("image/webp")
                 .setCustomMetadata("uploadedBy", "JayHindMandalApp")
+                .setCustomMetadata("originalName", fileName)
                 .build()
 
             val uploadTask = ref.putBytes(webpBytes, metadata)
@@ -174,12 +191,15 @@ object FirebaseStorageHelper {
     }
 
     /**
-     * Uploads an audio voice note (.m4a) to Firebase Storage.
-     * Returns public download URL.
+     * Uploads an audio voice note (.m4a) to Firebase Storage with standardized naming:
+     * JayHind_Voice_[Sender]_[Timestamp].m4a
+     * Ultra-low bitrate audio for fast sending. Returns public download URL.
      */
     suspend fun uploadAudio(
         context: Context,
         audioFile: File,
+        senderName: String? = null,
+        customFileName: String? = null,
         onProgress: ((Int) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
         try {
@@ -187,11 +207,19 @@ object FirebaseStorageHelper {
                 return@withContext ""
             }
 
-            val fileName = "voice_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.m4a"
+            val fileName = if (!customFileName.isNullOrBlank()) {
+                if (customFileName.endsWith(".m4a", ignoreCase = true)) customFileName else "$customFileName.m4a"
+            } else {
+                val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)
+                val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                val shortUuid = UUID.randomUUID().toString().take(4)
+                "JayHind_Voice_${cleanSender}_${dateStr}_$shortUuid.m4a"
+            }
             val ref = storage.reference.child("chat_media/audio/$fileName")
 
             val metadata = StorageMetadata.Builder()
                 .setContentType("audio/m4a")
+                .setCustomMetadata("originalName", fileName)
                 .build()
 
             val uploadTask = ref.putFile(Uri.fromFile(audioFile), metadata)
@@ -204,7 +232,7 @@ object FirebaseStorageHelper {
 
             uploadTask.await()
             val downloadUrl = ref.downloadUrl.await().toString()
-            Log.d(TAG, "Audio uploaded successfully: $downloadUrl")
+            Log.d(TAG, "Audio uploaded successfully: $downloadUrl ($fileName)")
             return@withContext downloadUrl
         } catch (e: Exception) {
             Log.w(TAG, "Audio upload failed, fallback to base64: ${e.message}")
@@ -389,12 +417,14 @@ object FirebaseStorageHelper {
 
     /**
      * Uploads a Document (PDF, Word, etc. max 10MB) to Firebase Storage.
+     * Follows standardized naming: JayHind_Doc_[Sender]_[Timestamp]_[OriginalName]
      * Returns Pair(documentDownloadUrl, formattedFileSize)
      */
     suspend fun uploadDocument(
         context: Context,
         uri: Uri,
         fileName: String,
+        senderName: String? = null,
         onProgress: ((Int) -> Unit)? = null
     ): Pair<String, String> = withContext(Dispatchers.IO) {
         val fileSize = getFileSize(context, uri)
@@ -403,12 +433,18 @@ object FirebaseStorageHelper {
         }
 
         try {
+            val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)
+            val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val cleanName = fileName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
-            val docPath = "chat_media/documents/doc_${System.currentTimeMillis()}_$cleanName"
+            val standardizedDocName = if (cleanName.startsWith("JayHind_Doc_")) cleanName else "JayHind_Doc_${cleanSender}_${dateStr}_$cleanName"
+            val docPath = "chat_media/documents/$standardizedDocName"
             val docRef = storage.reference.child(docPath)
 
             val mime = context.contentResolver.getType(uri) ?: "application/pdf"
-            val meta = StorageMetadata.Builder().setContentType(mime).build()
+            val meta = StorageMetadata.Builder()
+                .setContentType(mime)
+                .setCustomMetadata("originalName", standardizedDocName)
+                .build()
 
             val uploadTask = docRef.putFile(uri, meta)
             uploadTask.addOnProgressListener { taskSnapshot ->
@@ -421,13 +457,16 @@ object FirebaseStorageHelper {
             uploadTask.await()
             val docUrl = docRef.downloadUrl.await().toString()
             val sizeLabel = formatFileSize(fileSize)
-            Log.d(TAG, "Document uploaded successfully: $docUrl ($sizeLabel)")
+            Log.d(TAG, "Document uploaded successfully: $docUrl ($sizeLabel, $standardizedDocName)")
             return@withContext Pair(docUrl, sizeLabel)
         } catch (e: Exception) {
             Log.w(TAG, "Document cloud upload note (${e.message}). Falling back to internal persistent storage.")
             val docDir = File(context.filesDir, "jayhind_docs").apply { if (!exists()) mkdirs() }
+            val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)
+            val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val cleanName = fileName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
-            val localDoc = File(docDir, "${System.currentTimeMillis()}_$cleanName")
+            val standardizedDocName = if (cleanName.startsWith("JayHind_Doc_")) cleanName else "JayHind_Doc_${cleanSender}_${dateStr}_$cleanName"
+            val localDoc = File(docDir, standardizedDocName)
             try {
                 context.contentResolver.openInputStream(uri)?.use { inStream ->
                     FileOutputStream(localDoc).use { outStream ->

@@ -15,6 +15,7 @@ class BootReceiver : BroadcastReceiver() {
         ) {
             SystemNotificationHelper.initNotificationChannels(context)
             MandalSyncJobService.scheduleJob(context)
+            MandalBackupJobService.scheduleDailyBackup(context)
         }
     }
 }

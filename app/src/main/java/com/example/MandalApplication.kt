@@ -45,8 +45,9 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
                 Log.d("MandalApp", "Firebase default app already initialized")
             }
 
-            // Schedule native background sync job
+            // Schedule native background sync job & daily database backup
             com.example.util.MandalSyncJobService.scheduleJob(this)
+            com.example.util.MandalBackupJobService.scheduleDailyBackup(this)
         } catch (e: Exception) {
             Log.e("MandalApp", "Failed to initialize Firebase or background services: ${e.message}", e)
         }

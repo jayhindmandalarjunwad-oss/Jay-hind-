@@ -50,5 +50,24 @@ abstract class AppDatabase : RoomDatabase() {
                 instance
             }
         }
+
+        fun checkpoint(context: Context) {
+            try {
+                getDatabase(context).openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").close()
+            } catch (e: Exception) {
+                android.util.Log.e("AppDatabase", "Checkpoint error: ${e.message}")
+            }
+        }
+
+        fun closeDatabase() {
+            synchronized(this) {
+                try {
+                    INSTANCE?.close()
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Close DB error: ${e.message}")
+                }
+                INSTANCE = null
+            }
+        }
     }
 }
