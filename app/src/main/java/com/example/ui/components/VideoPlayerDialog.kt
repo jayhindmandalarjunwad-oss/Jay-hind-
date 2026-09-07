@@ -306,9 +306,9 @@ fun VideoPlayerDialog(
         }
     }
 
-    // Auto-hide controls timer (for standard player)
+    // Auto-hide controls timer (for all players)
     LaunchedEffect(isControlsVisible, isPlaying) {
-        if (!isYouTube && isControlsVisible && isPlaying) {
+        if (isControlsVisible && isPlaying) {
             delay(3500)
             isControlsVisible = false
         }
@@ -373,7 +373,7 @@ fun VideoPlayerDialog(
                                 lifecycleOwner.lifecycle.addObserver(this)
 
                                 val options = IFramePlayerOptions.Builder(ctx)
-                                    .controls(1)
+                                    .controls(0)
                                     .rel(0)
                                     .ivLoadPolicy(3)
                                     .build()
@@ -385,6 +385,22 @@ fun VideoPlayerDialog(
                                             isYtReady = true
                                             isPreparing = false
                                             player.loadVideo(youtubeVideoId, 0f)
+                                        }
+
+                                        override fun onCurrentSecond(
+                                            player: YouTubePlayer,
+                                            second: Float
+                                        ) {
+                                            currentPosition = (second * 1000).toInt()
+                                        }
+
+                                        override fun onVideoDuration(
+                                            player: YouTubePlayer,
+                                            duration: Float
+                                        ) {
+                                            if (duration > 0f) {
+                                                totalDuration = (duration * 1000).toInt()
+                                            }
                                         }
 
                                         override fun onStateChange(
@@ -697,22 +713,37 @@ fun VideoPlayerDialog(
                 }
             }
 
-            // Big Center Play/Pause Button Overlay (for non-YouTube videos)
-            if (!isYouTube) {
-                AnimatedVisibility(
-                    visible = isControlsVisible && !isPreparing && !hasError,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier.align(Alignment.Center)
+            // Big Center Play/Pause Button Overlay (Clean Custom Player UI)
+            AnimatedVisibility(
+                visible = isControlsVisible && !isPreparing && !hasError && ytError == null,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.65f),
+                    modifier = Modifier.size(68.dp)
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.65f),
-                        modifier = Modifier.size(68.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            IconButton(
-                                onClick = {
+                    Box(contentAlignment = Alignment.Center) {
+                        IconButton(
+                            onClick = {
+                                if (isYouTube) {
+                                    youTubePlayerRef?.let { yp ->
+                                        if (isCompleted) {
+                                            yp.seekTo(0f)
+                                            yp.play()
+                                            isPlaying = true
+                                            isCompleted = false
+                                        } else if (isPlaying) {
+                                            yp.pause()
+                                            isPlaying = false
+                                        } else {
+                                            yp.play()
+                                            isPlaying = true
+                                        }
+                                    }
+                                } else {
                                     texturePlayerRef?.let { tp ->
                                         if (isCompleted) {
                                             tp.seekTo(0)
@@ -727,83 +758,83 @@ fun VideoPlayerDialog(
                                             isPlaying = true
                                         }
                                     }
+                                }
+                            },
+                            modifier = Modifier.size(64.dp)
+                        ) {
+                            Icon(
+                                imageVector = when {
+                                    isCompleted -> Icons.Default.Replay
+                                    isPlaying -> Icons.Default.Pause
+                                    else -> Icons.Default.PlayArrow
                                 },
-                                modifier = Modifier.size(64.dp)
-                            ) {
-                                Icon(
-                                    imageVector = when {
-                                        isCompleted -> Icons.Default.Replay
-                                        isPlaying -> Icons.Default.Pause
-                                        else -> Icons.Default.PlayArrow
-                                    },
-                                    contentDescription = if (isPlaying) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(38.dp)
-                                )
-                            }
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(38.dp)
+                            )
                         }
                     }
                 }
             }
 
-            // Bottom Progress Bar & Time Controls (for non-YouTube videos)
-            if (!isYouTube) {
-                AnimatedVisibility(
-                    visible = isControlsVisible && !isPreparing && !hasError,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                    modifier = Modifier.align(Alignment.BottomCenter)
+            // Bottom Progress Bar & Time Controls (Clean Custom Player UI)
+            AnimatedVisibility(
+                visible = isControlsVisible && !isPreparing && !hasError && ytError == null,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.75f),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.75f),
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        val progress = if (totalDuration > 0) (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f) else 0f
+                        var sliderPosition by remember(progress) { mutableFloatStateOf(progress) }
+
+                        Slider(
+                            value = sliderPosition,
+                            onValueChange = { newPos ->
+                                sliderPosition = newPos
+                                val targetMs = (newPos * totalDuration).toInt()
+                                currentPosition = targetMs
+                                if (isYouTube) {
+                                    youTubePlayerRef?.seekTo(targetMs / 1000f)
+                                } else {
+                                    texturePlayerRef?.seekTo(targetMs)
+                                }
+                            },
+                            colors = SliderDefaults.colors(
+                                thumbColor = SaffronPrimary,
+                                activeTrackColor = SaffronPrimary,
+                                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.fillMaxWidth().height(24.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            val progress = if (totalDuration > 0) (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f) else 0f
-                            var sliderPosition by remember(progress) { mutableFloatStateOf(progress) }
-
-                            Slider(
-                                value = sliderPosition,
-                                onValueChange = { newPos ->
-                                    sliderPosition = newPos
-                                    texturePlayerRef?.let { tp ->
-                                        val targetMs = (newPos * totalDuration).toInt()
-                                        tp.seekTo(targetMs)
-                                        currentPosition = targetMs
-                                    }
-                                },
-                                colors = SliderDefaults.colors(
-                                    thumbColor = SaffronPrimary,
-                                    activeTrackColor = SaffronPrimary,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                                ),
-                                modifier = Modifier.fillMaxWidth().height(24.dp)
+                            val currSec = currentPosition / 1000
+                            val totalSec = totalDuration / 1000
+                            Text(
+                                text = String.format(Locale.getDefault(), "%02d:%02d", currSec / 60, currSec % 60),
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
                             )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                val currSec = currentPosition / 1000
-                                val totalSec = totalDuration / 1000
-                                Text(
-                                    text = String.format(Locale.getDefault(), "%02d:%02d", currSec / 60, currSec % 60),
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = String.format(Locale.getDefault(), "%02d:%02d", totalSec / 60, totalSec % 60),
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
+                            Text(
+                                text = String.format(Locale.getDefault(), "%02d:%02d", totalSec / 60, totalSec % 60),
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
