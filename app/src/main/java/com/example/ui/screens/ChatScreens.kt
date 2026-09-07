@@ -945,43 +945,6 @@ fun ChatDetailScreen(
         }
     }
 
-    val videoGalleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch {
-                try {
-                    isUploadingMedia = true
-                    uploadStatusText = "क्लाउड स्टोरेज बचत करून व्हिडिओ अपलोड होत आहे..."
-                    uploadProgress = 0
-                    val myName = currentUser?.fullName?.ifBlank { "Member" } ?: "Member"
-                    val targetName = if (isGroupChat) "Group" else partner.fullName.ifBlank { "Direct" }
-                    val (videoUrl, thumbUrl, durationLabel) = FirebaseStorageHelper.uploadVideo(
-                        context = context,
-                        uri = uri,
-                        senderName = myName,
-                        chatTarget = targetName
-                    ) { prog ->
-                        uploadProgress = prog
-                    }
-                    val formattedVideoTitle = "व्हिडिओ ($durationLabel)"
-                    viewModel.sendChatMessage(
-                        text = "",
-                        attachmentType = "VIDEO",
-                        attachmentUrl = videoUrl,
-                        attachmentName = formattedVideoTitle,
-                        attachmentExtra = thumbUrl
-                    )
-                    Toast.makeText(context, "✅ व्हिडिओ यशस्वीरीत्या पाठवला!", Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Toast.makeText(context, e.message ?: "व्हिडिओ पाठवता आला नाही", Toast.LENGTH_LONG).show()
-                } finally {
-                    isUploadingMedia = false
-                }
-            }
-        }
-    }
-
     // 4. Direct Document / PDF Launcher
     val docPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -1450,9 +1413,9 @@ fun ChatDetailScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // Camera
+                    // Camera (Photo)
                     AttachmentItemOption(
                         icon = Icons.Default.CameraAlt,
                         label = "कॅमेरा",
@@ -1486,17 +1449,6 @@ fun ChatDetailScreen(
                             } catch (_: Exception) {
                                 docPickerLauncher.launch("*/*")
                             }
-                        }
-                    )
-
-                    // Video
-                    AttachmentItemOption(
-                        icon = Icons.Default.Videocam,
-                        label = "व्हिडिओ",
-                        color = Color(0xFF7C3AED),
-                        onClick = {
-                            showAttachmentMenu = false
-                            videoGalleryLauncher.launch("video/*")
                         }
                     )
 
