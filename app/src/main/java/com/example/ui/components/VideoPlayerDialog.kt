@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.Surface
 import android.view.TextureView
 import android.view.ViewGroup
+import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -221,6 +222,49 @@ class TextureVideoPlayerView(context: Context) : FrameLayout(context), TextureVi
 }
 
 /**
+ * Finds the internal WebView inside YouTubePlayerView to control touch events and CSS
+ */
+private fun findWebViewInViewGroup(viewGroup: ViewGroup): WebView? {
+    for (i in 0 until viewGroup.childCount) {
+        val child = viewGroup.getChildAt(i)
+        if (child is WebView) return child
+        if (child is ViewGroup) {
+            val found = findWebViewInViewGroup(child)
+            if (found != null) return found
+        }
+    }
+    return null
+}
+
+/**
+ * Injects CSS into YouTube's internal WebView to completely hide the top video title bar,
+ * the channel link, the bottom watermark "YouTube", "More videos", and pause overlays.
+ */
+private fun injectCleanYouTubeCSS(playerView: YouTubePlayerView) {
+    playerView.post {
+        try {
+            val webView = findWebViewInViewGroup(playerView) ?: return@post
+            // Disallow internal clicks on web elements so YouTube never shows overlay
+            webView.setOnTouchListener { _, _ -> true }
+            val css = ".ytp-chrome-top, .ytp-chrome-bottom, .ytp-watermark, .ytp-pause-overlay, .ytp-show-cards-title, .ytp-ce-element, .ytp-button.ytp-share-button, .ytp-title-channel, .ytp-title-link, .ytp-impression-link, .ytp-contextmenu, .ytp-cairo-refresh-signature-moments, .annotation, .ytp-gradient-top, .ytp-gradient-bottom { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }"
+            val js = """
+                (function() {
+                    var s = document.getElementById('clean_yt_css');
+                    if (!s) {
+                        s = document.createElement('style');
+                        s.id = 'clean_yt_css';
+                        s.type = 'text/css';
+                        s.innerHTML = '$css';
+                        document.head.appendChild(s);
+                    }
+                })();
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+        } catch (_: Exception) {}
+    }
+}
+
+/**
  * WhatsApp & Gallery In-App Video Player Dialog
  * Supports:
  * 1. Direct In-App YouTube playback using official YouTubePlayerView (No Black Screen!)
@@ -330,6 +374,16 @@ fun VideoPlayerDialog(
         }
     }
 
+    // Periodically enforce Clean YouTube CSS injection during initialization
+    LaunchedEffect(isYtReady) {
+        if (isYtReady && isYouTube) {
+            repeat(8) {
+                delay(600)
+                youTubePlayerViewRef?.let { injectCleanYouTubeCSS(it) }
+            }
+        }
+    }
+
     Dialog(
         onDismissRequest = {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -385,6 +439,7 @@ fun VideoPlayerDialog(
                                             isYtReady = true
                                             isPreparing = false
                                             player.loadVideo(youtubeVideoId, 0f)
+                                            injectCleanYouTubeCSS(this@apply)
                                         }
 
                                         override fun onCurrentSecond(
@@ -412,13 +467,16 @@ fun VideoPlayerDialog(
                                                     isPreparing = false
                                                     isPlaying = true
                                                     ytError = null
+                                                    injectCleanYouTubeCSS(this@apply)
                                                 }
                                                 PlayerConstants.PlayerState.PAUSED -> {
                                                     isPlaying = false
+                                                    injectCleanYouTubeCSS(this@apply)
                                                 }
                                                 PlayerConstants.PlayerState.ENDED -> {
                                                     isPlaying = false
                                                     isCompleted = true
+                                                    injectCleanYouTubeCSS(this@apply)
                                                 }
                                                 else -> {}
                                             }
@@ -450,6 +508,20 @@ fun VideoPlayerDialog(
                         modifier = Modifier
                             .fillMaxSize()
                             .align(Alignment.Center)
+                    )
+
+                    // Option 1: Transparent Touch Interceptor directly over YouTubePlayerView
+                    // Intercepts touches so YouTube's internal webview never receives clicks/taps,
+                    // preventing YouTube's title bar, "More videos", and "YouTube" logo from ever appearing!
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) {
+                                isControlsVisible = !isControlsVisible
+                            }
                     )
 
                     if (!isYtReady && ytError == null) {
