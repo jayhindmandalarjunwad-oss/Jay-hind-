@@ -1,6 +1,10 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -427,9 +431,30 @@ fun AnnouncementsScreen(
     viewModel: MandalViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val announcements by viewModel.announcements.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val isAdmin = currentUser?.isAnyAdmin == true
+
+    var selectedFilter by remember { mutableStateOf("सर्व") }
+    val filterTabs = listOf("सर्व", "📋 बैठक इतिवृत्त", "📜 ठराव व परिपत्रके", "📢 सामान्य सूचना")
+
+    val filteredAnnouncements by remember(announcements, selectedFilter) {
+        derivedStateOf {
+            when (selectedFilter) {
+                "📋 बैठक इतिवृत्त" -> announcements.filter {
+                    it.title.contains("बैठक") || it.title.contains("इतिवृत्त") || it.content.contains("बैठक") || it.content.contains("इतिवृत्त")
+                }
+                "📜 ठराव व परिपत्रके" -> announcements.filter {
+                    it.title.contains("ठराव") || it.title.contains("परिपत्रक") || it.content.contains("ठराव") || it.content.contains("परिपत्रक")
+                }
+                "📢 सामान्य सूचना" -> announcements.filter {
+                    !it.title.contains("बैठक") && !it.title.contains("इतिवृत्त") && !it.title.contains("ठराव")
+                }
+                else -> announcements
+            }
+        }
+    }
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var announcementToEdit by remember { mutableStateOf<Announcement?>(null) }
@@ -438,8 +463,8 @@ fun AnnouncementsScreen(
     Scaffold(
         topBar = {
             MandalTopHeader(
-                title = "मंडळ सूचना फलक (Notice Board)",
-                subtitle = "अधिकृत पत्रके, परिपत्रके व निर्णय",
+                title = "मंडळ सूचना व बैठक इतिवृत्त",
+                subtitle = "अधिकृत पत्रके, बैठकांचे इतिवृत्त व संमत ठराव",
                 showBackButton = true,
                 onBackClick = onBack,
                 actions = {
@@ -473,7 +498,7 @@ fun AnnouncementsScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Add Notice")
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("नवीन सूचना", fontWeight = FontWeight.Bold)
+                        Text("नवीन सूचना / इतिवृत्त", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -486,96 +511,171 @@ fun AnnouncementsScreen(
                 .background(BackgroundWarm)
                 .testTag("announcements_screen_root")
         ) {
-            if (announcements.isEmpty()) {
-                EmptyStateView(
-                    icon = Icons.Default.Campaign,
-                    title = "कोणतीही नवीन सूचना नाही",
-                    subtitle = "नवीन सूचना येथे प्रसिद्ध केल्या जातील."
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp)
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Category Filter Chips
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(announcements, key = { it.id }) { ann ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = ann.title,
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = TextPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    PriorityBadge(priority = ann.priority)
+                    items(filterTabs) { tab ->
+                        FilterChip(
+                            selected = selectedFilter == tab,
+                            onClick = { selectedFilter = tab },
+                            label = { Text(tab, fontWeight = if (selectedFilter == tab) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SaffronPrimary,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
 
-                                    if (isAdmin) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        IconButton(
-                                            onClick = { announcementToEdit = ann },
-                                            modifier = Modifier.size(28.dp)
+                if (filteredAnnouncements.isEmpty()) {
+                    EmptyStateView(
+                        icon = if (selectedFilter.contains("इतिवृत्त")) Icons.Default.Description else Icons.Default.Campaign,
+                        title = if (selectedFilter.contains("इतिवृत्त")) "कोणतेही बैठक इतिवृत्त नोंदवलेले नाही" else "कोणतीही नवीन सूचना नाही",
+                        subtitle = "नवीन बैठक इतिवृत्त व सूचना येथे प्रसिद्ध केल्या जातील."
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
+                    ) {
+                        items(filteredAnnouncements, key = { it.id }) { ann ->
+                            val isMeetingMinute = ann.title.contains("बैठक") || ann.title.contains("इतिवृत्त") || ann.content.contains("इतिवृत्त")
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = if (isMeetingMinute) androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.35f)) else null,
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Edit,
-                                                contentDescription = "Edit Announcement",
-                                                tint = SaffronPrimary,
-                                                modifier = Modifier.size(16.dp)
+                                            if (isMeetingMinute) {
+                                                Icon(
+                                                    Icons.Default.MenuBook,
+                                                    contentDescription = null,
+                                                    tint = SaffronPrimary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                            Text(
+                                                text = ann.title,
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = TextPrimary
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        IconButton(
-                                            onClick = { announcementToDelete = ann },
-                                            modifier = Modifier.size(28.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Delete Announcement",
-                                                tint = BloodRed,
-                                                modifier = Modifier.size(16.dp)
-                                            )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        PriorityBadge(priority = ann.priority)
+
+                                        if (isAdmin) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            IconButton(
+                                                onClick = { announcementToEdit = ann },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Edit Announcement",
+                                                    tint = SaffronPrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            IconButton(
+                                                onClick = { announcementToDelete = ann },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete Announcement",
+                                                    tint = BloodRed,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
                                         }
                                     }
-                                }
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(8.dp))
 
-                                Text(
-                                    text = ann.content,
-                                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                                    color = TextPrimary
-                                )
-
-                                Spacer(modifier = Modifier.height(10.dp))
-                                HorizontalDivider(color = DividerColor)
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
                                     Text(
-                                        text = "आदेशान्वये: ${ann.author}",
-                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                        color = SaffronPrimary,
-                                        fontSize = 11.sp
+                                        text = ann.content,
+                                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+                                        color = TextPrimary
                                     )
-                                    Text(
-                                        text = ann.date,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary,
-                                        fontSize = 11.sp
-                                    )
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    HorizontalDivider(color = DividerColor)
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "आदेशान्वये: ${ann.author}",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                                color = SaffronPrimary,
+                                                fontSize = 11.sp
+                                            )
+                                            Text(
+                                                text = ann.date,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = TextSecondary,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+
+                                        // Share & Copy Actions
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            // Copy text button
+                                            IconButton(
+                                                onClick = {
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                                    val textToCopy = "${ann.title}\n\n${ann.content}\n\n- जय हिंद मंडळ, अर्जुनवाड (${ann.date})"
+                                                    clipboard?.setPrimaryClip(ClipData.newPlainText("Notice", textToCopy))
+                                                    viewModel.showSnackbar("मजकूर क्लिपबोर्डवर कॉपी केला! 📋")
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                            }
+
+                                            // WhatsApp Share button
+                                            IconButton(
+                                                onClick = {
+                                                    try {
+                                                        val shareText = "🚩 *जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड*\n\n📌 *${ann.title}*\n\n${ann.content}\n\n📅 तारीख: ${ann.date}\n✍️ आदेशान्वये: ${ann.author}"
+                                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                            type = "text/plain"
+                                                            putExtra(Intent.EXTRA_TEXT, shareText)
+                                                        }
+                                                        val chooser = Intent.createChooser(sendIntent, "माहिती शेअर करा")
+                                                        context.startActivity(chooser)
+                                                    } catch (_: Exception) {}
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.Share, contentDescription = "Share", tint = SuccessGreen, modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -665,6 +765,53 @@ fun AddEditAnnouncementDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                Text(
+                    text = "⚡ झटपट टेम्प्लेट निवडा:",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = SaffronPrimary
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            title = "📋 कार्यकारिणी बैठक इतिवृत्त"
+                            content = """
+मंडळ कार्यकारिणी बैठक इतिवृत्त
+१. तारीख व वेळ: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("mr")).format(java.util.Date())}, सायं. ७:०० वा.
+२. स्थान: जय हिंद मंडळ कार्यालय, अर्जुनवाड.
+३. उपस्थित कार्यकारिणी सदस्य: अध्यक्ष, सचिव, खजिनदार व सर्व सदस्य.
+४. विषय: आगामी उपक्रम नियोजन व आर्थिक आढावा.
+५. संमत ठराव व निर्णय:
+- ठराव क्र. १: गणेशोत्सव व क्रीडा स्पर्धांचे नियोजन एकमुखाने संमत.
+- ठराव क्र. २: सामाजिक आरोग्य शिबीर आयोजित करण्याचे ठरले.
+६. सूचक: सचिव | अनुमोदक: अध्यक्ष
+सर्वानुमते ठराव मंजूर.
+                            """.trimIndent()
+                            priority = "HIGH"
+                        },
+                        label = { Text("📋 बैठक इतिवृत्त", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            title = "📜 मासिक ठराव क्र. "
+                            content = """
+मंडळ ठराव:
+विषय: 
+सभेचा दिनांक: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("mr")).format(java.util.Date())}
+सूचक: 
+अनुमोदक: 
+संमत निर्णय: उपस्थित सर्व सभासदांच्या सहमतीने हा ठराव सर्वानुमते मंजूर करण्यात आला.
+                            """.trimIndent()
+                            priority = "MEDIUM"
+                        },
+                        label = { Text("📜 ठराव", fontSize = 11.sp) }
+                    )
+                }
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },

@@ -51,7 +51,7 @@ enum class AdminTab(val title: String) {
     MEMBERS_LIST("सर्व सभासद व ॲडमिन"),
     MANAGE_LOGO("लोगो व स्वाक्षरी"),
     CREATE_EVENT("नवीन कार्यक्रम"),
-    CREATE_ANNOUNCEMENT("सूचना / Broadcast"),
+    CREATE_ANNOUNCEMENT("सूचना व बैठक इतिवृत्त"),
     MANAGE_GALLERY("फोटो व व्हिडिओ"),
     POSTS_MODERATION("पोस्ट्स नियंत्रण"),
     MEMBER_FEEDBACK("सभासद अभिप्राय"),
@@ -1788,15 +1788,72 @@ fun CreateAnnouncementAdminTab(viewModel: MandalViewModel) {
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = "अधिकृत सूचना प्रसारित करा (Notice Board & Broadcast)",
+                    text = "अधिकृत सूचना व बैठक इतिवृत्त (Minutes & Notice Board)",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = TextPrimary
                 )
 
+                // Quick Format Templates
+                Text(
+                    text = "⚡ झटपट टेम्प्लेट (Quick Templates):",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = SaffronPrimary
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            title = "📋 कार्यकारिणी बैठक इतिवृत्त"
+                            content = """
+मंडळ कार्यकारिणी बैठक इतिवृत्त
+१. तारीख व वेळ: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("mr")).format(java.util.Date())}, सायं. ७:०० वा.
+२. स्थान: जय हिंद मंडळ कार्यालय, अर्जुनवाड.
+३. उपस्थित कार्यकारिणी सदस्य: अध्यक्ष, सचिव, खजिनदार व सर्व सदस्य.
+४. विषय: आगामी उपक्रम नियोजन व आर्थिक आढावा.
+५. संमत ठराव व निर्णय:
+- ठराव क्र. १: गणेशोत्सव व क्रीडा स्पर्धांचे नियोजन एकमुखाने संमत.
+- ठराव क्र. २: सामाजिक आरोग्य शिबीर आयोजित करण्याचे ठरले.
+६. सूचक: सचिव | अनुमोदक: अध्यक्ष
+सर्वानुमते ठराव मंजूर.
+                            """.trimIndent()
+                            priority = "IMPORTANT"
+                        },
+                        label = { Text("📋 बैठक इतिवृत्त") }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            title = "📜 मासिक ठराव क्र. "
+                            content = """
+मंडळ ठराव:
+विषय: 
+सभेचा दिनांक: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("mr")).format(java.util.Date())}
+सूचक: 
+अनुमोदक: 
+संमत निर्णय: उपस्थित सर्व सभासदांच्या सहमतीने हा ठराव सर्वानुमते मंजूर करण्यात आला.
+                            """.trimIndent()
+                            priority = "IMPORTANT"
+                        },
+                        label = { Text("📜 ठराव") }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            title = "📢 सर्वसाधारण सूचना: "
+                            content = "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळाच्या सर्व सभासदांना कळविण्यात येते की, "
+                            priority = "NORMAL"
+                        },
+                        label = { Text("📢 सूचना") }
+                    )
+                }
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("सूचनेचे शीर्षक (Title)") },
+                    label = { Text("सूचनेचे / इतिवृत्ताचे शीर्षक (Title)") },
                     modifier = Modifier.fillMaxWidth()
                 )
 

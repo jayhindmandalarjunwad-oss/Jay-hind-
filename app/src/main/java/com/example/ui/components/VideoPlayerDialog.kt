@@ -1,16 +1,18 @@
 package com.example.ui.components
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.graphics.SurfaceTexture
+import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
-import android.webkit.WebChromeClient
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.widget.MediaController
-import android.widget.VideoView
+import android.view.Gravity
+import android.view.Surface
+import android.view.TextureView
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -42,7 +44,8 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,33 +67,165 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.data.model.ChatMessage
+import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.ui.theme.SaffronPrimary
 import com.example.util.MediaUtils
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import androidx.core.content.FileProvider
 import java.io.File
 import java.util.Locale
 
 /**
+ * TextureView based Video Player to avoid SurfaceView z-order punch-through issues in Jetpack Compose
+ */
+class TextureVideoPlayerView(context: Context) : FrameLayout(context), TextureView.SurfaceTextureListener {
+    val textureView = TextureView(context)
+    private var mediaPlayer: MediaPlayer? = null
+    private var surface: Surface? = null
+    private var pendingUri: Uri? = null
+
+    var onPreparedListener: ((durationMs: Int) -> Unit)? = null
+    var onCompletionListener: (() -> Unit)? = null
+    var onErrorListener: ((what: Int, extra: Int) -> Unit)? = null
+
+    init {
+        setBackgroundColor(android.graphics.Color.BLACK)
+        val params = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER)
+        addView(textureView, params)
+        textureView.surfaceTextureListener = this
+    }
+
+    override fun onSurfaceTextureAvailable(st: SurfaceTexture, width: Int, height: Int) {
+        surface = Surface(st)
+        mediaPlayer?.setSurface(surface)
+        pendingUri?.let { setVideoUri(it) }
+    }
+
+    override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, width: Int, height: Int) {}
+
+    override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+        surface?.release()
+        surface = null
+        try { mediaPlayer?.setSurface(null) } catch (_: Exception) {}
+        return true
+    }
+
+    override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+
+    fun setVideoUri(uri: Uri) {
+        pendingUri = uri
+        if (surface == null) return
+
+        releaseMediaPlayer()
+        try {
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .build()
+                )
+                setSurface(surface)
+                setDataSource(context, uri)
+                isLooping = false
+                setOnVideoSizeChangedListener { _, vWidth, vHeight ->
+                    adjustAspectRatio(vWidth, vHeight)
+                }
+                setOnPreparedListener { mp ->
+                    adjustAspectRatio(mp.videoWidth, mp.videoHeight)
+                    onPreparedListener?.invoke(mp.duration)
+                    mp.start()
+                }
+                setOnCompletionListener {
+                    onCompletionListener?.invoke()
+                }
+                setOnErrorListener { _, what, extra ->
+                    onErrorListener?.invoke(what, extra)
+                    true
+                }
+                prepareAsync()
+            }
+        } catch (e: Exception) {
+            onErrorListener?.invoke(-1, -1)
+        }
+    }
+
+    private fun adjustAspectRatio(videoWidth: Int, videoHeight: Int) {
+        if (videoWidth <= 0 || videoHeight <= 0 || width <= 0 || height <= 0) return
+        val viewRatio = width.toFloat() / height.toFloat()
+        val videoRatio = videoWidth.toFloat() / videoHeight.toFloat()
+
+        val newWidth: Int
+        val newHeight: Int
+        if (videoRatio > viewRatio) {
+            newWidth = width
+            newHeight = (width / videoRatio).toInt()
+        } else {
+            newHeight = height
+            newWidth = (height * videoRatio).toInt()
+        }
+        val lp = textureView.layoutParams as LayoutParams
+        lp.width = newWidth
+        lp.height = newHeight
+        lp.gravity = Gravity.CENTER
+        textureView.layoutParams = lp
+    }
+
+    fun play() {
+        try { mediaPlayer?.start() } catch (_: Exception) {}
+    }
+
+    fun pause() {
+        try { mediaPlayer?.pause() } catch (_: Exception) {}
+    }
+
+    fun seekTo(positionMs: Int) {
+        try { mediaPlayer?.seekTo(positionMs) } catch (_: Exception) {}
+    }
+
+    val isPlaying: Boolean
+        get() = try { mediaPlayer?.isPlaying == true } catch (_: Exception) { false }
+
+    val currentPosition: Int
+        get() = try { mediaPlayer?.currentPosition ?: 0 } catch (_: Exception) { 0 }
+
+    val duration: Int
+        get() = try { mediaPlayer?.duration ?: 0 } catch (_: Exception) { 0 }
+
+    fun releaseMediaPlayer() {
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.reset()
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+        mediaPlayer = null
+    }
+}
+
+/**
  * WhatsApp & Gallery In-App Video Player Dialog
  * Supports:
- * 1. Direct In-App YouTube playback (Embed IFrame, No External Redirection)
+ * 1. Direct In-App YouTube playback using official YouTubePlayerView (No Black Screen!)
  * 2. Full-Screen Edge-to-Edge Landscape Mode
- * 3. MP4 / Cloud video playback with scrubber, play/pause, time tracker
+ * 3. MP4 / Cloud video playback with TextureView + MediaPlayer, scrubber, play/pause, time tracker
  */
 @Composable
 fun VideoPlayerDialog(
@@ -103,6 +238,7 @@ fun VideoPlayerDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = context as? Activity
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val youtubeVideoId = remember(videoUrl) { MediaUtils.extractYouTubeVideoId(videoUrl) }
     val isYouTube = youtubeVideoId != null
@@ -113,8 +249,12 @@ fun VideoPlayerDialog(
     var isCompleted by remember { mutableStateOf(false) }
     var hasError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
-    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var ytError by remember { mutableStateOf<String?>(null) }
+
+    var texturePlayerRef by remember { mutableStateOf<TextureVideoPlayerView?>(null) }
+    var youTubePlayerViewRef by remember { mutableStateOf<YouTubePlayerView?>(null) }
+    var youTubePlayerRef by remember { mutableStateOf<YouTubePlayer?>(null) }
+    var isYtReady by remember { mutableStateOf(false) }
 
     var currentPosition by remember { mutableIntStateOf(0) }
     var totalDuration by remember { mutableIntStateOf(0) }
@@ -132,13 +272,16 @@ fun VideoPlayerDialog(
         }
     }
 
-    // Reset screen orientation safely when dialog is closed
-    DisposableEffect(Unit) {
+    // Reset screen orientation & release players safely when dialog is closed
+    DisposableEffect(lifecycleOwner) {
         onDispose {
             try {
                 activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                videoViewRef?.stopPlayback()
-                webViewRef?.destroy()
+                texturePlayerRef?.releaseMediaPlayer()
+                youTubePlayerViewRef?.let { ypv ->
+                    lifecycleOwner.lifecycle.removeObserver(ypv)
+                    ypv.release()
+                }
             } catch (_: Exception) {}
         }
     }
@@ -171,14 +314,14 @@ fun VideoPlayerDialog(
         }
     }
 
-    // Progress update ticker
+    // Progress update ticker for TexturePlayer
     LaunchedEffect(isPlaying) {
         while (isActive && isPlaying) {
-            videoViewRef?.let { vv ->
+            texturePlayerRef?.let { tp ->
                 try {
-                    if (vv.isPlaying) {
-                        currentPosition = vv.currentPosition
-                        val dur = vv.duration
+                    if (tp.isPlaying) {
+                        currentPosition = tp.currentPosition
+                        val dur = tp.duration
                         if (dur > 0) totalDuration = dur
                     }
                 } catch (_: Exception) {}
@@ -210,70 +353,140 @@ fun VideoPlayerDialog(
                 }
                 .testTag("in_app_video_player_dialog")
         ) {
-            // 1. YouTube In-App Player (HTML5 IFrame Embedded)
+            // 1. YouTube Native Player (Hardware-Accelerated via androidyoutubeplayer)
             if (isYouTube && youtubeVideoId != null) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            settings.apply {
-                                javaScriptEnabled = true
-                                domStorageEnabled = true
-                                mediaPlaybackRequiresUserGesture = false
-                                allowFileAccess = false
-                                loadWithOverviewMode = true
-                                useWideViewPort = true
-                            }
-                            webChromeClient = WebChromeClient()
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    isPreparing = false
-                                }
-                            }
-                            setBackgroundColor(android.graphics.Color.BLACK)
-
-                            val embedHtml = """
-                                <!DOCTYPE html>
-                                <html>
-                                <head>
-                                  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                                  <style>
-                                    html, body {
-                                      margin: 0;
-                                      padding: 0;
-                                      width: 100%;
-                                      height: 100%;
-                                      background-color: #000000;
-                                      display: flex;
-                                      align-items: center;
-                                      justify-content: center;
-                                      overflow: hidden;
-                                    }
-                                    iframe {
-                                      width: 100%;
-                                      height: 100%;
-                                      border: none;
-                                    }
-                                  </style>
-                                </head>
-                                <body>
-                                  <iframe 
-                                    src="https://www.youtube-nocookie.com/embed/$youtubeVideoId?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1" 
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
-                                    allowfullscreen>
-                                  </iframe>
-                                </body>
-                                </html>
-                            """.trimIndent()
-
-                            loadDataWithBaseURL("https://www.youtube-nocookie.com", embedHtml, "text/html", "UTF-8", null)
-                            webViewRef = this
-                        }
-                    },
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .align(Alignment.Center)
-                )
+                        .align(Alignment.Center),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            YouTubePlayerView(ctx).apply {
+                                youTubePlayerViewRef = this
+                                enableAutomaticInitialization = false
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                lifecycleOwner.lifecycle.addObserver(this)
+
+                                val options = IFramePlayerOptions.Builder(ctx)
+                                    .controls(1)
+                                    .rel(0)
+                                    .ivLoadPolicy(3)
+                                    .build()
+
+                                initialize(
+                                    object : AbstractYouTubePlayerListener() {
+                                        override fun onReady(player: YouTubePlayer) {
+                                            youTubePlayerRef = player
+                                            isYtReady = true
+                                            isPreparing = false
+                                            player.loadVideo(youtubeVideoId, 0f)
+                                        }
+
+                                        override fun onStateChange(
+                                            player: YouTubePlayer,
+                                            state: PlayerConstants.PlayerState
+                                        ) {
+                                            when (state) {
+                                                PlayerConstants.PlayerState.PLAYING -> {
+                                                    isPreparing = false
+                                                    isPlaying = true
+                                                    ytError = null
+                                                }
+                                                PlayerConstants.PlayerState.PAUSED -> {
+                                                    isPlaying = false
+                                                }
+                                                PlayerConstants.PlayerState.ENDED -> {
+                                                    isPlaying = false
+                                                    isCompleted = true
+                                                }
+                                                else -> {}
+                                            }
+                                        }
+
+                                        override fun onError(
+                                            player: YouTubePlayer,
+                                            error: PlayerConstants.PlayerError
+                                        ) {
+                                            isPreparing = false
+                                            when (error) {
+                                                PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
+                                                    ytError = "व्हिडिओ आढळला नाही किंवा YouTube वरून काढून टाकला गेला आहे."
+                                                }
+                                                PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
+                                                    ytError = "YouTube सुरक्षा निर्बंधांमुळे हा व्हिडिओ इन-ॲप प्लेयरमध्ये चालवण्यास मर्यादा आहे. बाह्य YouTube ॲपमध्ये उघडा."
+                                                }
+                                                else -> {
+                                                    ytError = "व्हिडिओ प्ले करताना अडचण आली."
+                                                }
+                                            }
+                                        }
+                                    },
+                                    true,
+                                    options
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .align(Alignment.Center)
+                    )
+
+                    if (!isYtReady && ytError == null) {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(48.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "YouTube व्हिडिओ सुरू होत आहे...",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    if (ytError != null) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp)
+                                .background(Color.Black.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = ytError ?: "त्रुटी",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = { MediaUtils.openVideo(context, videoUrl) },
+                                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
+                            ) {
+                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("YouTube ॲपमध्ये उघडा", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             } else if (isPreparing) {
                 // Loading State
                 Column(
@@ -315,7 +528,7 @@ fun VideoPlayerDialog(
                         text = errorMessage,
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 13.sp,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -347,45 +560,30 @@ fun VideoPlayerDialog(
                     }
                 }
             } else if (playableUri != null) {
-                // 2. Standard MP4 / Cloud VideoView Player
+                // 2. TextureView based Standard MP4 / Cloud Video Player (Never goes black)
                 AndroidView(
                     factory = { ctx ->
-                        VideoView(ctx).apply {
-                            setZOrderMediaOverlay(true)
-                            val uriToPlay = if (playableUri?.scheme == "file") {
-                                val file = File(playableUri?.path ?: "")
-                                if (file.exists()) {
-                                    try {
-                                        FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
-                                    } catch (_: Exception) {
-                                        playableUri
-                                    }
-                                } else playableUri
-                            } else playableUri
-
-                            setVideoURI(uriToPlay)
-                            setOnPreparedListener { mp ->
-                                mp.isLooping = false
-                                totalDuration = mp.duration
-                                start()
+                        TextureVideoPlayerView(ctx).apply {
+                            onPreparedListener = { dur ->
+                                totalDuration = dur
                                 isPlaying = true
                                 isCompleted = false
                             }
-                            setOnCompletionListener {
+                            onCompletionListener = {
                                 isPlaying = false
                                 isCompleted = true
                                 isControlsVisible = true
                             }
-                            setOnErrorListener { _, what, extra ->
+                            onErrorListener = { what, extra ->
                                 hasError = true
-                                errorMessage = "व्हिडिओ प्ले करताना अडचण आली (त्रुटी: $what, $extra)."
-                                true
+                                errorMessage = "व्हिडिओ प्लेबॅक त्रुटी आली ($what, $extra)."
                             }
-                            videoViewRef = this
+                            playableUri?.let { setVideoUri(it) }
+                            texturePlayerRef = this
                         }
                     },
                     update = { view ->
-                        videoViewRef = view
+                        texturePlayerRef = view
                     },
                     modifier = Modifier
                         .fillMaxSize()
@@ -401,7 +599,7 @@ fun VideoPlayerDialog(
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
                 Surface(
-                    color = Color.Black.copy(alpha = 0.70f),
+                    color = Color.Black.copy(alpha = 0.75f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -482,7 +680,7 @@ fun VideoPlayerDialog(
                             }
                         }
 
-                        // Open in External Player / Browser (Fallback)
+                        // Open in External Player / Browser / YouTube app (Direct Fallback)
                         IconButton(
                             onClick = {
                                 MediaUtils.openVideo(context, videoUrl)
@@ -490,7 +688,7 @@ fun VideoPlayerDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.OpenInNew,
-                                contentDescription = "Open in External App",
+                                contentDescription = if (isYouTube) "Open in YouTube" else "Open in External App",
                                 tint = Color.White,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -515,17 +713,17 @@ fun VideoPlayerDialog(
                         Box(contentAlignment = Alignment.Center) {
                             IconButton(
                                 onClick = {
-                                    videoViewRef?.let { vv ->
+                                    texturePlayerRef?.let { tp ->
                                         if (isCompleted) {
-                                            vv.seekTo(0)
-                                            vv.start()
+                                            tp.seekTo(0)
+                                            tp.play()
                                             isPlaying = true
                                             isCompleted = false
-                                        } else if (vv.isPlaying) {
-                                            vv.pause()
+                                        } else if (tp.isPlaying) {
+                                            tp.pause()
                                             isPlaying = false
                                         } else {
-                                            vv.start()
+                                            tp.play()
                                             isPlaying = true
                                         }
                                     }
@@ -557,7 +755,7 @@ fun VideoPlayerDialog(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
                     Surface(
-                        color = Color.Black.copy(alpha = 0.70f),
+                        color = Color.Black.copy(alpha = 0.75f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -573,9 +771,9 @@ fun VideoPlayerDialog(
                                 value = sliderPosition,
                                 onValueChange = { newPos ->
                                     sliderPosition = newPos
-                                    videoViewRef?.let { vv ->
+                                    texturePlayerRef?.let { tp ->
                                         val targetMs = (newPos * totalDuration).toInt()
-                                        vv.seekTo(targetMs)
+                                        tp.seekTo(targetMs)
                                         currentPosition = targetMs
                                     }
                                 },
@@ -583,7 +781,7 @@ fun VideoPlayerDialog(
                                     thumbColor = SaffronPrimary,
                                     activeTrackColor = SaffronPrimary,
                                     inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                               ),
+                                ),
                                 modifier = Modifier.fillMaxWidth().height(24.dp)
                             )
 
@@ -613,4 +811,3 @@ fun VideoPlayerDialog(
         }
     }
 }
-
