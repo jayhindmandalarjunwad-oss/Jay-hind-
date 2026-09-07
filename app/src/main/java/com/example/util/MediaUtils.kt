@@ -1377,10 +1377,18 @@ startxref
                     }
                     trimmed.startsWith("file://") -> {
                         val path = Uri.parse(trimmed).path
-                        if (path != null && File(path).exists()) File(path).inputStream() else null
+                        if (path != null && File(path).exists()) {
+                            File(path).inputStream()
+                        } else {
+                            throw IllegalStateException("हा व्हिडिओ दुसऱ्या सदस्याच्या फोनमधील अंतर्गत मेमरीतील आहे आणि क्लाउडवर उपलब्ध नाही.")
+                        }
                     }
-                    trimmed.startsWith("/") && File(trimmed).exists() -> {
-                        File(trimmed).inputStream()
+                    trimmed.startsWith("/") -> {
+                        if (File(trimmed).exists()) {
+                            File(trimmed).inputStream()
+                        } else {
+                            throw IllegalStateException("हा व्हिडिओ दुसऱ्या सदस्याच्या फोनमधील अंतर्गत मेमरीतील आहे आणि क्लाउडवर उपलब्ध नाही.")
+                        }
                     }
                     trimmed.startsWith("content://") -> {
                         context.contentResolver.openInputStream(Uri.parse(trimmed))

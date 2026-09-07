@@ -200,7 +200,7 @@ fun VideoPlayerDialog(
                     Icon(
                         imageVector = Icons.Default.ErrorOutline,
                         contentDescription = null,
-                        tint = Color.Red,
+                        tint = Color(0xFFFF5252),
                         modifier = Modifier.size(52.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -213,8 +213,8 @@ fun VideoPlayerDialog(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = errorMessage,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 13.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -224,8 +224,14 @@ fun VideoPlayerDialog(
                                 hasError = false
                                 isPreparing = true
                                 scope.launch {
-                                    playableUri = MediaUtils.prepareVideoUriForPlayback(context, videoUrl)
-                                    isPreparing = false
+                                    try {
+                                        playableUri = MediaUtils.prepareVideoUriForPlayback(context, videoUrl)
+                                    } catch (e: Exception) {
+                                        hasError = true
+                                        errorMessage = e.localizedMessage ?: "व्हिडिओ लोड करता आला नाही"
+                                    } finally {
+                                        isPreparing = false
+                                    }
                                 }
                             }
                         ) {
@@ -271,7 +277,11 @@ fun VideoPlayerDialog(
                             }
                             setOnErrorListener { _, what, extra ->
                                 hasError = true
-                                errorMessage = "व्हिडिओ प्ले करताना अडचण आली (त्रुटी: $what, $extra)"
+                                errorMessage = if (videoUrl.startsWith("file://") || videoUrl.startsWith("/")) {
+                                    "हा व्हिडिओ स्थानिक फाईलमधून उघडता आला नाही. कृपया प्रेषकाला हा व्हिडिओ पुन्हा पाठवण्यास सांगा."
+                                } else {
+                                    "व्हिडिओ प्ले करताना अडचण आली (त्रुटी: $what, $extra). 'बाह्य ॲपमध्ये उघडा' बटण वापरून पहा."
+                                }
                                 true
                             }
                             videoViewRef = this
