@@ -191,7 +191,7 @@ fun MandalApp(viewModel: MandalViewModel) {
             }
         },
         topBar = {
-            if (currentScreen == AppScreen.MAIN) {
+            if (currentScreen == AppScreen.MAIN && !showLiveStreamPlayer && fullscreenViewerState == null && fullscreenPhotoUrl.isNullOrBlank()) {
                 val tabTitle = when (currentTab) {
                     NavigationTab.HOME -> "जय हिंद मंडळ अर्जुनवाड"
                     NavigationTab.QUICK_ACCESS -> "जलद मेनू व माहिती (Quick Access)"
@@ -236,7 +236,7 @@ fun MandalApp(viewModel: MandalViewModel) {
             }
         },
         bottomBar = {
-            if (currentScreen == AppScreen.MAIN) {
+            if (currentScreen == AppScreen.MAIN && !showLiveStreamPlayer && fullscreenViewerState == null && fullscreenPhotoUrl.isNullOrBlank()) {
                 MandalBottomNavigation(
                     currentTab = currentTab,
                     unreadChatCount = unreadChatCount,
@@ -248,7 +248,7 @@ fun MandalApp(viewModel: MandalViewModel) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(if (showLiveStreamPlayer || fullscreenViewerState != null || !fullscreenPhotoUrl.isNullOrBlank()) PaddingValues(0.dp) else innerPadding)
                 .background(BackgroundWarm)
         ) {
             when (currentScreen) {

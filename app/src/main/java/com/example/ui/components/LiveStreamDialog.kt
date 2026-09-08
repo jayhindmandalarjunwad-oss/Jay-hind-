@@ -8,6 +8,9 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.widget.Toast
 import android.widget.FrameLayout
 import android.view.ViewGroup
@@ -58,6 +61,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -269,6 +273,51 @@ fun LiveStreamDialog(
     // Floating reaction bubbles list
     var floatingParticles by remember { mutableStateOf<List<FloatingParticle>>(emptyList()) }
 
+    // Scaling / Stretch state (Pinch-to-zoom / Stretch to fill screen 4-corner fit)
+    var targetScale by remember { mutableFloatStateOf(1f) }
+    val animatedScale by animateFloatAsState(
+        targetValue = targetScale,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "live_video_scale"
+    )
+    var zoomToastMessage by remember { mutableStateOf<String?>(null) }
+    var zoomToastIcon by remember { mutableStateOf<ImageVector?>(null) }
+    var lastUserInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    fun resetControlsTimer() {
+        lastUserInteractionTime = System.currentTimeMillis()
+    }
+
+    fun toggleZoomFill() {
+        if (targetScale > 1.05f) {
+            targetScale = 1.0f
+            zoomToastMessage = "मूळ आकार (Fit to Screen)"
+            zoomToastIcon = Icons.Default.FullscreenExit
+        } else {
+            targetScale = 1.38f
+            zoomToastMessage = "स्क्रीन भरून (Zoomed to Fill)"
+            zoomToastIcon = Icons.Default.Fullscreen
+        }
+    }
+
+    fun onPinchScale(newScale: Float) {
+        targetScale = newScale
+        if (newScale > 1.05f) {
+            zoomToastMessage = "स्क्रीन भरून (Zoomed to Fill)"
+            zoomToastIcon = Icons.Default.Fullscreen
+        } else {
+            zoomToastMessage = "मूळ आकार (Fit to Screen)"
+            zoomToastIcon = Icons.Default.FullscreenExit
+        }
+    }
+
+    LaunchedEffect(zoomToastMessage) {
+        if (zoomToastMessage != null) {
+            delay(1500)
+            zoomToastMessage = null
+        }
+    }
+
     val effectiveFullscreen = isLandscape || isManualFullscreen
 
     fun setFullscreenMode(enable: Boolean) {
@@ -281,6 +330,19 @@ fun LiveStreamDialog(
                 insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             } else {
                 activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                insetsController.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    // Automatically enforce immersive edge-to-edge system bars in fullscreen / landscape
+    LaunchedEffect(effectiveFullscreen) {
+        if (activity != null) {
+            val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            if (effectiveFullscreen) {
+                insetsController.hide(WindowInsetsCompat.Type.systemBars())
+                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
             }
         }
@@ -302,10 +364,10 @@ fun LiveStreamDialog(
         onDismiss()
     }
 
-    // Auto-hide controls overlay after 4 seconds
-    LaunchedEffect(showControlsOverlay, isPlaying) {
-        if (showControlsOverlay && isPlaying) {
-            delay(4000)
+    // Auto-hide controls overlay after 3.5 seconds in fullscreen
+    LaunchedEffect(showControlsOverlay, isPlaying, lastUserInteractionTime, effectiveFullscreen) {
+        if (effectiveFullscreen && showControlsOverlay && isPlaying) {
+            delay(3500)
             showControlsOverlay = false
         }
     }
@@ -541,10 +603,13 @@ fun LiveStreamDialog(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black)
-                        .clickable { showControlsOverlay = !showControlsOverlay },
+                        .clickable {
+                            showControlsOverlay = !showControlsOverlay
+                            if (showControlsOverlay) resetControlsTimer()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    // Smart Multi-Platform Live Player Engine (100% In-App)
+                    // Smart Multi-Platform Live Player Engine (100% In-App with Pinch-to-Zoom Stretch)
                     SmartMultiPlatformPlayer(
                         streamUrl = streamKeyOrUrl,
                         platform = platform,
@@ -553,18 +618,36 @@ fun LiveStreamDialog(
                         onLoadingChange = { isPlayerLoading = it },
                         onPlayStateChange = { playing -> isPlaying = playing },
                         onErrorChange = { error -> playbackErrorMsg = error },
-                        onToggleControls = { showControlsOverlay = !showControlsOverlay },
+                        onToggleControls = {
+                            showControlsOverlay = !showControlsOverlay
+                            if (showControlsOverlay) resetControlsTimer()
+                        },
+                        videoScale = animatedScale,
+                        onDoubleTap = {
+                            toggleZoomFill()
+                            resetControlsTimer()
+                        },
+                        onPinchScale = { scale ->
+                            onPinchScale(scale)
+                            resetControlsTimer()
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // TV-Style Corner Watermark Logo
-                    TvCornerWatermark(
-                        logoUrl = mandalLogoUrl,
-                        isLive = isLiveActive,
+                    // TV-Style Corner Watermark Logo (fades out when controls auto-hide for pure video)
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showControlsOverlay,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(top = 10.dp, end = 12.dp)
-                    )
+                    ) {
+                        TvCornerWatermark(
+                            logoUrl = mandalLogoUrl,
+                            isLive = isLiveActive
+                        )
+                    }
 
                     // In-Place Playback Error Fallback (With direct app fallback)
                     if (playbackErrorMsg != null) {
@@ -584,15 +667,18 @@ fun LiveStreamDialog(
                         )
                     }
 
-                    // Floating Unmute Prompt if Muted
-                    if (isMuted && isLiveActive && !isPlayerLoading) {
+                    // Floating Unmute Prompt if Muted (only visible when controls are shown)
+                    if (isMuted && isLiveActive && !isPlayerLoading && showControlsOverlay) {
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = Color.Black.copy(alpha = 0.75f),
                             border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.8f)),
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .clickable { toggleMute() }
+                                .clickable {
+                                    resetControlsTimer()
+                                    toggleMute()
+                                }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -608,13 +694,50 @@ fun LiveStreamDialog(
                     // Floating Reaction Particles in Fullscreen
                     FloatingReactionOverlay(particles = floatingParticles)
 
+                    // Zoom / Stretch Toast Indicator Pill
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = zoomToastMessage != null,
+                        enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.8f),
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(16.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = Color.Black.copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.8f)),
+                            shadowElevation = 8.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                zoomToastIcon?.let { icon ->
+                                    Icon(icon, contentDescription = null, tint = SaffronPrimary, modifier = Modifier.size(20.dp))
+                                }
+                                Text(
+                                    text = zoomToastMessage ?: "",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
                     // Semi-transparent Live Comments Ticker in Fullscreen (Bottom-Left)
-                    if (comments.isNotEmpty()) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showControlsOverlay && comments.isNotEmpty(),
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 14.dp, bottom = 64.dp)
+                    ) {
                         Column(
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(start = 14.dp, bottom = 54.dp)
-                                .widthIn(max = 280.dp),
+                            modifier = Modifier.widthIn(max = 280.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             comments.takeLast(3).forEach { c ->
@@ -647,8 +770,12 @@ fun LiveStreamDialog(
                         }
                     }
 
-                    // Custom HUD Controls for Fullscreen (Back Icon, Sound, Reload, Exit Fullscreen, Open in App)
-                    if (showControlsOverlay) {
+                    // Custom HUD Controls for Fullscreen (Back Icon, Sound, Reload, Exit Fullscreen, Zoom/Fit)
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showControlsOverlay,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
                         CustomPlayerControlsOverlay(
                             streamTitle = streamTitle,
                             isPlaying = isPlaying,
@@ -656,46 +783,72 @@ fun LiveStreamDialog(
                             isLoading = isPlayerLoading,
                             viewerCount = displayViewerCount,
                             isFullscreen = true,
+                            isZoomed = targetScale > 1.05f,
                             platform = platform,
                             onBackClick = { setFullscreenMode(false) },
-                            onPlayPauseClick = { togglePlayPause() },
-                            onMuteToggle = { toggleMute() },
-                            onFullscreenToggle = { toggleOrientationFullscreen() },
-                            onReloadClick = { reloadStream() },
+                            onPlayPauseClick = {
+                                resetControlsTimer()
+                                togglePlayPause()
+                            },
+                            onMuteToggle = {
+                                resetControlsTimer()
+                                toggleMute()
+                            },
+                            onFullscreenToggle = {
+                                resetControlsTimer()
+                                toggleOrientationFullscreen()
+                            },
+                            onToggleZoom = {
+                                resetControlsTimer()
+                                toggleZoomFill()
+                            },
+                            onReloadClick = {
+                                resetControlsTimer()
+                                reloadStream()
+                            },
                             onOpenInApp = { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
                         )
                     }
 
                     // Compact Quick Reactions Bar at bottom of Fullscreen View
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                                )
-                            )
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showControlsOverlay,
+                        enter = fadeIn() + slideInVertically { it },
+                        exit = fadeOut() + slideOutVertically { it },
+                        modifier = Modifier.align(Alignment.BottomCenter)
                     ) {
-                        Text("प्रतिक्रिया:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        val quickReactionList = listOf("🚩", "🙏", "👍", "🌸")
-                        quickReactionList.forEach { reaction ->
-                            Surface(
-                                shape = CircleShape,
-                                color = SaffronPrimary.copy(alpha = 0.9f),
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clickable { triggerFloatingReaction(reaction) }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = reaction,
-                                        fontSize = 18.sp
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
                                     )
+                                )
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("प्रतिक्रिया:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            val quickReactionList = listOf("🚩", "🙏", "👍", "🌸")
+                            quickReactionList.forEach { reaction ->
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SaffronPrimary.copy(alpha = 0.9f),
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clickable {
+                                            resetControlsTimer()
+                                            triggerFloatingReaction(reaction)
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = reaction,
+                                            fontSize = 18.sp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -714,7 +867,10 @@ fun LiveStreamDialog(
                             .fillMaxWidth()
                             .aspectRatio(16f / 9f)
                             .background(Color.Black)
-                            .clickable { showControlsOverlay = !showControlsOverlay },
+                            .clickable {
+                                showControlsOverlay = !showControlsOverlay
+                                if (showControlsOverlay) resetControlsTimer()
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         SmartMultiPlatformPlayer(
@@ -725,7 +881,10 @@ fun LiveStreamDialog(
                             onLoadingChange = { isPlayerLoading = it },
                             onPlayStateChange = { playing -> isPlaying = playing },
                             onErrorChange = { error -> playbackErrorMsg = error },
-                            onToggleControls = { showControlsOverlay = !showControlsOverlay },
+                            onToggleControls = {
+                                showControlsOverlay = !showControlsOverlay
+                                if (showControlsOverlay) resetControlsTimer()
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
 
@@ -764,7 +923,10 @@ fun LiveStreamDialog(
                                 border = BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.8f)),
                                 modifier = Modifier
                                     .align(Alignment.Center)
-                                    .clickable { toggleMute() }
+                                    .clickable {
+                                        resetControlsTimer()
+                                        toggleMute()
+                                    }
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -781,7 +943,11 @@ fun LiveStreamDialog(
                         FloatingReactionOverlay(particles = floatingParticles)
 
                         // Custom Branded HUD Controls Overlay
-                        if (showControlsOverlay) {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = showControlsOverlay,
+                            enter = fadeIn(),
+                            exit = fadeOut()
+                        ) {
                             CustomPlayerControlsOverlay(
                                 streamTitle = streamTitle,
                                 isPlaying = isPlaying,
@@ -794,10 +960,22 @@ fun LiveStreamDialog(
                                     setFullscreenMode(false)
                                     onDismiss()
                                 },
-                                onPlayPauseClick = { togglePlayPause() },
-                                onMuteToggle = { toggleMute() },
-                                onFullscreenToggle = { toggleOrientationFullscreen() },
-                                onReloadClick = { reloadStream() },
+                                onPlayPauseClick = {
+                                    resetControlsTimer()
+                                    togglePlayPause()
+                                },
+                                onMuteToggle = {
+                                    resetControlsTimer()
+                                    toggleMute()
+                                },
+                                onFullscreenToggle = {
+                                    resetControlsTimer()
+                                    toggleOrientationFullscreen()
+                                },
+                                onReloadClick = {
+                                    resetControlsTimer()
+                                    reloadStream()
+                                },
                                 onOpenInApp = { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
                             )
                         }
@@ -1659,11 +1837,13 @@ private fun CustomPlayerControlsOverlay(
     isLoading: Boolean,
     viewerCount: Int,
     isFullscreen: Boolean,
+    isZoomed: Boolean = false,
     platform: StreamPlatform,
     onBackClick: () -> Unit,
     onPlayPauseClick: () -> Unit,
     onMuteToggle: () -> Unit,
     onFullscreenToggle: () -> Unit,
+    onToggleZoom: () -> Unit = {},
     onReloadClick: () -> Unit,
     onOpenInApp: () -> Unit = {}
 ) {
@@ -1777,6 +1957,24 @@ private fun CustomPlayerControlsOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Stretch / Zoom to Fill toggle button in fullscreen
+                if (isFullscreen) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isZoomed) SaffronPrimary.copy(alpha = 0.9f) else Color.Black.copy(alpha = 0.65f),
+                        modifier = Modifier.clickable { onToggleZoom() }
+                    ) {
+                        Icon(
+                            imageVector = if (isZoomed) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = if (isZoomed) "मूळ आकार (Fit)" else "स्क्रीन भरून (Fill)",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .size(18.dp)
+                        )
+                    }
+                }
+
                 // Sound Mute/Unmute
                 Surface(
                     shape = CircleShape,
@@ -1923,6 +2121,55 @@ interface LivePlayerController {
     fun reload()
 }
 
+/**
+ * Custom Touch FrameLayout supporting:
+ * 1. Two-finger pinch gesture to stretch/zoom video to screen edges
+ * 2. Double-tap to toggle between Fit (1.0f) and Fill (1.38f)
+ * 3. Single-tap to toggle controls overlay
+ * 4. Intercepts all touches so child views cannot leak click events or redirects
+ */
+class PinchZoomTouchFrameLayout(
+    context: Context,
+    private val onSingleTap: () -> Unit,
+    private val onDoubleTap: () -> Unit,
+    private val onScaleChanged: (Float) -> Unit
+) : FrameLayout(context) {
+
+    private var currentScale = 1.0f
+
+    private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            currentScale *= detector.scaleFactor
+            currentScale = currentScale.coerceIn(1.0f, 2.5f)
+            onScaleChanged(currentScale)
+            return true
+        }
+    })
+
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            onSingleTap()
+            return true
+        }
+
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            onDoubleTap()
+            return true
+        }
+    })
+
+    override fun onInterceptTouchEvent(ev: MotionEvent?): Boolean {
+        return true
+    }
+
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        event ?: return super.onTouchEvent(event)
+        val sHandled = scaleGestureDetector.onTouchEvent(event)
+        val gHandled = gestureDetector.onTouchEvent(event)
+        return sHandled || gHandled || true
+    }
+}
+
 // IN-APP SMART MULTI-PLATFORM LIVE PLAYER (100% IN-APP WITHOUT EXTERNAL REDIRECTS)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -1935,6 +2182,9 @@ private fun SmartMultiPlatformPlayer(
     onPlayStateChange: (Boolean) -> Unit,
     onErrorChange: (String?) -> Unit = {},
     onToggleControls: () -> Unit = {},
+    videoScale: Float = 1f,
+    onDoubleTap: () -> Unit = {},
+    onPinchScale: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val cleanUrl = streamUrl.trim()
@@ -1989,9 +2239,12 @@ private fun SmartMultiPlatformPlayer(
             ) {
                 AndroidView(
                     factory = { ctx ->
-                        TouchInterceptingFrameLayout(ctx) {
-                            onToggleControls()
-                        }.apply {
+                        PinchZoomTouchFrameLayout(
+                            context = ctx,
+                            onSingleTap = onToggleControls,
+                            onDoubleTap = onDoubleTap,
+                            onScaleChanged = onPinchScale
+                        ).apply {
                             val tvp = TextureVideoPlayerView(ctx).apply {
                                 texturePlayerRef = this
                                 layoutParams = FrameLayout.LayoutParams(
@@ -2022,7 +2275,12 @@ private fun SmartMultiPlatformPlayer(
                             })
                         }
                     },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = videoScale
+                            scaleY = videoScale
+                        }
                 )
             }
 
@@ -2041,9 +2299,12 @@ private fun SmartMultiPlatformPlayer(
             ) {
                 AndroidView(
                     factory = { ctx ->
-                        TouchInterceptingFrameLayout(ctx) {
-                            onToggleControls()
-                        }.apply {
+                        PinchZoomTouchFrameLayout(
+                            context = ctx,
+                            onSingleTap = onToggleControls,
+                            onDoubleTap = onDoubleTap,
+                            onScaleChanged = onPinchScale
+                        ).apply {
                             val ytView = YouTubePlayerView(ctx).apply {
                                 youTubePlayerViewRef = this
                                 enableAutomaticInitialization = false
@@ -2140,9 +2401,9 @@ private fun SmartMultiPlatformPlayer(
                         .fillMaxSize()
                         .graphicsLayer {
                             // 1.16x edge cropping: pushes YouTube's top video title bar and
-                            // bottom "More videos" / "YouTube" logo outside visible area
-                            scaleX = 1.16f
-                            scaleY = 1.16f
+                            // bottom "More videos" / "YouTube" logo outside visible area, multiplied by user zoom scale
+                            scaleX = 1.16f * videoScale
+                            scaleY = 1.16f * videoScale
                         }
                         .testTag("youtube_native_live_player")
                 )
@@ -2159,13 +2420,25 @@ private fun SmartMultiPlatformPlayer(
             }
         }
     } else {
-        AndroidView(
-            factory = { ctx ->
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .clipToBounds(),
+            contentAlignment = Alignment.Center
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    PinchZoomTouchFrameLayout(
+                        context = ctx,
+                        onSingleTap = onToggleControls,
+                        onDoubleTap = onDoubleTap,
+                        onScaleChanged = onPinchScale
+                    ).apply {
+                        val wv = WebView(ctx).apply {
+                            layoutParams = FrameLayout.LayoutParams(
+                                FrameLayout.LayoutParams.MATCH_PARENT,
+                                FrameLayout.LayoutParams.MATCH_PARENT
+                            )
 
                     // High compatibility Android WebView settings
                     settings.javaScriptEnabled = true
@@ -2313,13 +2586,24 @@ private fun SmartMultiPlatformPlayer(
                         override fun reload() { reload() }
                     })
                 }
-            },
-            update = { webView ->
-                onWebViewCreated(webView)
-            },
-            modifier = modifier.testTag("smart_multiplatform_live_player")
-        )
-    }
+                addView(wv)
+            }
+        },
+        update = { webView ->
+            (webView as? ViewGroup)?.let { group ->
+                findWebViewInViewGroup(group)?.let { wv -> onWebViewCreated(wv) }
+            }
+        },
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                scaleX = videoScale
+                scaleY = videoScale
+            }
+            .testTag("smart_multiplatform_live_player")
+    )
+}
+}
 }
 
 private fun loadSmartPlayerHtml(
