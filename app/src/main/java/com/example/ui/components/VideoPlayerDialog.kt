@@ -9,6 +9,7 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import android.view.ViewGroup
@@ -68,7 +69,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -88,11 +91,18 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * TextureView based Video Player to avoid SurfaceView z-order punch-through issues in Jetpack Compose
@@ -265,6 +275,112 @@ private fun injectCleanYouTubeCSS(playerView: YouTubePlayerView) {
 }
 
 /**
+ * FrameLayout that intercepts 100% of touches before they can reach children (like YouTube's WebView).
+ * This completely prevents YouTube's iframe from opening:
+ * - The top title bar
+ * - The channel avatar/link (preventing accidental redirection to YouTube app)
+ * - The "More videos" overlay
+ * - The "YouTube" logo
+ * It converts clicks into single-tap events for our custom Compose UI.
+ */
+class TouchInterceptingFrameLayout(
+    context: Context,
+    private val onSingleTap: () -> Unit
+) : FrameLayout(context) {
+
+    private var downX = 0f
+    private var downY = 0f
+    private var isClick = false
+
+    override fun onInterceptTouchEvent(ev: MotionEvent?): Boolean {
+        // Intercept ALL touches so children (like YouTube's WebView) NEVER receive ANY touch event!
+        return true
+    }
+
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        event ?: return super.onTouchEvent(event)
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                isClick = true
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = Math.abs(event.x - downX)
+                val dy = Math.abs(event.y - downY)
+                if (dx > 30 || dy > 30) {
+                    isClick = false
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                if (isClick) {
+                    onSingleTap()
+                }
+                return true
+            }
+        }
+        return true
+    }
+}
+
+/**
+ * Utility to extract direct MP4 streaming URL from YouTube videos.
+ * Allows playing YouTube videos directly in native MediaPlayer/TextureView with 0% YouTube UI.
+ */
+object YouTubeDirectStreamExtractor {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .build()
+
+    private val pipedInstances = listOf(
+        "https://pipedapi.kavin.rocks",
+        "https://api.piped.private.coffee",
+        "https://pipedapi.tokhmi.xyz"
+    )
+
+    suspend fun extractDirectStream(videoId: String): String? = withContext(Dispatchers.IO) {
+        for (instance in pipedInstances) {
+            try {
+                val req = Request.Builder()
+                    .url("$instance/streams/$videoId")
+                    .header("User-Agent", "Mozilla/5.0")
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        val body = resp.body?.string() ?: return@use
+                        val json = JSONObject(body)
+                        val videoStreams = json.optJSONArray("videoStreams")
+                        if (videoStreams != null && videoStreams.length() > 0) {
+                            for (i in 0 until videoStreams.length()) {
+                                val item = videoStreams.getJSONObject(i)
+                                val format = item.optString("format")
+                                val videoOnly = item.optBoolean("videoOnly", false)
+                                val url = item.optString("url")
+                                if (!videoOnly && (format.contains("mp4", ignoreCase = true) || item.optString("mimeType").contains("mp4"))) {
+                                    return@withContext url
+                                }
+                            }
+                            for (i in 0 until videoStreams.length()) {
+                                val item = videoStreams.getJSONObject(i)
+                                val videoOnly = item.optBoolean("videoOnly", false)
+                                val url = item.optString("url")
+                                if (!videoOnly && url.isNotEmpty()) {
+                                    return@withContext url
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        null
+    }
+}
+
+/**
  * WhatsApp & Gallery In-App Video Player Dialog
  * Supports:
  * 1. Direct In-App YouTube playback using official YouTubePlayerView (No Black Screen!)
@@ -285,9 +401,11 @@ fun VideoPlayerDialog(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val youtubeVideoId = remember(videoUrl) { MediaUtils.extractYouTubeVideoId(videoUrl) }
-    val isYouTube = youtubeVideoId != null
+    var directStreamUri by remember { mutableStateOf<Uri?>(null) }
+    var isDirectStreamActive by remember { mutableStateOf(false) }
+    val isYouTube = (youtubeVideoId != null) && !isDirectStreamActive
 
-    var isPreparing by remember { mutableStateOf(!isYouTube) }
+    var isPreparing by remember { mutableStateOf(true) }
     var playableUri by remember { mutableStateOf<Uri?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var isCompleted by remember { mutableStateOf(false) }
@@ -330,13 +448,30 @@ fun VideoPlayerDialog(
         }
     }
 
-    // Prepare non-YouTube video URI
-    LaunchedEffect(videoUrl) {
-        if (isYouTube) {
+    // Direct stream extraction & native video preparation
+    LaunchedEffect(videoUrl, youtubeVideoId) {
+        if (youtubeVideoId != null) {
+            isPreparing = true
+            hasError = false
+            try {
+                val directUrl = withTimeoutOrNull(2500) {
+                    YouTubeDirectStreamExtractor.extractDirectStream(youtubeVideoId)
+                }
+                if (directUrl != null) {
+                    val uri = Uri.parse(directUrl)
+                    directStreamUri = uri
+                    playableUri = uri
+                    isDirectStreamActive = true
+                    isPreparing = false
+                    return@LaunchedEffect
+                }
+            } catch (_: Exception) {}
+            isDirectStreamActive = false
             isPreparing = false
             hasError = false
             return@LaunchedEffect
         }
+        // Non-YouTube video
         isPreparing = true
         hasError = false
         try {
@@ -407,120 +542,118 @@ fun VideoPlayerDialog(
                 }
                 .testTag("in_app_video_player_dialog")
         ) {
-            // 1. YouTube Native Player (Hardware-Accelerated via androidyoutubeplayer)
+            // 1. YouTube Native Player (Hardware-Accelerated via androidyoutubeplayer with Touch Interceptor & Edge Crop)
             if (isYouTube && youtubeVideoId != null) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .clipToBounds()
                         .align(Alignment.Center),
                     contentAlignment = Alignment.Center
                 ) {
                     AndroidView(
                         factory = { ctx ->
-                            YouTubePlayerView(ctx).apply {
-                                youTubePlayerViewRef = this
-                                enableAutomaticInitialization = false
-                                layoutParams = ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                                lifecycleOwner.lifecycle.addObserver(this)
+                            TouchInterceptingFrameLayout(ctx) {
+                                isControlsVisible = !isControlsVisible
+                            }.apply {
+                                val ytView = YouTubePlayerView(ctx).apply {
+                                    youTubePlayerViewRef = this
+                                    enableAutomaticInitialization = false
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        FrameLayout.LayoutParams.MATCH_PARENT,
+                                        FrameLayout.LayoutParams.MATCH_PARENT
+                                    )
+                                    lifecycleOwner.lifecycle.addObserver(this)
 
-                                val options = IFramePlayerOptions.Builder(ctx)
-                                    .controls(0)
-                                    .rel(0)
-                                    .ivLoadPolicy(3)
-                                    .build()
+                                    val options = IFramePlayerOptions.Builder(ctx)
+                                        .controls(0)
+                                        .rel(0)
+                                        .ivLoadPolicy(3)
+                                        .build()
 
-                                initialize(
-                                    object : AbstractYouTubePlayerListener() {
-                                        override fun onReady(player: YouTubePlayer) {
-                                            youTubePlayerRef = player
-                                            isYtReady = true
-                                            isPreparing = false
-                                            player.loadVideo(youtubeVideoId, 0f)
-                                            injectCleanYouTubeCSS(this@apply)
-                                        }
-
-                                        override fun onCurrentSecond(
-                                            player: YouTubePlayer,
-                                            second: Float
-                                        ) {
-                                            currentPosition = (second * 1000).toInt()
-                                        }
-
-                                        override fun onVideoDuration(
-                                            player: YouTubePlayer,
-                                            duration: Float
-                                        ) {
-                                            if (duration > 0f) {
-                                                totalDuration = (duration * 1000).toInt()
+                                    initialize(
+                                        object : AbstractYouTubePlayerListener() {
+                                            override fun onReady(player: YouTubePlayer) {
+                                                youTubePlayerRef = player
+                                                isYtReady = true
+                                                isPreparing = false
+                                                player.loadVideo(youtubeVideoId, 0f)
+                                                injectCleanYouTubeCSS(this@apply)
                                             }
-                                        }
 
-                                        override fun onStateChange(
-                                            player: YouTubePlayer,
-                                            state: PlayerConstants.PlayerState
-                                        ) {
-                                            when (state) {
-                                                PlayerConstants.PlayerState.PLAYING -> {
-                                                    isPreparing = false
-                                                    isPlaying = true
-                                                    ytError = null
-                                                    injectCleanYouTubeCSS(this@apply)
-                                                }
-                                                PlayerConstants.PlayerState.PAUSED -> {
-                                                    isPlaying = false
-                                                    injectCleanYouTubeCSS(this@apply)
-                                                }
-                                                PlayerConstants.PlayerState.ENDED -> {
-                                                    isPlaying = false
-                                                    isCompleted = true
-                                                    injectCleanYouTubeCSS(this@apply)
-                                                }
-                                                else -> {}
+                                            override fun onCurrentSecond(
+                                                player: YouTubePlayer,
+                                                second: Float
+                                            ) {
+                                                currentPosition = (second * 1000).toInt()
                                             }
-                                        }
 
-                                        override fun onError(
-                                            player: YouTubePlayer,
-                                            error: PlayerConstants.PlayerError
-                                        ) {
-                                            isPreparing = false
-                                            when (error) {
-                                                PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
-                                                    ytError = "व्हिडिओ आढळला नाही किंवा YouTube वरून काढून टाकला गेला आहे."
-                                                }
-                                                PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
-                                                    ytError = "YouTube सुरक्षा निर्बंधांमुळे हा व्हिडिओ इन-ॲप प्लेयरमध्ये चालवण्यास मर्यादा आहे. बाह्य YouTube ॲपमध्ये उघडा."
-                                                }
-                                                else -> {
-                                                    ytError = "व्हिडिओ प्ले करताना अडचण आली."
+                                            override fun onVideoDuration(
+                                                player: YouTubePlayer,
+                                                duration: Float
+                                            ) {
+                                                if (duration > 0f) {
+                                                    totalDuration = (duration * 1000).toInt()
                                                 }
                                             }
-                                        }
-                                    },
-                                    true,
-                                    options
-                                )
+
+                                            override fun onStateChange(
+                                                player: YouTubePlayer,
+                                                state: PlayerConstants.PlayerState
+                                            ) {
+                                                when (state) {
+                                                    PlayerConstants.PlayerState.PLAYING -> {
+                                                        isPreparing = false
+                                                        isPlaying = true
+                                                        ytError = null
+                                                        injectCleanYouTubeCSS(this@apply)
+                                                    }
+                                                    PlayerConstants.PlayerState.PAUSED -> {
+                                                        isPlaying = false
+                                                        injectCleanYouTubeCSS(this@apply)
+                                                    }
+                                                    PlayerConstants.PlayerState.ENDED -> {
+                                                        isPlaying = false
+                                                        isCompleted = true
+                                                        injectCleanYouTubeCSS(this@apply)
+                                                    }
+                                                    else -> {}
+                                                }
+                                            }
+
+                                            override fun onError(
+                                                player: YouTubePlayer,
+                                                error: PlayerConstants.PlayerError
+                                            ) {
+                                                isPreparing = false
+                                                when (error) {
+                                                    PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
+                                                        ytError = "व्हिडिओ आढळला नाही किंवा YouTube वरून काढून टाकण्यात आला आहे."
+                                                    }
+                                                    PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
+                                                        ytError = "YouTube सुरक्षा निर्बंधांमुळे हा व्हिडिओ इन-ॲप प्लेयरमध्ये चालवण्यास मर्यादा आहे. बाह्य YouTube ॲपमध्ये उघडा."
+                                                    }
+                                                    else -> {
+                                                        ytError = "व्हिडिओ प्ले करताना अडचण आली."
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        true,
+                                        options
+                                    )
+                                }
+                                addView(ytView)
                             }
                         },
                         modifier = Modifier
                             .fillMaxSize()
                             .align(Alignment.Center)
-                    )
-
-                    // Option 1: Transparent Touch Interceptor directly over YouTubePlayerView
-                    // Intercepts touches so YouTube's internal webview never receives clicks/taps,
-                    // preventing YouTube's title bar, "More videos", and "YouTube" logo from ever appearing!
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(
-                                indication = null,
-                                interactionSource = remember { MutableInteractionSource() }
-                            ) {
-                                isControlsVisible = !isControlsVisible
+                            .graphicsLayer {
+                                // 1.16x edge cropping: pushes YouTube's top video title bar and
+                                // bottom "More videos" / "YouTube" logo outside visible area
+                                scaleX = 1.16f
+                                scaleY = 1.16f
                             }
                     )
 
