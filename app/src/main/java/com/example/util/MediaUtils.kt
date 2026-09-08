@@ -485,7 +485,7 @@ object MediaUtils {
     fun extractYouTubeVideoId(url: String?): String? {
         if (url.isNullOrBlank()) return null
         val patterns = listOf(
-            "(?:youtu\\.be\\/|youtube\\.com\\/(?:embed\\/|v\\/|watch\\?v=|watch\\?.+&v=|shorts\\/))([\\w-]{11})",
+            "(?:youtu\\.be\\/|youtube\\.com\\/(?:embed\\/|v\\/|watch\\?v=|watch\\?.+&v=|shorts\\/|live\\/))([\\w-]{11})",
             "^[\\w-]{11}$"
         )
         for (p in patterns) {
