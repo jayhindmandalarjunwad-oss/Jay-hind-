@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
+import android.widget.FrameLayout
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -52,9 +53,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -80,6 +83,7 @@ import com.example.data.model.MandalInfo
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.URLEncoder
 import kotlin.random.Random
 
@@ -549,6 +553,7 @@ fun LiveStreamDialog(
                         onLoadingChange = { isPlayerLoading = it },
                         onPlayStateChange = { playing -> isPlaying = playing },
                         onErrorChange = { error -> playbackErrorMsg = error },
+                        onToggleControls = { showControlsOverlay = !showControlsOverlay },
                         modifier = Modifier.fillMaxSize()
                     )
 
@@ -720,6 +725,7 @@ fun LiveStreamDialog(
                             onLoadingChange = { isPlayerLoading = it },
                             onPlayStateChange = { playing -> isPlaying = playing },
                             onErrorChange = { error -> playbackErrorMsg = error },
+                            onToggleControls = { showControlsOverlay = !showControlsOverlay },
                             modifier = Modifier.fillMaxSize()
                         )
 
@@ -1333,7 +1339,7 @@ fun LiveStreamDialog(
                                             val liveUrl = mandalInfo.liveStreamUrl.ifEmpty {
                                                 "https://www.youtube.com/@JayHindMandalArjunwad/live"
                                             }
-                                            val shareText = "🚩 *जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड*\n🔴 *$streamTitle*\n\nथेट आरती व सोहळा पाहण्यासाठी खालील लिंकवर क्लिक करा किंवा जय हिंद ॲप उघडा:\n$liveUrl\n\n_जय हिंद मंडळ, अर्जुनवाड परिवार_"
+                                            val shareText = "🚩 *जयहिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड*\n🔴 *$streamTitle*\n\nथेट आरती व सोहळा पाहण्यासाठी खालील लिंकवर क्लिक करा किंवा जय हिंद ॲप उघडा:\n$liveUrl\n\n_जयहिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड परिवार_"
                                             try {
                                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                                     type = "text/plain"
@@ -1839,7 +1845,7 @@ private fun CustomPlayerControlsOverlay(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "🚩 जय हिंद मंडळ, अर्जुनवाड",
+                text = "🚩 जयहिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड",
                 color = Color.White.copy(alpha = 0.85f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
@@ -1849,33 +1855,34 @@ private fun CustomPlayerControlsOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.Black.copy(alpha = 0.7f),
-                    modifier = Modifier.clickable { onOpenInApp() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                if (platform != StreamPlatform.YOUTUBE) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Black.copy(alpha = 0.7f),
+                        modifier = Modifier.clickable { onOpenInApp() }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.OpenInNew,
-                            contentDescription = "Open in App",
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = when (platform) {
-                                StreamPlatform.YOUTUBE -> "YouTube ↗"
-                                StreamPlatform.FACEBOOK -> "Facebook ↗"
-                                StreamPlatform.INSTAGRAM -> "Instagram ↗"
-                                else -> "App ↗"
-                            },
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInNew,
+                                contentDescription = "Open in App",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = when (platform) {
+                                    StreamPlatform.FACEBOOK -> "Facebook ↗"
+                                    StreamPlatform.INSTAGRAM -> "Instagram ↗"
+                                    else -> "App ↗"
+                                },
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
@@ -1927,6 +1934,7 @@ private fun SmartMultiPlatformPlayer(
     onLoadingChange: (Boolean) -> Unit,
     onPlayStateChange: (Boolean) -> Unit,
     onErrorChange: (String?) -> Unit = {},
+    onToggleControls: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val cleanUrl = streamUrl.trim()
@@ -1937,103 +1945,216 @@ private fun SmartMultiPlatformPlayer(
         var youTubePlayerRef by remember { mutableStateOf<YouTubePlayer?>(null) }
         var youTubePlayerViewRef by remember { mutableStateOf<YouTubePlayerView?>(null) }
         var currentVideoId by remember { mutableStateOf(ytVideoId) }
+        var isYtReady by remember { mutableStateOf(false) }
 
-        AndroidView(
-            factory = { ctx ->
-                YouTubePlayerView(ctx).apply {
-                    youTubePlayerViewRef = this
-                    enableAutomaticInitialization = false
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    lifecycleOwner.lifecycle.addObserver(this)
+        var directStreamUri by remember { mutableStateOf<Uri?>(null) }
+        var isDirectStreamActive by remember { mutableStateOf(false) }
+        var texturePlayerRef by remember { mutableStateOf<TextureVideoPlayerView?>(null) }
 
-                    val options = IFramePlayerOptions.Builder(ctx)
-                        .controls(1)
-                        .rel(0)
-                        .ivLoadPolicy(3)
-                        .build()
-
-                    initialize(
-                        object : AbstractYouTubePlayerListener() {
-                            override fun onReady(youTubePlayer: YouTubePlayer) {
-                                youTubePlayerRef = youTubePlayer
-                                youTubePlayer.loadVideo(ytVideoId, 0f)
-                                onLoadingChange(false)
-                                onPlayStateChange(true)
-                                onErrorChange(null)
-
-                                onControllerReady(object : LivePlayerController {
-                                    override fun play() { youTubePlayer.play() }
-                                    override fun pause() { youTubePlayer.pause() }
-                                    override fun mute() { youTubePlayer.mute() }
-                                    override fun unMute() { youTubePlayer.unMute() }
-                                    override fun reload() { youTubePlayer.loadVideo(ytVideoId, 0f) }
-                                })
-                            }
-
-                            override fun onStateChange(
-                                youTubePlayer: YouTubePlayer,
-                                state: PlayerConstants.PlayerState
-                            ) {
-                                when (state) {
-                                    PlayerConstants.PlayerState.PLAYING -> {
-                                        onLoadingChange(false)
-                                        onPlayStateChange(true)
-                                        onErrorChange(null)
-                                    }
-                                    PlayerConstants.PlayerState.PAUSED -> {
-                                        onPlayStateChange(false)
-                                    }
-                                    PlayerConstants.PlayerState.BUFFERING -> {
-                                        onLoadingChange(true)
-                                    }
-                                    PlayerConstants.PlayerState.ENDED -> {
-                                        onPlayStateChange(false)
-                                    }
-                                    else -> {}
-                                }
-                            }
-
-                            override fun onError(
-                                youTubePlayer: YouTubePlayer,
-                                error: PlayerConstants.PlayerError
-                            ) {
-                                onLoadingChange(false)
-                                when (error) {
-                                    PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
-                                        onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
-                                    }
-                                    PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
-                                        onErrorChange("YouTube सुरक्षा निर्बंधांमुळे हा व्हिडिओ इन-ॲप प्लेयरमध्ये चालवण्यास मर्यादा आहे.")
-                                    }
-                                    else -> {
-                                        onErrorChange("थेट प्रक्षेपण प्लेबॅक त्रुटी आली. कृपया पुन्हा प्रयत्न करा.")
-                                    }
-                                }
-                            }
-                        },
-                        true,
-                        options
-                    )
+        // Attempt direct stream extraction (0% YouTube UI, 100% Native stream playback like Gallery)
+        LaunchedEffect(ytVideoId) {
+            onLoadingChange(true)
+            try {
+                val directUrl = withTimeoutOrNull(2500) {
+                    YouTubeDirectStreamExtractor.extractDirectStream(ytVideoId)
                 }
-            },
-            update = {
-                if (currentVideoId != ytVideoId) {
-                    currentVideoId = ytVideoId
-                    youTubePlayerRef?.loadVideo(ytVideoId, 0f)
+                if (directUrl != null) {
+                    val uri = Uri.parse(directUrl)
+                    directStreamUri = uri
+                    isDirectStreamActive = true
+                    onLoadingChange(false)
+                    return@LaunchedEffect
                 }
-            },
-            modifier = modifier.testTag("youtube_native_live_player")
-        )
+            } catch (_: Exception) {}
+            isDirectStreamActive = false
+        }
 
-        DisposableEffect(lifecycleOwner) {
-            onDispose {
-                youTubePlayerRef?.pause()
-                youTubePlayerViewRef?.let { view ->
-                    lifecycleOwner.lifecycle.removeObserver(view)
-                    view.release()
+        // Periodically enforce Clean YouTube CSS injection
+        LaunchedEffect(isYtReady) {
+            if (isYtReady) {
+                repeat(8) {
+                    delay(600)
+                    youTubePlayerViewRef?.let { injectCleanYouTubeCSS(it) }
+                }
+            }
+        }
+
+        if (isDirectStreamActive && directStreamUri != null) {
+            // Direct Native Player with 0% YouTube UI
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .clipToBounds(),
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        TouchInterceptingFrameLayout(ctx) {
+                            onToggleControls()
+                        }.apply {
+                            val tvp = TextureVideoPlayerView(ctx).apply {
+                                texturePlayerRef = this
+                                layoutParams = FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT
+                                )
+                                onPreparedListener = { _ ->
+                                    onLoadingChange(false)
+                                    onPlayStateChange(true)
+                                    onErrorChange(null)
+                                }
+                                onCompletionListener = {
+                                    onPlayStateChange(false)
+                                }
+                                onErrorListener = { _, _ ->
+                                    // Seamless fallback to clean YouTubePlayerView on direct stream failure
+                                    isDirectStreamActive = false
+                                }
+                                setVideoUri(directStreamUri!!)
+                            }
+                            addView(tvp)
+                            onControllerReady(object : LivePlayerController {
+                                override fun play() { tvp.play(); onPlayStateChange(true) }
+                                override fun pause() { tvp.pause(); onPlayStateChange(false) }
+                                override fun mute() { tvp.setMute(true) }
+                                override fun unMute() { tvp.setMute(false) }
+                                override fun reload() { tvp.setVideoUri(directStreamUri!!) }
+                            })
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            DisposableEffect(directStreamUri) {
+                onDispose {
+                    texturePlayerRef?.releaseMediaPlayer()
+                }
+            }
+        } else {
+            // Embedded YouTube Player with Chromeless CSS + Touch Interception + 1.16x Edge Cropping
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .clipToBounds(),
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        TouchInterceptingFrameLayout(ctx) {
+                            onToggleControls()
+                        }.apply {
+                            val ytView = YouTubePlayerView(ctx).apply {
+                                youTubePlayerViewRef = this
+                                enableAutomaticInitialization = false
+                                layoutParams = FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT
+                                )
+                                lifecycleOwner.lifecycle.addObserver(this)
+
+                                val options = IFramePlayerOptions.Builder(ctx)
+                                    .controls(0)
+                                    .rel(0)
+                                    .ivLoadPolicy(3)
+                                    .build()
+
+                                initialize(
+                                    object : AbstractYouTubePlayerListener() {
+                                        override fun onReady(youTubePlayer: YouTubePlayer) {
+                                            youTubePlayerRef = youTubePlayer
+                                            isYtReady = true
+                                            youTubePlayer.loadVideo(ytVideoId, 0f)
+                                            injectCleanYouTubeCSS(this@apply)
+                                            onLoadingChange(false)
+                                            onPlayStateChange(true)
+                                            onErrorChange(null)
+
+                                            onControllerReady(object : LivePlayerController {
+                                                override fun play() { youTubePlayer.play() }
+                                                override fun pause() { youTubePlayer.pause() }
+                                                override fun mute() { youTubePlayer.mute() }
+                                                override fun unMute() { youTubePlayer.unMute() }
+                                                override fun reload() { youTubePlayer.loadVideo(ytVideoId, 0f) }
+                                            })
+                                        }
+
+                                        override fun onStateChange(
+                                            youTubePlayer: YouTubePlayer,
+                                            state: PlayerConstants.PlayerState
+                                        ) {
+                                            when (state) {
+                                                PlayerConstants.PlayerState.PLAYING -> {
+                                                    onLoadingChange(false)
+                                                    onPlayStateChange(true)
+                                                    onErrorChange(null)
+                                                    injectCleanYouTubeCSS(this@apply)
+                                                }
+                                                PlayerConstants.PlayerState.PAUSED -> {
+                                                    onPlayStateChange(false)
+                                                    injectCleanYouTubeCSS(this@apply)
+                                                }
+                                                PlayerConstants.PlayerState.BUFFERING -> {
+                                                    onLoadingChange(true)
+                                                }
+                                                PlayerConstants.PlayerState.ENDED -> {
+                                                    onPlayStateChange(false)
+                                                    injectCleanYouTubeCSS(this@apply)
+                                                }
+                                                else -> {}
+                                            }
+                                        }
+
+                                        override fun onError(
+                                            youTubePlayer: YouTubePlayer,
+                                            error: PlayerConstants.PlayerError
+                                        ) {
+                                            onLoadingChange(false)
+                                            when (error) {
+                                                PlayerConstants.PlayerError.VIDEO_NOT_FOUND -> {
+                                                    onErrorChange("व्हिडिओ आढळला नाही किंवा काढून टाकला गेला आहे.")
+                                                }
+                                                PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> {
+                                                    onErrorChange("YouTube सुरक्षा निर्बंधांमुळे हा व्हिडिओ इन-ॲप प्लेयरमध्ये चालवण्यास मर्यादा आहे.")
+                                                }
+                                                else -> {
+                                                    onErrorChange("थेट प्रक्षेपण प्लेबॅक त्रुटी आली. कृपया पुन्हा प्रयत्न करा.")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    true,
+                                    options
+                                )
+                            }
+                            addView(ytView)
+                        }
+                    },
+                    update = {
+                        if (currentVideoId != ytVideoId) {
+                            currentVideoId = ytVideoId
+                            youTubePlayerRef?.loadVideo(ytVideoId, 0f)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            // 1.16x edge cropping: pushes YouTube's top video title bar and
+                            // bottom "More videos" / "YouTube" logo outside visible area
+                            scaleX = 1.16f
+                            scaleY = 1.16f
+                        }
+                        .testTag("youtube_native_live_player")
+                )
+            }
+
+            DisposableEffect(lifecycleOwner) {
+                onDispose {
+                    youTubePlayerRef?.pause()
+                    youTubePlayerViewRef?.let { view ->
+                        lifecycleOwner.lifecycle.removeObserver(view)
+                        view.release()
+                    }
                 }
             }
         }

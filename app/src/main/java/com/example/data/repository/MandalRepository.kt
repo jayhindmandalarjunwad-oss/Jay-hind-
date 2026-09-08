@@ -1508,17 +1508,41 @@ class MandalRepository(context: Context) {
         coverImageUrl: String,
         description: String
     ) = withContext(Dispatchers.IO) {
-        galleryDao.updateAlbum(albumId, title.trim(), category.trim(), coverImageUrl.trim(), description.trim())
-        try {
-            val updates = mapOf(
-                "title" to title.trim(),
-                "category" to category.trim(),
-                "coverImageUrl" to coverImageUrl.trim(),
-                "description" to description.trim()
+        val existing = galleryDao.getAlbumById(albumId)
+        if (existing == null) {
+            // Album doesn't exist in DB yet (e.g. was virtual default_video_album)
+            val newAlbum = AlbumEntity(
+                id = albumId,
+                title = title.trim(),
+                category = category.trim(),
+                coverImageUrl = coverImageUrl.trim(),
+                description = description.trim(),
+                photoCount = 0,
+                albumType = "VIDEO"
             )
-            firestore.collection("albums").document(albumId).update(updates)
-        } catch (e: Exception) {
-            Log.e("FirebaseSync", "Error updating album on Firestore", e)
+            galleryDao.insertAlbum(newAlbum)
+            galleryDao.assignUnassignedVideosToAlbum(albumId)
+            try {
+                firestore.collection("albums").document(albumId).set(newAlbum.toMap(), SetOptions.merge())
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error creating album on Firestore", e)
+            }
+        } else {
+            galleryDao.updateAlbum(albumId, title.trim(), category.trim(), coverImageUrl.trim(), description.trim())
+            if (albumId == "default_video_album") {
+                galleryDao.assignUnassignedVideosToAlbum(albumId)
+            }
+            try {
+                val updates = mapOf(
+                    "title" to title.trim(),
+                    "category" to category.trim(),
+                    "coverImageUrl" to coverImageUrl.trim(),
+                    "description" to description.trim()
+                )
+                firestore.collection("albums").document(albumId).update(updates)
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error updating album on Firestore", e)
+            }
         }
     }
 
@@ -1588,6 +1612,21 @@ class MandalRepository(context: Context) {
         videoUrl: String,
         thumbnailUrl: String
     ) = withContext(Dispatchers.IO) {
+        if (albumId == "default_video_album") {
+            val existing = galleryDao.getAlbumById(albumId)
+            if (existing == null) {
+                val defAlbum = AlbumEntity(
+                    id = albumId,
+                    title = "मंडळ मुख्य व्हिडिओ संग्रह",
+                    category = category.trim().ifEmpty { "सांस्कृतिक व उत्सव" },
+                    coverImageUrl = thumbnailUrl.ifEmpty { "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80" },
+                    description = "मंडळाचे सर्व उत्सव व सांस्कृतिक कार्यक्रमांचे व्हिडिओ",
+                    photoCount = 0,
+                    albumType = "VIDEO"
+                )
+                galleryDao.insertAlbum(defAlbum)
+            }
+        }
         val video = VideoEntity(
             id = "vid_" + UUID.randomUUID().toString().take(8),
             albumId = albumId,

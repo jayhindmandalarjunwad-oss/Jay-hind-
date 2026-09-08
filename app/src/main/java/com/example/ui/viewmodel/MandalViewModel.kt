@@ -197,7 +197,10 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 )
             )
         } else {
-            albums
+            albums.map { album ->
+                val count = allVideos.count { it.albumId == album.id || (album.id == "default_video_album" && it.albumId.isBlank()) }
+                album.copy(photoCount = count)
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

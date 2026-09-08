@@ -181,10 +181,16 @@ interface GalleryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVideos(videos: List<VideoEntity>)
 
+    @Query("SELECT * FROM albums WHERE id = :albumId LIMIT 1")
+    suspend fun getAlbumById(albumId: String): AlbumEntity?
+
+    @Query("UPDATE videos SET albumId = :albumId WHERE albumId = '' OR albumId IS NULL OR albumId = 'default_video_album'")
+    suspend fun assignUnassignedVideosToAlbum(albumId: String)
+
     @Query("DELETE FROM videos WHERE id = :videoId")
     suspend fun deleteVideo(videoId: String)
 
-    @Query("DELETE FROM videos WHERE albumId = :albumId")
+    @Query("DELETE FROM videos WHERE albumId = :albumId OR (:albumId = 'default_video_album' AND (albumId = '' OR albumId IS NULL))")
     suspend fun deleteVideosForAlbum(albumId: String)
 
     @Query("UPDATE videos SET title = :title, description = :description, category = :category WHERE id = :videoId")

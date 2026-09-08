@@ -221,6 +221,13 @@ class TextureVideoPlayerView(context: Context) : FrameLayout(context), TextureVi
     val duration: Int
         get() = try { mediaPlayer?.duration ?: 0 } catch (_: Exception) { 0 }
 
+    fun setMute(isMuted: Boolean) {
+        try {
+            val volume = if (isMuted) 0f else 1f
+            mediaPlayer?.setVolume(volume, volume)
+        } catch (_: Exception) {}
+    }
+
     fun releaseMediaPlayer() {
         try {
             mediaPlayer?.stop()
@@ -234,7 +241,7 @@ class TextureVideoPlayerView(context: Context) : FrameLayout(context), TextureVi
 /**
  * Finds the internal WebView inside YouTubePlayerView to control touch events and CSS
  */
-private fun findWebViewInViewGroup(viewGroup: ViewGroup): WebView? {
+internal fun findWebViewInViewGroup(viewGroup: ViewGroup): WebView? {
     for (i in 0 until viewGroup.childCount) {
         val child = viewGroup.getChildAt(i)
         if (child is WebView) return child
@@ -250,7 +257,7 @@ private fun findWebViewInViewGroup(viewGroup: ViewGroup): WebView? {
  * Injects CSS into YouTube's internal WebView to completely hide the top video title bar,
  * the channel link, the bottom watermark "YouTube", "More videos", and pause overlays.
  */
-private fun injectCleanYouTubeCSS(playerView: YouTubePlayerView) {
+internal fun injectCleanYouTubeCSS(playerView: YouTubePlayerView) {
     playerView.post {
         try {
             val webView = findWebViewInViewGroup(playerView) ?: return@post

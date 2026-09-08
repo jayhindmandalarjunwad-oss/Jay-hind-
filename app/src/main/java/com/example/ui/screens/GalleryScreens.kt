@@ -716,7 +716,7 @@ fun GalleryScreen(
                 VideoPlayerDialog(
                     videoUrl = activePlayingVideo!!.videoUrl,
                     title = activePlayingVideo!!.title,
-                    senderName = "जय हिंद तरुण मंडळ • ${activePlayingVideo!!.category}",
+                    senderName = "जयहिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड • ${activePlayingVideo!!.category}",
                     thumbnailUrl = activePlayingVideo!!.thumbnailUrl,
                     onDismiss = { activePlayingVideo = null }
                 )
@@ -1488,6 +1488,15 @@ fun AddVideoDialog(
                 }
 
                 OutlinedTextField(
+                    value = category,
+                    onValueChange = { category = it },
+                    label = { Text("वर्गवारी / उत्सव मॅन्युअली टाईप करा") },
+                    placeholder = { Text("उदा. गणेश उत्सव, विसर्जन मिरवणूक") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
                     value = desc,
                     onValueChange = { desc = it },
                     label = { Text("माहिती / वर्णन") },
@@ -1573,6 +1582,15 @@ fun EditVideoDialog(
                         )
                     }
                 }
+
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = { category = it },
+                    label = { Text("वर्गवारी / उत्सव मॅन्युअली टाईप करा") },
+                    placeholder = { Text("उदा. गणेश उत्सव, विसर्जन मिरवणूक") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 OutlinedTextField(
                     value = desc,
