@@ -133,6 +133,12 @@ interface GalleryDao {
     @Query("SELECT * FROM albums ORDER BY createdAt DESC")
     fun getAllAlbums(): Flow<List<AlbumEntity>>
 
+    @Query("SELECT * FROM albums WHERE albumType = 'PHOTO' ORDER BY createdAt DESC")
+    fun getPhotoAlbums(): Flow<List<AlbumEntity>>
+
+    @Query("SELECT * FROM albums WHERE albumType = 'VIDEO' ORDER BY createdAt DESC")
+    fun getVideoAlbums(): Flow<List<AlbumEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAlbum(album: AlbumEntity)
 
@@ -141,6 +147,9 @@ interface GalleryDao {
 
     @Query("DELETE FROM albums WHERE id = :albumId")
     suspend fun deleteAlbum(albumId: String)
+
+    @Query("UPDATE albums SET title = :title, category = :category, coverImageUrl = :coverImageUrl, description = :description WHERE id = :albumId")
+    suspend fun updateAlbum(albumId: String, title: String, category: String, coverImageUrl: String, description: String)
 
     @Query("SELECT * FROM photos WHERE albumId = :albumId ORDER BY uploadedAt DESC")
     fun getPhotosForAlbum(albumId: String): Flow<List<PhotoEntity>>
@@ -154,11 +163,17 @@ interface GalleryDao {
     @Query("DELETE FROM photos WHERE id = :photoId")
     suspend fun deletePhoto(photoId: String)
 
+    @Query("DELETE FROM photos WHERE albumId = :albumId")
+    suspend fun deletePhotosForAlbum(albumId: String)
+
     @Query("UPDATE photos SET caption = :caption WHERE id = :photoId")
     suspend fun updatePhotoCaption(photoId: String, caption: String)
 
     @Query("SELECT * FROM videos ORDER BY uploadedAt DESC")
     fun getAllVideos(): Flow<List<VideoEntity>>
+
+    @Query("SELECT * FROM videos WHERE albumId = :albumId ORDER BY uploadedAt DESC")
+    fun getVideosForAlbum(albumId: String): Flow<List<VideoEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVideo(video: VideoEntity)
@@ -168,6 +183,15 @@ interface GalleryDao {
 
     @Query("DELETE FROM videos WHERE id = :videoId")
     suspend fun deleteVideo(videoId: String)
+
+    @Query("DELETE FROM videos WHERE albumId = :albumId")
+    suspend fun deleteVideosForAlbum(albumId: String)
+
+    @Query("UPDATE videos SET title = :title, description = :description, category = :category WHERE id = :videoId")
+    suspend fun updateVideo(videoId: String, title: String, description: String, category: String)
+
+    @Query("UPDATE videos SET title = :title, description = :description, category = :category, thumbnailUrl = :thumbnailUrl WHERE id = :videoId")
+    suspend fun updateVideoDetails(videoId: String, title: String, description: String, category: String, thumbnailUrl: String)
 }
 
 @Dao

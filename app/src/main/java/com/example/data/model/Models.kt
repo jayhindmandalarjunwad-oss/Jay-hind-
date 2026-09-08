@@ -92,6 +92,7 @@ data class Album(
     val coverImageUrl: String,
     val description: String,
     val photoCount: Int = 0,
+    val albumType: String = "PHOTO", // "PHOTO" or "VIDEO"
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -105,6 +106,7 @@ data class GalleryPhoto(
 
 data class VideoItem(
     val id: String,
+    val albumId: String = "",
     val title: String,
     val description: String,
     val category: String,

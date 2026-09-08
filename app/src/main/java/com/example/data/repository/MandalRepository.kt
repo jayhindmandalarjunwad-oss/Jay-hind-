@@ -1461,27 +1461,64 @@ class MandalRepository(context: Context) {
     }
 
     // GALLERY (ALBUMS, PHOTOS, VIDEOS)
-    val albums: Flow<List<Album>> = galleryDao.getAllAlbums().map { list -> list.map { it.toDomain() } }
+    val photoAlbums: Flow<List<Album>> = galleryDao.getPhotoAlbums().map { list -> list.map { it.toDomain() } }
+    val videoAlbums: Flow<List<Album>> = galleryDao.getVideoAlbums().map { list -> list.map { it.toDomain() } }
+    val albums: Flow<List<Album>> = photoAlbums
     val videos: Flow<List<VideoItem>> = galleryDao.getAllVideos().map { list -> list.map { it.toDomain() } }
 
     fun getPhotosForAlbum(albumId: String): Flow<List<GalleryPhoto>> {
         return galleryDao.getPhotosForAlbum(albumId).map { list -> list.map { it.toDomain() } }
     }
 
-    suspend fun createAlbum(title: String, category: String, coverImageUrl: String, description: String) = withContext(Dispatchers.IO) {
+    fun getVideosForAlbum(albumId: String): Flow<List<VideoItem>> {
+        return galleryDao.getVideosForAlbum(albumId).map { list -> list.map { it.toDomain() } }
+    }
+
+    suspend fun createAlbum(
+        title: String,
+        category: String,
+        coverImageUrl: String,
+        description: String,
+        albumType: String = "PHOTO"
+    ) = withContext(Dispatchers.IO) {
         val album = AlbumEntity(
-            id = "album_" + UUID.randomUUID().toString().take(8),
+            id = (if (albumType == "VIDEO") "valbum_" else "album_") + UUID.randomUUID().toString().take(8),
             title = title.trim(),
             category = category.trim(),
-            coverImageUrl = coverImageUrl.ifEmpty { "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=600&auto=format&fit=crop&q=80" },
+            coverImageUrl = coverImageUrl.ifEmpty {
+                if (albumType == "VIDEO") "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80"
+                else "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=600&auto=format&fit=crop&q=80"
+            },
             description = description.trim(),
-            photoCount = 0
+            photoCount = 0,
+            albumType = albumType
         )
         galleryDao.insertAlbum(album)
         try {
             firestore.collection("albums").document(album.id).set(album.toMap(), SetOptions.merge())
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error creating album on Firestore", e)
+        }
+    }
+
+    suspend fun updateAlbum(
+        albumId: String,
+        title: String,
+        category: String,
+        coverImageUrl: String,
+        description: String
+    ) = withContext(Dispatchers.IO) {
+        galleryDao.updateAlbum(albumId, title.trim(), category.trim(), coverImageUrl.trim(), description.trim())
+        try {
+            val updates = mapOf(
+                "title" to title.trim(),
+                "category" to category.trim(),
+                "coverImageUrl" to coverImageUrl.trim(),
+                "description" to description.trim()
+            )
+            firestore.collection("albums").document(albumId).update(updates)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating album on Firestore", e)
         }
     }
 
@@ -1494,8 +1531,8 @@ class MandalRepository(context: Context) {
         )
         galleryDao.insertPhoto(photo)
         try {
-            val albums = galleryDao.getAllAlbums().first()
-            val targetAlbum = albums.find { it.id == albumId }
+            val allAlbums = galleryDao.getAllAlbums().first()
+            val targetAlbum = allAlbums.find { it.id == albumId }
             if (targetAlbum != null) {
                 val updatedAlbum = targetAlbum.copy(
                     photoCount = targetAlbum.photoCount + 1,
@@ -1516,6 +1553,8 @@ class MandalRepository(context: Context) {
 
     suspend fun deleteAlbum(albumId: String) = withContext(Dispatchers.IO) {
         galleryDao.deleteAlbum(albumId)
+        galleryDao.deletePhotosForAlbum(albumId)
+        galleryDao.deleteVideosForAlbum(albumId)
         try {
             firestore.collection("albums").document(albumId).delete()
         } catch (e: Exception) {
@@ -1541,9 +1580,76 @@ class MandalRepository(context: Context) {
         }
     }
 
+    suspend fun addVideoToAlbum(
+        albumId: String,
+        title: String,
+        description: String,
+        category: String,
+        videoUrl: String,
+        thumbnailUrl: String
+    ) = withContext(Dispatchers.IO) {
+        val video = VideoEntity(
+            id = "vid_" + UUID.randomUUID().toString().take(8),
+            albumId = albumId,
+            title = title.trim(),
+            description = description.trim(),
+            category = category.trim(),
+            videoUrl = videoUrl.trim(),
+            thumbnailUrl = thumbnailUrl.ifEmpty { "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=600&auto=format&fit=crop&q=80" }
+        )
+        galleryDao.insertVideo(video)
+        try {
+            val allAlbums = galleryDao.getAllAlbums().first()
+            val targetAlbum = allAlbums.find { it.id == albumId }
+            if (targetAlbum != null) {
+                val updatedAlbum = targetAlbum.copy(
+                    photoCount = targetAlbum.photoCount + 1,
+                    coverImageUrl = if (targetAlbum.coverImageUrl.isBlank()) video.thumbnailUrl else targetAlbum.coverImageUrl
+                )
+                galleryDao.insertAlbum(updatedAlbum)
+                firestore.collection("albums").document(albumId).set(updatedAlbum.toMap(), SetOptions.merge())
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating video album count", e)
+        }
+        try {
+            firestore.collection("videos").document(video.id).set(video.toMap(), SetOptions.merge())
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error adding video on Firestore", e)
+        }
+    }
+
+    suspend fun updateVideo(
+        videoId: String,
+        title: String,
+        description: String,
+        category: String,
+        thumbnailUrl: String = ""
+    ) = withContext(Dispatchers.IO) {
+        if (thumbnailUrl.isNotBlank()) {
+            galleryDao.updateVideoDetails(videoId, title.trim(), description.trim(), category.trim(), thumbnailUrl.trim())
+        } else {
+            galleryDao.updateVideo(videoId, title.trim(), description.trim(), category.trim())
+        }
+        try {
+            val updates = mutableMapOf<String, Any>(
+                "title" to title.trim(),
+                "description" to description.trim(),
+                "category" to category.trim()
+            )
+            if (thumbnailUrl.isNotBlank()) {
+                updates["thumbnailUrl"] = thumbnailUrl.trim()
+            }
+            firestore.collection("videos").document(videoId).update(updates)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating video on Firestore", e)
+        }
+    }
+
     suspend fun addVideo(title: String, description: String, category: String, videoUrl: String, thumbnailUrl: String) = withContext(Dispatchers.IO) {
         val video = VideoEntity(
             id = "vid_" + UUID.randomUUID().toString().take(8),
+            albumId = "",
             title = title.trim(),
             description = description.trim(),
             category = category.trim(),
@@ -1558,8 +1664,21 @@ class MandalRepository(context: Context) {
         }
     }
 
-    suspend fun deleteVideo(videoId: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteVideo(videoId: String, albumId: String = "") = withContext(Dispatchers.IO) {
         galleryDao.deleteVideo(videoId)
+        if (albumId.isNotBlank()) {
+            try {
+                val allAlbums = galleryDao.getAllAlbums().first()
+                val targetAlbum = allAlbums.find { it.id == albumId }
+                if (targetAlbum != null && targetAlbum.photoCount > 0) {
+                    val updatedAlbum = targetAlbum.copy(photoCount = targetAlbum.photoCount - 1)
+                    galleryDao.insertAlbum(updatedAlbum)
+                    firestore.collection("albums").document(albumId).set(updatedAlbum.toMap(), SetOptions.merge())
+                }
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error updating album count on video delete", e)
+            }
+        }
         try {
             firestore.collection("videos").document(videoId).delete()
         } catch (e: Exception) {
@@ -2566,6 +2685,7 @@ fun AlbumEntity.toDomain() = Album(
     coverImageUrl = coverImageUrl,
     description = description,
     photoCount = photoCount,
+    albumType = albumType,
     createdAt = createdAt
 )
 
@@ -2579,6 +2699,7 @@ fun PhotoEntity.toDomain() = GalleryPhoto(
 
 fun VideoEntity.toDomain() = VideoItem(
     id = id,
+    albumId = albumId,
     title = title,
     description = description,
     category = category,
@@ -2807,6 +2928,7 @@ fun AlbumEntity.toMap(): Map<String, Any?> = mapOf(
     "coverImageUrl" to coverImageUrl,
     "description" to description,
     "photoCount" to photoCount,
+    "albumType" to albumType,
     "createdAt" to createdAt
 )
 
@@ -2820,6 +2942,7 @@ fun DocumentSnapshot.toAlbumEntity(): AlbumEntity? {
         coverImageUrl = getString("coverImageUrl") ?: "",
         description = getString("description") ?: "",
         photoCount = (getLong("photoCount") ?: 0L).toInt(),
+        albumType = getString("albumType") ?: "PHOTO",
         createdAt = getLong("createdAt") ?: System.currentTimeMillis()
     )
 }
@@ -2846,6 +2969,7 @@ fun DocumentSnapshot.toPhotoEntity(): PhotoEntity? {
 
 fun VideoEntity.toMap(): Map<String, Any?> = mapOf(
     "id" to id,
+    "albumId" to albumId,
     "title" to title,
     "description" to description,
     "category" to category,
@@ -2860,12 +2984,13 @@ fun DocumentSnapshot.toVideoEntity(): VideoEntity? {
     val title = getString("title") ?: return null
     return VideoEntity(
         id = id,
+        albumId = getString("albumId") ?: "",
         title = title,
         description = getString("description") ?: "",
         category = getString("category") ?: "",
         videoUrl = getString("videoUrl") ?: "",
         thumbnailUrl = getString("thumbnailUrl") ?: "",
-        duration = getString("duration") ?: "",
+        duration = getString("duration") ?: "03:45",
         uploadedAt = getLong("uploadedAt") ?: System.currentTimeMillis()
     )
 }

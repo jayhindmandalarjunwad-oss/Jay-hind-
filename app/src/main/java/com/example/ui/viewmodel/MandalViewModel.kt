@@ -179,8 +179,29 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     // Gallery State
-    val albums: StateFlow<List<Album>> = repository.albums
+    val photoAlbums: StateFlow<List<Album>> = repository.photoAlbums
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val videoAlbums: StateFlow<List<Album>> = combine(repository.videoAlbums, repository.videos) { albums, allVideos ->
+        val unassignedVideos = allVideos.filter { it.albumId.isBlank() }
+        if (albums.isEmpty() && unassignedVideos.isNotEmpty()) {
+            listOf(
+                Album(
+                    id = "default_video_album",
+                    title = "मंडळ मुख्य व्हिडिओ संग्रह",
+                    category = "सांस्कृतिक व उत्सव",
+                    coverImageUrl = unassignedVideos.firstOrNull()?.thumbnailUrl?.ifBlank { "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80" } ?: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80",
+                    description = "मंडळाचे सर्व उत्सव व सांस्कृतिक कार्यक्रमांचे व्हिडिओ",
+                    photoCount = unassignedVideos.size,
+                    albumType = "VIDEO"
+                )
+            )
+        } else {
+            albums
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val albums: StateFlow<List<Album>> = photoAlbums
 
     val videos: StateFlow<List<VideoItem>> = repository.videos
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -189,7 +210,18 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     val selectedAlbum: StateFlow<Album?> = _selectedAlbum.asStateFlow()
 
     val albumPhotos: StateFlow<List<GalleryPhoto>> = _selectedAlbum.flatMapLatest { album ->
-        if (album != null) repository.getPhotosForAlbum(album.id) else flowOf(emptyList())
+        if (album != null && album.id.isNotBlank()) repository.getPhotosForAlbum(album.id) else flowOf(emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _selectedVideoAlbum = MutableStateFlow<Album?>(null)
+    val selectedVideoAlbum: StateFlow<Album?> = _selectedVideoAlbum.asStateFlow()
+
+    val albumVideos: StateFlow<List<VideoItem>> = combine(_selectedVideoAlbum, repository.videos) { album, allVideos ->
+        if (album == null || album.id.isBlank()) {
+            emptyList()
+        } else {
+            allVideos.filter { it.albumId == album.id || (album.id == "default_video_album" && it.albumId.isBlank()) }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _fullscreenPhotoUrl = MutableStateFlow<String?>(null)
@@ -601,15 +633,57 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // GALLERY ACTIONS
-    fun openAlbum(album: Album) {
+    fun openAlbum(album: Album?) {
         _selectedAlbum.value = album
         _currentScreen.value = AppScreen.PHOTO_GALLERY
     }
 
+    fun closeAlbum() {
+        _selectedAlbum.value = null
+    }
+
+    fun openVideoAlbum(album: Album?) {
+        _selectedVideoAlbum.value = album
+    }
+
+    fun closeVideoAlbum() {
+        _selectedVideoAlbum.value = null
+    }
+
     fun createAlbum(title: String, category: String, coverImage: String, desc: String) {
         viewModelScope.launch {
-            repository.createAlbum(title, category, coverImage, desc)
-            showSnackbar("नवीन ॲल्बम तयार झाला!")
+            repository.createAlbum(title, category, coverImage, desc, albumType = "PHOTO")
+            showSnackbar("नवीन फोटो ॲल्बम तयार झाला! 📸")
+        }
+    }
+
+    fun createVideoAlbum(title: String, category: String, coverImage: String, desc: String) {
+        viewModelScope.launch {
+            repository.createAlbum(title, category, coverImage, desc, albumType = "VIDEO")
+            showSnackbar("नवीन व्हिडिओ ॲल्बम तयार झाला! 🎬")
+        }
+    }
+
+    fun updateAlbum(albumId: String, title: String, category: String, coverImage: String, desc: String) {
+        viewModelScope.launch {
+            repository.updateAlbum(albumId, title, category, coverImage, desc)
+            if (_selectedAlbum.value?.id == albumId) {
+                _selectedAlbum.value = _selectedAlbum.value?.copy(
+                    title = title,
+                    category = category,
+                    coverImageUrl = coverImage,
+                    description = desc
+                )
+            }
+            if (_selectedVideoAlbum.value?.id == albumId) {
+                _selectedVideoAlbum.value = _selectedVideoAlbum.value?.copy(
+                    title = title,
+                    category = category,
+                    coverImageUrl = coverImage,
+                    description = desc
+                )
+            }
+            showSnackbar("ॲल्बमचे शीर्षक व माहिती यशस्वीरित्या बदलली! ✨")
         }
     }
 
@@ -621,8 +695,25 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun addVideoToActiveAlbum(title: String, desc: String, category: String, videoUrl: String, thumbUrl: String) {
+        val album = _selectedVideoAlbum.value ?: return
+        viewModelScope.launch {
+            repository.addVideoToAlbum(album.id, title, desc, category, videoUrl, thumbUrl)
+            showSnackbar("व्हिडिओ ॲल्बममध्ये जोडला गेला! 🎬")
+        }
+    }
+
+    fun updateVideo(videoId: String, title: String, desc: String, category: String, thumbUrl: String = "") {
+        viewModelScope.launch {
+            repository.updateVideo(videoId, title, desc, category, thumbUrl)
+            showSnackbar("व्हिडिओचे नाव व माहिती अपडेट केली! ✨")
+        }
+    }
+
     fun deleteAlbum(albumId: String) {
         viewModelScope.launch {
+            if (_selectedAlbum.value?.id == albumId) _selectedAlbum.value = null
+            if (_selectedVideoAlbum.value?.id == albumId) _selectedVideoAlbum.value = null
             repository.deleteAlbum(albumId)
             showSnackbar("ॲल्बम हटवला गेला.")
         }
@@ -684,9 +775,10 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun deleteVideo(videoId: String) {
+    fun deleteVideo(videoId: String, albumId: String = "") {
         viewModelScope.launch {
-            repository.deleteVideo(videoId)
+            val targetAlbumId = if (albumId.isNotBlank()) albumId else (_selectedVideoAlbum.value?.id ?: "")
+            repository.deleteVideo(videoId, targetAlbumId)
             showSnackbar("व्हिडिओ हटवला गेला.")
         }
     }
