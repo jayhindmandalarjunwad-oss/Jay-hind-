@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.data.local.*
 import com.example.data.model.*
 import com.example.data.seed.SeedData
+import com.example.util.MediaUtils
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
@@ -2256,22 +2257,15 @@ class MandalRepository(context: Context) {
                 )
             }
 
-            // 4. If Live stopped and URL is valid, auto-archive to Video Gallery if not already present
+            // 4. If Live stopped and URL is valid, auto-archive to dedicated "LIVE VIDEO" Album
             if (!isLive && cleanUrl.isNotBlank()) {
                 try {
-                    val existingVideos = videoDaoListDirect()
-                    val alreadyArchived = existingVideos.any { it.videoUrl.contains(cleanUrl) }
-                    if (!alreadyArchived) {
-                        addVideo(
-                            title = cleanTitle,
-                            description = "थेट प्रक्षेपणाचे रेकॉर्डिंग (Live Stream Archive)",
-                            category = "थेट प्रक्षेपण (Live)",
-                            videoUrl = cleanUrl,
-                            thumbnailUrl = ""
-                        )
-                    }
+                    saveLiveStreamRecordingToLiveAlbum(
+                        title = cleanTitle,
+                        url = cleanUrl
+                    )
                 } catch (e: Exception) {
-                    Log.d("LiveStream", "Auto-archive note: ${e.message}")
+                    Log.e("LiveStream", "Auto-archive to LIVE VIDEO album note: ${e.message}", e)
                 }
             }
 
@@ -2304,6 +2298,123 @@ class MandalRepository(context: Context) {
             galleryDao.getAllVideos().first()
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    /**
+     * Automatically archives a finished live stream into the dedicated "LIVE VIDEO" album.
+     * 1. If the "LIVE VIDEO" album does not exist (first time live ends), it is created.
+     * 2. All subsequent live streams are saved into the same album, with their exact title,
+     *    date, and time, sorted by date (newest first).
+     */
+    suspend fun saveLiveStreamRecordingToLiveAlbum(
+        title: String,
+        url: String
+    ) = withContext(Dispatchers.IO) {
+        val cleanTitle = title.trim().ifEmpty { "मंडळ थेट प्रक्षेपण" }
+        val cleanUrl = url.trim()
+        if (cleanUrl.isBlank()) return@withContext
+
+        val now = System.currentTimeMillis()
+        val marathiDate = SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale("mr", "IN")).format(Date(now))
+
+        // Extract YouTube thumbnail or high quality festival fallback
+        val ytThumb = MediaUtils.extractYouTubeThumbnail(cleanUrl)
+        val calculatedThumb = if (ytThumb.isNotBlank()) {
+            ytThumb
+        } else {
+            "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=800&auto=format&fit=crop&q=80"
+        }
+
+        val liveAlbumId = "album_live_videos"
+        val liveAlbumTitle = "LIVE VIDEO"
+
+        // 1. Ensure "LIVE VIDEO" album exists in Room & Firestore
+        var liveAlbum = galleryDao.getAlbumById(liveAlbumId)
+        if (liveAlbum == null) {
+            val allAlbums = galleryDao.getAllAlbums().first()
+            liveAlbum = allAlbums.find { it.id == liveAlbumId || it.title.equals(liveAlbumTitle, ignoreCase = true) }
+        }
+
+        if (liveAlbum == null) {
+            val newAlbum = AlbumEntity(
+                id = liveAlbumId,
+                title = liveAlbumTitle,
+                category = "थेट प्रक्षेपण (Live)",
+                coverImageUrl = calculatedThumb,
+                description = "मंडळाचे सर्व थेट प्रक्षेपणांचे (Live Streams) रेकॉर्डिंग व संग्रह",
+                photoCount = 0,
+                albumType = "VIDEO",
+                createdAt = now
+            )
+            galleryDao.insertAlbum(newAlbum)
+            try {
+                firestore.collection("albums").document(liveAlbumId)
+                    .set(newAlbum.toMap(), SetOptions.merge())
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error creating LIVE VIDEO album on Firestore", e)
+            }
+            liveAlbum = newAlbum
+        }
+
+        val targetAlbumId = liveAlbum.id
+
+        // 2. Check if this stream URL is already saved in this album to prevent duplicate entries
+        val allVideos = videoDaoListDirect()
+        val alreadyArchived = allVideos.any {
+            (it.albumId == targetAlbumId || it.albumId == liveAlbumId) &&
+                (it.videoUrl == cleanUrl || (cleanUrl.length > 10 && it.videoUrl.contains(cleanUrl)))
+        }
+
+        if (!alreadyArchived) {
+            val video = VideoEntity(
+                id = "vid_live_" + UUID.randomUUID().toString().take(8),
+                albumId = targetAlbumId,
+                title = cleanTitle,
+                description = "थेट प्रक्षेपणाचे रेकॉर्डिंग • $marathiDate",
+                category = "LIVE VIDEO",
+                videoUrl = cleanUrl,
+                thumbnailUrl = calculatedThumb,
+                duration = "थेट रेकॉर्ड",
+                uploadedAt = now
+            )
+            galleryDao.insertVideo(video)
+            try {
+                firestore.collection("videos").document(video.id)
+                    .set(video.toMap(), SetOptions.merge())
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error adding live video to Firestore", e)
+            }
+
+            // 3. Update album count and cover image
+            val currentVideosCount = galleryDao.getVideosForAlbum(targetAlbumId).first().size
+            val updatedAlbum = liveAlbum.copy(
+                photoCount = currentVideosCount,
+                coverImageUrl = if (liveAlbum.coverImageUrl.isBlank() || liveAlbum.coverImageUrl.contains("unsplash")) calculatedThumb else liveAlbum.coverImageUrl
+            )
+            galleryDao.insertAlbum(updatedAlbum)
+            try {
+                firestore.collection("albums").document(targetAlbumId)
+                    .set(updatedAlbum.toMap(), SetOptions.merge())
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error updating LIVE VIDEO album count on Firestore", e)
+            }
+            Log.d("LiveStream", "Successfully auto-archived live stream to LIVE VIDEO album: $cleanTitle")
+        }
+
+        // 4. Migrate any old unassigned live streams to this dedicated LIVE VIDEO album
+        for (v in allVideos) {
+            if ((v.albumId.isBlank() || v.albumId == "default_video_album") &&
+                (v.category.contains("Live", ignoreCase = true) || v.category.contains("थेट") || v.title.contains("थेट"))
+            ) {
+                val updatedV = v.copy(albumId = targetAlbumId)
+                galleryDao.insertVideo(updatedV)
+                try {
+                    firestore.collection("videos").document(v.id).update("albumId", targetAlbumId)
+                } catch (e: Exception) {
+                    // Ignore transient network errors
+                }
+            }
         }
     }
 

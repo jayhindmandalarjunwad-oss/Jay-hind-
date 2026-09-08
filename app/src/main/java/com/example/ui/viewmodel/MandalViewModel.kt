@@ -1355,7 +1355,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                     if (isLive) {
                         showSnackbar("🔴 थेट प्रक्षेपण सुरू झाले आणि सर्व सभासदांना नोटिफिकेशन पाठवले! 🚩")
                     } else {
-                        showSnackbar("⏹️ थेट प्रक्षेपण थांबवले आणि व्हिडिओ गॅलरीमध्ये सेव्ह केले. ✅")
+                        showSnackbar("⏹️ थेट प्रक्षेपण थांबवले आणि 'LIVE VIDEO' ॲल्बममध्ये तारीख व शीर्षकासह सेव्ह झाले! 🎬")
                     }
                     onComplete?.invoke(true)
                 } else {

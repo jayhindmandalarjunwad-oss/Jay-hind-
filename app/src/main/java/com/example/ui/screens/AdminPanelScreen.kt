@@ -3274,6 +3274,34 @@ fun LiveStreamAdminTab(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("सर्व लाईव्ह कमेंट्स हटवा (Clear All Chat)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BloodRed)
                     }
+
+                    // Auto-archive Informational Notice
+                    Surface(
+                        color = Color(0xFFFFF7ED),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFFED7AA)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.VideoLibrary,
+                                contentDescription = null,
+                                tint = BloodRed,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "💡 टीप: 'थेट प्रक्षेपण थांबवा (End Live)' केल्यावर, हे प्रक्षेपण आपोआप मंडळाच्या गॅलरीमधील 'LIVE VIDEO' ॲल्बममध्ये तारीख व शीर्षकासह कायमस्वरूपी सेव्ह होते.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF9A3412),
+                                lineHeight = 17.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
         }

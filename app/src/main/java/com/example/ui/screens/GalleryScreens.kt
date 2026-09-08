@@ -38,6 +38,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.example.data.model.Album
 import com.example.data.model.GalleryPhoto
 import com.example.data.model.VideoItem
@@ -450,10 +453,11 @@ fun GalleryScreen(
                             }
 
                             if (albumVideos.isEmpty()) {
+                                val isLiveAlbum = selectedVideoAlbum?.id == "album_live_videos" || selectedVideoAlbum?.title?.contains("LIVE VIDEO", ignoreCase = true) == true
                                 EmptyStateView(
                                     icon = Icons.Default.VideoLibrary,
-                                    title = "या व्हिडिओ ॲल्बममध्ये व्हिडिओ उपलब्ध नाहीत",
-                                    subtitle = if (isAdmin) "नवीन व्हिडिओ जोडण्यासाठी 'व्हिडिओ जोडा' बटण वापरा." else "लवकरच व्हिडिओ जोडले जातील."
+                                    title = if (isLiveAlbum) "अद्याप थेट प्रक्षेपण (Live Video) सेव्ह झालेले नाही" else "या व्हिडिओ ॲल्बममध्ये व्हिडिओ उपलब्ध नाहीत",
+                                    subtitle = if (isLiveAlbum) "लाईव्ह संपल्यानंतर सर्व थेट प्रक्षेपणे या अल्बममध्ये तारीख व शीर्षकासह आपोआप कायमस्वरूपी सेव्ह होतील." else if (isAdmin) "नवीन व्हिडिओ जोडण्यासाठी 'व्हिडिओ जोडा' बटण वापरा." else "लवकरच व्हिडिओ जोडले जातील."
                                 )
                             } else {
                                 LazyColumn(
@@ -592,6 +596,12 @@ fun GalleryScreen(
                                     subtitle = if (isAdmin) "नवीन व्हिडिओ ॲल्बम तयार करण्यासाठी बटण वापरा." else "लवकरच व्हिडिओ ॲल्बम उपलब्ध होतील."
                                 )
                             } else {
+                                val sortedVideoAlbums = remember(videoAlbums) {
+                                    videoAlbums.sortedWith(
+                                        compareByDescending<Album> { it.id == "album_live_videos" || it.title.contains("LIVE VIDEO", ignoreCase = true) }
+                                            .thenByDescending { it.createdAt }
+                                    )
+                                }
                                 LazyVerticalGrid(
                                     columns = GridCells.Fixed(2),
                                     contentPadding = PaddingValues(14.dp),
@@ -599,7 +609,7 @@ fun GalleryScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxSize()
                                 ) {
-                                    items(videoAlbums, key = { it.id }) { album ->
+                                    items(sortedVideoAlbums, key = { it.id }) { album ->
                                         VideoAlbumCard(
                                             album = album,
                                             isAdmin = isAdmin,
@@ -840,6 +850,8 @@ fun VideoAlbumCard(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {}
 ) {
+    val isLiveAlbum = album.id == "album_live_videos" || album.title.contains("LIVE VIDEO", ignoreCase = true)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -847,8 +859,11 @@ fun VideoAlbumCard(
             .testTag("video_album_card_${album.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = androidx.compose.foundation.BorderStroke(
+            if (isLiveAlbum) 1.5.dp else 1.dp,
+            if (isLiveAlbum) BloodRed else CardBorderColor
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isLiveAlbum) 4.dp else 2.dp)
     ) {
         Column {
             Box(
@@ -888,12 +903,31 @@ fun VideoAlbumCard(
                         .padding(8.dp)
                         .align(Alignment.TopStart)
                 ) {
-                    Text(
-                        text = album.category,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
+                    ) {
+                        if (isLiveAlbum) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "🔴 LIVE VIDEO",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = album.category,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
                 if (isAdmin) {
@@ -927,7 +961,7 @@ fun VideoAlbumCard(
                 Text(
                     text = album.title,
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
+                    color = if (isLiveAlbum) BloodRed else TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -938,7 +972,7 @@ fun VideoAlbumCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${album.photoCount} व्हिडिओ",
+                        text = if (isLiveAlbum) "${album.photoCount} थेट प्रक्षेपणे" else "${album.photoCount} व्हिडिओ",
                         style = MaterialTheme.typography.bodySmall,
                         color = BloodRed,
                         fontWeight = FontWeight.Bold,
@@ -964,6 +998,19 @@ fun VideoCard(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {}
 ) {
+    val isLiveVideo = video.albumId == "album_live_videos" ||
+        video.category.contains("LIVE", ignoreCase = true) ||
+        video.category.contains("थेट")
+
+    val formattedDate = remember(video.uploadedAt) {
+        try {
+            val sdf = SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale("mr", "IN"))
+            sdf.format(Date(video.uploadedAt))
+        } catch (e: Exception) {
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(video.uploadedAt))
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -971,7 +1018,10 @@ fun VideoCard(
             .testTag("video_card_${video.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+        border = androidx.compose.foundation.BorderStroke(
+            if (isLiveVideo) 1.2.dp else 1.dp,
+            if (isLiveVideo) BloodRed.copy(alpha = 0.5f) else CardBorderColor
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
@@ -1002,6 +1052,36 @@ fun VideoCard(
                         tint = Color.White,
                         modifier = Modifier.size(32.dp)
                     )
+                }
+
+                // Top-Left Badge: Live Replay badge
+                if (isLiveVideo) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = BloodRed,
+                        contentColor = Color.White,
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .align(Alignment.TopStart)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "🔴 थेट रेकॉर्डिंग (Live Replay)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
                 Surface(
@@ -1048,32 +1128,34 @@ fun VideoCard(
             }
 
             Column(modifier = Modifier.padding(14.dp)) {
+                // शीर्षक (Title) Display
+                Text(
+                    text = video.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // प्रक्षेपण दिनांक व वेळ (Date and Time)
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // व्हिडिओचे नाव / शीर्षक Display
-                    Text(
-                        text = video.title,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = TextPrimary,
-                        modifier = Modifier.weight(1f)
+                    Icon(
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = null,
+                        tint = BloodRed,
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = SurfaceVariantWarm
-                    ) {
-                        Text(
-                            text = video.category,
-                            color = NavySecondary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "प्रक्षेपण: $formattedDate",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
                 }
+
                 if (video.description.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -1083,6 +1165,49 @@ fun VideoCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isLiveVideo) BloodRed.copy(alpha = 0.1f) else SurfaceVariantWarm
+                    ) {
+                        Text(
+                            text = if (isLiveVideo) "🔴 LIVE VIDEO" else video.category,
+                            color = if (isLiveVideo) BloodRed else NavySecondary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+
+                    // पुन्हा पहा (Watch Replay) बटन
+                    Button(
+                        onClick = onClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .testTag("watch_replay_${video.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "पुन्हा पहा (Watch Replay)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

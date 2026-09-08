@@ -1631,4 +1631,46 @@ startxref
             false
         }
     }
+
+    /**
+     * Extracts YouTube Video ID from any standard or shortened YouTube URL.
+     */
+    fun extractYouTubeId(url: String): String {
+        if (url.isBlank()) return ""
+        val clean = url.trim()
+        if (clean.matches(Regex("^[a-zA-Z0-9_-]{11}$"))) {
+            return clean
+        }
+        val youtuBeRegex = Regex("""youtu\.be/([a-zA-Z0-9_-]{11})""")
+        youtuBeRegex.find(clean)?.let { return it.groupValues[1] }
+
+        val liveRegex = Regex("""youtube\.com/live/([a-zA-Z0-9_-]{11})""")
+        liveRegex.find(clean)?.let { return it.groupValues[1] }
+
+        val watchRegex = Regex("""[?&]v=([a-zA-Z0-9_-]{11})""")
+        watchRegex.find(clean)?.let { return it.groupValues[1] }
+
+        val embedRegex = Regex("""youtube\.com/embed/([a-zA-Z0-9_-]{11})""")
+        embedRegex.find(clean)?.let { return it.groupValues[1] }
+
+        val shortsRegex = Regex("""youtube\.com/shorts/([a-zA-Z0-9_-]{11})""")
+        shortsRegex.find(clean)?.let { return it.groupValues[1] }
+
+        val vRegex = Regex("""youtube\.com/vi?/([a-zA-Z0-9_-]{11})""")
+        vRegex.find(clean)?.let { return it.groupValues[1] }
+
+        return ""
+    }
+
+    /**
+     * Extracts high quality YouTube thumbnail URL if valid YouTube URL, else empty string.
+     */
+    fun extractYouTubeThumbnail(url: String): String {
+        val ytId = extractYouTubeId(url)
+        return if (ytId.isNotEmpty()) {
+            "https://img.youtube.com/vi/$ytId/hqdefault.jpg"
+        } else {
+            ""
+        }
+    }
 }
