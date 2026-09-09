@@ -1552,6 +1552,18 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun archiveMediaOlderThan15DaysNow() {
+        viewModelScope.launch {
+            showSnackbar("⏳ १५ दिवसांचे मीडिया Google Drive वर हलवण्यास सुरुवात झाली आहे...")
+            val result = com.example.util.GoogleDriveMediaBackupManager.pruneAndArchiveMediaOlderThan15Days(getApplication())
+            if (result.isSuccess) {
+                showSnackbar("✅ " + (result.getOrNull() ?: "मीडिया यशस्वीरित्या Google Drive वर हलवला!"))
+            } else {
+                showSnackbar("❌ अर्काइव्ह अयशस्वी: " + (result.exceptionOrNull()?.message ?: "त्रुटी"))
+            }
+        }
+    }
+
     fun saveBackupToGoogleDrive(backupItem: com.example.util.BackupItem) {
         com.example.util.CloudBackupManager.saveToGoogleDrive(getApplication(), backupItem.file)
     }

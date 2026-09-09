@@ -57,6 +57,9 @@ interface PostDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPosts(posts: List<PostEntity>)
 
+    @Update
+    suspend fun updatePost(post: PostEntity)
+
     @Query("DELETE FROM posts WHERE id = :postId")
     suspend fun deletePost(postId: String)
 
@@ -123,6 +126,9 @@ interface ChatDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessages(messages: List<ChatMessageEntity>)
+
+    @Update
+    suspend fun updateChatMessage(message: ChatMessageEntity)
 
     @Query("UPDATE chat_messages SET isRead = 1 WHERE (conversationId = :convId OR (senderId = :partnerId AND receiverId = :userId)) AND receiverId = :userId")
     suspend fun markMessagesAsReadBetween(convId: String, userId: String, partnerId: String)

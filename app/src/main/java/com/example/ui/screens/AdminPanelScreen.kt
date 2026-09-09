@@ -4183,6 +4183,32 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // Action 1.5: 15-Day Zero Cost Media Archive Button
+                    Button(
+                        onClick = { viewModel.archiveMediaOlderThan15DaysNow() },
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoDelete,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "१५ दिवसांचे जुने मीडिया Drive वर हलवा (Zero Cost)",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     // Action 2: Database Backup to Drive
                     OutlinedButton(
                         onClick = { viewModel.saveLatestBackupToGoogleDrive() },

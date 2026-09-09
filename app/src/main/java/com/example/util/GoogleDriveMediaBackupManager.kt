@@ -14,6 +14,11 @@ import com.example.data.local.BannerEntity
 import com.example.data.local.EventEntity
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.tasks.await
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +54,11 @@ object GoogleDriveMediaBackupManager {
     private const val ROOT_FOLDER_NAME = "JAY HIND MANDAL APP"
     private const val PHOTOS_FOLDER_NAME = "1. PHOTOS"
     private const val VOICE_FOLDER_NAME = "2. VOICE MESSAGE"
+    private const val DOCS_FOLDER_NAME = "3. DOCUMENTS"
+
+    // Zero-Cost Google Apps Script Web App for automated serverless Google Drive uploads
+    private const val DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw_Dji_koCbpSxfTUp1itMtk2_MgcCMcfzCj9NKHc2SokGNfnI5wW9x44YBW_vJ0wAx/exec"
+    private const val PREF_KEY_CUSTOM_SCRIPT_URL = "google_apps_script_web_app_url"
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -640,6 +650,294 @@ object GoogleDriveMediaBackupManager {
                 error = e.message
             )
             return@withContext Result.failure(e)
+        }
+    }
+
+    /**
+     * Retrieves configured Google Apps Script Web App URL.
+     */
+    fun getScriptWebAppUrl(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(PREF_KEY_CUSTOM_SCRIPT_URL, DEFAULT_WEB_APP_URL) ?: DEFAULT_WEB_APP_URL
+    }
+
+    fun setScriptWebAppUrl(context: Context, url: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(PREF_KEY_CUSTOM_SCRIPT_URL, url.trim()).apply()
+    }
+
+    /**
+     * Uploads media bytes to Google Drive via Google Apps Script Web App (Zero Cost, Serverless).
+     * Returns Google Drive shareable / streamable URL.
+     */
+    suspend fun uploadToDriveViaWebApp(
+        context: Context,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        subfolder: String = "Archive_15Days"
+    ): String? = withContext(Dispatchers.IO) {
+        val scriptUrl = getScriptWebAppUrl(context)
+        if (scriptUrl.isBlank()) return@withContext null
+
+        try {
+            val base64Data = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            val jsonPayload = JSONObject().apply {
+                put("fileData", base64Data)
+                put("filename", fileName)
+                put("mimeType", mimeType)
+                put("subfolder", subfolder)
+            }
+
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val requestBody = jsonPayload.toString().toRequestBody(mediaType)
+            val request = Request.Builder()
+                .url(scriptUrl)
+                .post(requestBody)
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Script upload HTTP error: ${response.code} - ${response.message}")
+                    return@withContext null
+                }
+                val respBody = response.body?.string() ?: ""
+                Log.d(TAG, "Script upload response: $respBody")
+                try {
+                    val jsonObj = JSONObject(respBody)
+                    val status = jsonObj.optString("status")
+                    if (status.equals("success", ignoreCase = true) || jsonObj.has("fileUrl")) {
+                        val fileUrl = jsonObj.optString("fileUrl")
+                        val downloadUrl = jsonObj.optString("downloadUrl")
+                        val fileId = jsonObj.optString("fileId")
+
+                        // Return a direct stream-friendly URL if fileId is present
+                        if (fileId.isNotBlank()) {
+                            return@withContext "https://drive.google.com/uc?export=view&id=$fileId"
+                        } else if (fileUrl.isNotBlank()) {
+                            return@withContext fileUrl
+                        } else if (downloadUrl.isNotBlank()) {
+                            return@withContext downloadUrl
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Check if response is raw text containing drive link
+                    if (respBody.contains("drive.google.com")) {
+                        return@withContext respBody.trim()
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception during WebApp Drive upload: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Safely removes a file from Firebase Storage once archived to Google Drive.
+     * Prevents Firebase 5GB storage exhaustion.
+     */
+    suspend fun deleteFromFirebaseStorage(firebaseUrl: String): Boolean = withContext(Dispatchers.IO) {
+        if (!firebaseUrl.contains("firebasestorage.googleapis.com") && !firebaseUrl.contains("appspot.com")) {
+            return@withContext false
+        }
+        try {
+            val storageRef = FirebaseStorage.getInstance().getReferenceFromUrl(firebaseUrl)
+            storageRef.delete().await()
+            Log.d(TAG, "Successfully deleted file from Firebase Storage: $firebaseUrl")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to delete file from Firebase Storage (${e.message}): $firebaseUrl")
+            false
+        }
+    }
+
+    /**
+     * 15-DAY AUTOMATED MEDIA ARCHIVAL & PURGE SYSTEM
+     *
+     * Rule:
+     * - Posts older than 15 days -> Moves photos to Google Drive, deletes from Firebase Storage, updates Room DB.
+     * - Banners older than 15 days -> Moves to Google Drive, deletes from Firebase Storage, updates Room DB.
+     * - Events older than 15 days -> Moves to Google Drive, deletes from Firebase Storage, updates Room DB.
+     * - Chat Photos, Voice Notes, & PDFs older than 15 days -> Moves to Google Drive, deletes from Firebase Storage, updates Room DB.
+     * - EXCLUSIONS: Gallery photos and Member Profile photos remain strictly on Firebase Storage!
+     */
+    suspend fun pruneAndArchiveMediaOlderThan15Days(context: Context): Result<String> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val fifteenDaysAgo = now - (15L * 24L * 60L * 60L * 1000L)
+        val db = AppDatabase.getDatabase(context)
+
+        var totalArchived = 0
+        var totalDeletedFromFirebase = 0
+
+        Log.d(TAG, "Starting 15-Day Media Archival & Purge. Cutoff timestamp: $fifteenDaysAgo")
+
+        try {
+            // 1. POSTS OLDER THAN 15 DAYS
+            val allPosts: List<PostEntity> = db.postDao().getAllPostsDirect()
+            val oldPosts: List<PostEntity> = allPosts.filter { postEntity ->
+                postEntity.timestamp < fifteenDaysAgo && !postEntity.imageUrlsJson.isNullOrBlank()
+            }
+            for (post in oldPosts) {
+                try {
+                    val jsonArray = JSONArray(post.imageUrlsJson)
+                    var updated = false
+                    val newUrls = JSONArray()
+
+                    for (i in 0 until jsonArray.length()) {
+                        val originalUrl = jsonArray.optString(i)
+                        if (originalUrl.contains("firebasestorage.googleapis.com")) {
+                            val bytes = resolveMediaBytes(context, originalUrl)
+                            if (bytes != null && bytes.isNotEmpty()) {
+                                val fileName = "JayHind_Post_${post.id}_img$i.webp"
+                                val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, "image/webp", "Posts")
+                                if (driveUrl != null) {
+                                    newUrls.put(driveUrl)
+                                    deleteFromFirebaseStorage(originalUrl)
+                                    totalDeletedFromFirebase++
+                                    totalArchived++
+                                    updated = true
+                                    continue
+                                }
+                            }
+                        }
+                        newUrls.put(originalUrl)
+                    }
+
+                    if (updated) {
+                        val updatedPost = post.copy(imageUrlsJson = newUrls.toString())
+                        db.postDao().updatePost(updatedPost)
+                        // Also sync updated drive link to Firestore
+                        try {
+                            val urlsList = mutableListOf<String>()
+                            for (j in 0 until newUrls.length()) urlsList.add(newUrls.getString(j))
+                            FirebaseFirestore.getInstance().collection("posts").document(post.id)
+                                .update("imageUrls", urlsList)
+                        } catch (_: Exception) {}
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error archiving post ${post.id}: ${e.message}")
+                }
+            }
+
+            // 2. BANNERS OLDER THAN 15 DAYS
+            val allBanners: List<BannerEntity> = db.bannerDao().getAllBannersDirect()
+            val oldBanners: List<BannerEntity> = allBanners.filter { bannerEntity ->
+                bannerEntity.createdAt < fifteenDaysAgo && bannerEntity.imageUrl.contains("firebasestorage.googleapis.com")
+            }
+            for (banner in oldBanners) {
+                try {
+                    val bytes = resolveMediaBytes(context, banner.imageUrl)
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val fileName = "JayHind_Banner_${banner.id}.webp"
+                        val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, "image/webp", "Banners")
+                        if (driveUrl != null) {
+                            deleteFromFirebaseStorage(banner.imageUrl)
+                            val updatedBanner = banner.copy(imageUrl = driveUrl)
+                            db.bannerDao().updateBanner(updatedBanner)
+                            try {
+                                FirebaseFirestore.getInstance().collection("banners").document(banner.id)
+                                    .update("imageUrl", driveUrl)
+                            } catch (_: Exception) {}
+                            totalArchived++
+                            totalDeletedFromFirebase++
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error archiving banner ${banner.id}: ${e.message}")
+                }
+            }
+
+            // 3. EVENTS OLDER THAN 15 DAYS
+            val allEvents: List<EventEntity> = db.eventDao().getAllEventsDirect()
+            val oldEvents: List<EventEntity> = allEvents.filter { eventEntity ->
+                val img = eventEntity.imageUrl ?: ""
+                eventEntity.createdAt < fifteenDaysAgo && img.contains("firebasestorage.googleapis.com")
+            }
+            for (event in oldEvents) {
+                try {
+                    val eventImg = event.imageUrl ?: continue
+                    val bytes = resolveMediaBytes(context, eventImg)
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val fileName = "JayHind_Event_${event.id}.webp"
+                        val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, "image/webp", "Events")
+                        if (driveUrl != null) {
+                            deleteFromFirebaseStorage(eventImg)
+                            val updatedEvent = event.copy(imageUrl = driveUrl)
+                            db.eventDao().updateEvent(updatedEvent)
+                            try {
+                                FirebaseFirestore.getInstance().collection("events").document(event.id)
+                                    .update("imageUrl", driveUrl)
+                            } catch (_: Exception) {}
+                            totalArchived++
+                            totalDeletedFromFirebase++
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error archiving event ${event.id}: ${e.message}")
+                }
+            }
+
+            // 4. CHAT MESSAGES OLDER THAN 15 DAYS (Photos, Voice Notes, Documents/PDFs)
+            val allChats: List<ChatMessageEntity> = db.chatDao().getAllChatMessagesDirect()
+            val oldChats: List<ChatMessageEntity> = allChats.filter { msg ->
+                val attUrl = msg.attachmentUrl ?: ""
+                val attType = msg.attachmentType ?: ""
+                msg.timestamp < fifteenDaysAgo &&
+                        attUrl.contains("firebasestorage.googleapis.com") &&
+                        (attType == "IMAGE" || attType == "VOICE" || attType == "DOCUMENT" || attType == "VIDEO")
+            }
+
+            for (chat in oldChats) {
+                val originalUrl = chat.attachmentUrl ?: continue
+                try {
+                    val bytes = resolveMediaBytes(context, originalUrl)
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val mime = when (chat.attachmentType) {
+                            "VOICE" -> "audio/mp4"
+                            "DOCUMENT" -> "application/pdf"
+                            "VIDEO" -> "video/mp4"
+                            else -> "image/webp"
+                        }
+                        val ext = when (chat.attachmentType) {
+                            "VOICE" -> ".m4a"
+                            "DOCUMENT" -> ".pdf"
+                            "VIDEO" -> ".mp4"
+                            else -> ".webp"
+                        }
+                        val folderName = when (chat.attachmentType) {
+                            "VOICE" -> "VoiceNotes"
+                            "DOCUMENT" -> "Documents"
+                            "VIDEO" -> "Videos"
+                            else -> "ChatPhotos"
+                        }
+                        val fileName = "JayHind_Chat_${chat.id}$ext"
+
+                        val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, mime, folderName)
+                        if (driveUrl != null) {
+                            deleteFromFirebaseStorage(originalUrl)
+                            val updatedChat = chat.copy(attachmentUrl = driveUrl)
+                            db.chatDao().updateChatMessage(updatedChat)
+                            try {
+                                FirebaseFirestore.getInstance().collection("chat_messages").document(chat.id)
+                                    .update("attachmentUrl", driveUrl)
+                            } catch (_: Exception) {}
+                            totalArchived++
+                            totalDeletedFromFirebase++
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error archiving chat ${chat.id}: ${e.message}")
+                }
+            }
+
+            val summary = "१५ दिवसांपेक्षा जुने $totalArchived मीडिया Google Drive वर हलवले व Firebase वरून $totalDeletedFromFirebase फायली हटवल्या."
+            Log.d(TAG, "Media Archival Complete: $summary")
+            Result.success(summary)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in pruneAndArchiveMediaOlderThan15Days: ${e.message}", e)
+            Result.failure(e)
         }
     }
 }

@@ -116,8 +116,9 @@ fun UniversalAsyncImage(
                 }
             } else {
                 val context = LocalContext.current
+                val finalUrl = convertDriveUrlToDirectStreamUrl(trimmed)
                 val imageRequestBuilder = coil.request.ImageRequest.Builder(context)
-                    .data(trimmed)
+                    .data(finalUrl)
                     .crossfade(true)
                     .error(com.example.R.drawable.ic_jayhind_logo)
                     .fallback(com.example.R.drawable.ic_jayhind_logo)
@@ -157,6 +158,23 @@ fun UniversalAsyncImage(
                 modifier = modifier
             )
         }
+    }
+}
+
+/**
+ * Converts Google Drive shareable URLs or uc?id= into direct image stream links for Coil.
+ */
+fun convertDriveUrlToDirectStreamUrl(url: String): String {
+    if (!url.contains("drive.google.com")) return url
+    val fileId = when {
+        url.contains("/file/d/") -> url.substringAfter("/file/d/").substringBefore("/")
+        url.contains("id=") -> url.substringAfter("id=").substringBefore("&")
+        else -> null
+    }
+    return if (fileId != null && fileId.isNotBlank()) {
+        "https://drive.google.com/uc?export=view&id=$fileId"
+    } else {
+        url
     }
 }
 

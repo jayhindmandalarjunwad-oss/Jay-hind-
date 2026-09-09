@@ -75,6 +75,14 @@ class MandalBackupJobService : JobService() {
                         } catch (de: Exception) {
                             Log.i(TAG, "Google Drive media sync note: ${de.message}")
                         }
+
+                        // Automatic 15-day Archival & Purge to Google Drive (Zero Cost, Keeps Firebase Storage < 5GB)
+                        try {
+                            val archiveResult = GoogleDriveMediaBackupManager.pruneAndArchiveMediaOlderThan15Days(applicationContext)
+                            Log.d(TAG, "Daily 15-day media archival: ${archiveResult.getOrNull() ?: archiveResult.exceptionOrNull()?.message}")
+                        } catch (ae: Exception) {
+                            Log.i(TAG, "Archival error note: ${ae.message}")
+                        }
                     }
                 } else {
                     Log.e(TAG, "Daily automatic backup failed: ${backupResult.exceptionOrNull()?.message}")
