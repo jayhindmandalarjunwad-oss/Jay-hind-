@@ -373,7 +373,10 @@ object GoogleDriveMediaBackupManager {
 
             // Fetch Items from Database
             val allPhotos = db.galleryDao().getAllPhotosDirect()
-            val allPosts = db.postDao().getAllPostsDirect().filter { !it.imageUrlsJson.isNullOrBlank() || !it.authorPhotoUrl.isNullOrBlank() }
+            val allPosts = db.postDao().getAllPostsDirect().filter { 
+                val json = it.imageUrlsJson?.trim() ?: ""
+                json.isNotBlank() && json != "[]" && json != "null"
+            }
             val allBanners = db.bannerDao().getAllBannersDirect().filter { it.imageUrl.isNotBlank() }
             val allEvents = db.eventDao().getAllEventsDirect().filter { !it.imageUrl.isNullOrBlank() }
             val allChats = db.chatDao().getAllChatMessagesDirect().filter { 
@@ -466,35 +469,70 @@ object GoogleDriveMediaBackupManager {
                 } else failCount++
             }
 
-            // 4. Upload Posts
+            // 4. Upload Posts (Only actual post images, ignore authorPhotoUrl, skip text-only posts)
             for (post in allPosts) {
                 val key = "post_${post.id}"
                 if (uploadedSet.contains(key)) {
                     skippedCount++
                     continue
                 }
+
+                val postImages = mutableListOf<String>()
+                post.imageUrlsJson?.let { jsonStr ->
+                    try {
+                        val arr = JSONArray(jsonStr)
+                        for (i in 0 until arr.length()) {
+                            val url = arr.optString(i)
+                            if (url.isNotBlank()) {
+                                postImages.add(url)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (jsonStr.isNotBlank() && !jsonStr.startsWith("[")) {
+                            postImages.add(jsonStr)
+                        }
+                    }
+                }
+
+                if (postImages.isEmpty()) {
+                    skippedCount++
+                    continue
+                }
+
                 _syncProgress.value = _syncProgress.value.copy(
-                    currentStep = "पोस्ट: ${post.authorName}",
+                    currentStep = "पोस्ट फोटो: ${post.authorName}",
                     completedItems = uploadedCount + skippedCount
                 )
+
                 val user = userMap[post.authorId]
                 val authorName = sanitizeName(post.authorName)
                 val mobile = user?.mobileNumber ?: "9800000000"
                 val dateStr = formatTimestamp(post.timestamp)
 
-                val imgSource = post.imageUrlsJson?.let {
-                    try { JSONArray(it).optString(0) } catch (e: Exception) { null }
-                } ?: post.authorPhotoUrl ?: ""
+                var postAnySuccess = false
+                for ((idx, imgSource) in postImages.withIndex()) {
+                    val bytes = resolveMediaBytes(context, imgSource)
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val fileName = if (postImages.size > 1) {
+                            "Post_${authorName}_${mobile}_${dateStr}_${idx + 1}.jpg"
+                        } else {
+                            "Post_${authorName}_${mobile}_${dateStr}.jpg"
+                        }
+                        val success = writeMediaToDocumentFile(context, postFolder, fileName, "image/jpeg", bytes)
+                        if (success) {
+                            postAnySuccess = true
+                            uploadedCount++
+                        } else {
+                            failCount++
+                        }
+                    } else {
+                        failCount++
+                    }
+                }
 
-                val bytes = resolveMediaBytes(context, imgSource)
-                if (bytes != null && bytes.isNotEmpty()) {
-                    val fileName = "Post_${authorName}_${mobile}_${dateStr}.jpg"
-                    val success = writeMediaToDocumentFile(context, postFolder, fileName, "image/jpeg", bytes)
-                    if (success) {
-                        uploadedSet.add(key)
-                        uploadedCount++
-                    } else failCount++
-                } else failCount++
+                if (postAnySuccess) {
+                    uploadedSet.add(key)
+                }
             }
 
             // 5. Upload Chat Photos & Voice Notes
