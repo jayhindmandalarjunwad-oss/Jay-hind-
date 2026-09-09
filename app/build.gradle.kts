@@ -121,6 +121,7 @@ dependencies {
   implementation(libs.retrofit)
   implementation(libs.zxing.core)
   implementation(libs.android.youtube.player)
+  implementation("com.google.android.gms:play-services-auth:21.2.0")
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

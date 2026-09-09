@@ -12,6 +12,9 @@ interface UserDao {
     @Query("SELECT * FROM users ORDER BY fullName ASC")
     fun getAllUsers(): Flow<List<UserEntity>>
 
+    @Query("SELECT * FROM users ORDER BY fullName ASC")
+    suspend fun getAllUsersDirect(): List<UserEntity>
+
     @Query("SELECT * FROM users WHERE status = 'APPROVED' ORDER BY fullName ASC")
     fun getApprovedUsers(): Flow<List<UserEntity>>
 
@@ -44,6 +47,9 @@ interface UserDao {
 interface PostDao {
     @Query("SELECT * FROM posts ORDER BY timestamp DESC")
     fun getAllPosts(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM posts ORDER BY timestamp DESC")
+    suspend fun getAllPostsDirect(): List<PostEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPost(post: PostEntity)
@@ -97,6 +103,9 @@ data class ChatMessageSummaryRecord(
 
 @Dao
 interface ChatDao {
+    @Query("SELECT * FROM chat_messages ORDER BY timestamp ASC")
+    suspend fun getAllChatMessagesDirect(): List<ChatMessageEntity>
+
     @Query("SELECT * FROM chat_messages WHERE conversationId = :convId OR (senderId = :userA AND receiverId = :userB) OR (senderId = :userB AND receiverId = :userA) ORDER BY timestamp ASC")
     fun getMessagesBetweenUsers(convId: String, userA: String, userB: String): Flow<List<ChatMessageEntity>>
 
@@ -154,6 +163,9 @@ interface GalleryDao {
     @Query("SELECT * FROM photos WHERE albumId = :albumId ORDER BY uploadedAt DESC")
     fun getPhotosForAlbum(albumId: String): Flow<List<PhotoEntity>>
 
+    @Query("SELECT * FROM photos ORDER BY uploadedAt DESC")
+    suspend fun getAllPhotosDirect(): List<PhotoEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPhoto(photo: PhotoEntity)
 
@@ -204,6 +216,9 @@ interface GalleryDao {
 interface EventDao {
     @Query("SELECT * FROM events ORDER BY date ASC")
     fun getAllEvents(): Flow<List<EventEntity>>
+
+    @Query("SELECT * FROM events ORDER BY date ASC")
+    suspend fun getAllEventsDirect(): List<EventEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: EventEntity)
@@ -270,6 +285,9 @@ interface NotificationDao {
 interface BannerDao {
     @Query("SELECT * FROM banners ORDER BY orderIndex ASC, createdAt DESC")
     fun getAllBanners(): Flow<List<BannerEntity>>
+
+    @Query("SELECT * FROM banners ORDER BY orderIndex ASC, createdAt DESC")
+    suspend fun getAllBannersDirect(): List<BannerEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBanner(banner: BannerEntity)

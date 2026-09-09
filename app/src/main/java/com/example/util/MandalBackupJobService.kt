@@ -67,6 +67,14 @@ class MandalBackupJobService : JobService() {
                         } catch (ce: Exception) {
                             Log.i(TAG, "Cloud upload note during daily job: ${ce.message}")
                         }
+
+                        // Daily Google Drive Media Backup (Photos & Voice Messages into structured Year/Month folders)
+                        try {
+                            val driveMediaResult = GoogleDriveMediaBackupManager.performCompleteMediaBackup(applicationContext, isAutoNightly = true)
+                            Log.d(TAG, "Daily Google Drive Media Sync: ${driveMediaResult.getOrNull() ?: driveMediaResult.exceptionOrNull()?.message}")
+                        } catch (de: Exception) {
+                            Log.i(TAG, "Google Drive media sync note: ${de.message}")
+                        }
                     }
                 } else {
                     Log.e(TAG, "Daily automatic backup failed: ${backupResult.exceptionOrNull()?.message}")

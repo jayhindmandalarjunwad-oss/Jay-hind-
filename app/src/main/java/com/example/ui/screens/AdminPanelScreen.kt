@@ -3878,6 +3878,20 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
     val isOperationRunning by viewModel.isBackupOperationRunning.collectAsStateWithLifecycle()
     val isCloudSyncing by viewModel.isCloudSyncing.collectAsStateWithLifecycle()
     val cloudProgress by viewModel.cloudProgress.collectAsStateWithLifecycle()
+    val driveSyncProgress by viewModel.driveSyncProgress.collectAsStateWithLifecycle()
+    val connectedDriveAccount by viewModel.connectedDriveAccount.collectAsStateWithLifecycle()
+
+    val driveSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+            viewModel.handleGoogleDriveSignIn(account)
+        } catch (e: Exception) {
+            viewModel.handleGoogleDriveSignIn(null)
+        }
+    }
 
     var selectedBackupForRestore by remember { mutableStateOf<com.example.util.BackupItem?>(null) }
     var selectedBackupForDelete by remember { mutableStateOf<com.example.util.BackupItem?>(null) }
@@ -3970,7 +3984,7 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(1.dp, Color(0xFF1976D2).copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, Color(0xFF0F9D58).copy(alpha = 0.4f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -3980,14 +3994,14 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFF1976D2).copy(alpha = 0.12f),
-                            modifier = Modifier.size(42.dp)
+                            color = Color(0xFF0F9D58).copy(alpha = 0.12f),
+                            modifier = Modifier.size(44.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.CloudQueue,
+                                    imageVector = Icons.Default.AddToDrive,
                                     contentDescription = null,
-                                    tint = Color(0xFF1976D2),
+                                    tint = Color(0xFF0F9D58),
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
@@ -3995,16 +4009,40 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "क्लाउड व गुगल ड्राईव्ह स्टोरेज",
+                                text = "Google Drive मीडिया बॅकअप व सिंक",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "अधिकृत ईमेल: jayhindmandalarjunwad@gmail.com",
+                                text = "अधिकृत: ${connectedDriveAccount ?: "jayhindmandalarjunwad@gmail.com"}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF1976D2),
-                                fontWeight = FontWeight.Medium
+                                color = Color(0xFF0F9D58),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val client = com.example.util.GoogleDriveMediaBackupManager.getGoogleSignInClient(context)
+                                driveSignInLauncher.launch(client.signInIntent)
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFF0F9D58)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "खाते जोडा",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF0F9D58)
                             )
                         }
                     }
@@ -4013,115 +4051,148 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    if (isCloudSyncing) {
+                    // Folder Structure Preview Box
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "📁 Google Drive वरील फोल्डर रचना:",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "📂 JAY HIND MANDAL APP\n  ↳ 📂 YEAR (वर्ष) ➔ 📂 MONTH (महिना)\n      ├── 📂 1. PHOTOS (Gallary, Banner, Event, Post, Group & 1-1 Chat)\n      └── 📂 2. VOICE MESSAGE (Group Chat, 1-1 Chat)",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "🏷️ फाईल नाव स्वरूप: [नाव]_[मोबाईल]_[तारीख_वेळ].jpg / .m4a",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = Color(0xFF0F9D58),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Real-time Drive Sync Progress
+                    if (driveSyncProgress.isSyncing) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            val progressFloat = if (driveSyncProgress.totalItems > 0) {
+                                (driveSyncProgress.completedItems.toFloat() / driveSyncProgress.totalItems.toFloat()).coerceIn(0f, 1f)
+                            } else 0f
+
                             LinearProgressIndicator(
-                                progress = { cloudProgress },
+                                progress = { progressFloat },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(6.dp),
-                                color = Color(0xFF1976D2)
+                                color = Color(0xFF0F9D58)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "क्लाउड प्रक्रिया सुरू आहे (${(cloudProgress * 100).toInt()}%)... कृपया प्रतीक्षा करा",
+                                text = "${driveSyncProgress.currentStep} (${driveSyncProgress.completedItems}/${driveSyncProgress.totalItems})",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF1976D2),
+                                color = Color(0xFF0F9D58),
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                    } else if (cloudBackupInfo != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = SuccessGreen,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = "मास्टर क्लाउड बॅकअप उपलब्ध",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SuccessGreen
-                                    )
-                                }
-                                Text(
-                                    text = "तारीख: ${cloudBackupInfo?.formattedDate}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "आकार: ${cloudBackupInfo?.formattedSize}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Button(
-                                onClick = { showCloudRestoreConfirm = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2)),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.height(38.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SettingsBackupRestore,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "क्लाउड रिस्टोअर",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
                     } else {
-                        Text(
-                            text = "✅ Google Drive (शिफारस केलेले): खालील बटण दाबून थेट मंडळाच्या jayhindmandalarjunwad@gmail.com ड्राईव्हवर सुरक्षित सेव्ह करा.\n☁️ Firebase Cloud: बकेट सक्रिय असल्यास आपोआप क्लाउडवर बॅकअप सिंक होतो.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = SuccessGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = if (driveSyncProgress.lastSyncFormatted.isNotBlank()) {
+                                    "शेवटचे सिंक: ${driveSyncProgress.lastSyncFormatted}"
+                                } else {
+                                    "दैनिक रात्री २:०० वाजता आपोआप सिंक सक्रिय आहे."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (driveSyncProgress.lastSyncSummary.isNotBlank()) {
+                            Text(
+                                text = driveSyncProgress.lastSyncSummary,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SuccessGreen,
+                                modifier = Modifier.padding(start = 22.dp, top = 2.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // Action 1: Full Media Sync Now Button
                     Button(
-                        onClick = { viewModel.saveLatestBackupToGoogleDrive() },
+                        onClick = { viewModel.syncMediaToGoogleDriveNow() },
+                        enabled = !driveSyncProgress.isSyncing,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F9D58)),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth().height(44.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.AddToDrive,
+                            imageVector = Icons.Default.CloudUpload,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Google Drive वर थेट बॅकअप जतन करा",
+                            text = if (driveSyncProgress.isSyncing) "मीडिया अपलोड सुरू आहे..." else "Google Drive वर आताच मीडिया सिंक करा",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Action 2: Database Backup to Drive
+                    OutlinedButton(
+                        onClick = { viewModel.saveLatestBackupToGoogleDrive() },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Storage,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "डेटाबेस फाइल (.db) Drive वर पाठवा",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }

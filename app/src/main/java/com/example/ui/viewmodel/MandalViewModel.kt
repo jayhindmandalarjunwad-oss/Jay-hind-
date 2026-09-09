@@ -1523,6 +1523,30 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    val driveSyncProgress = com.example.util.GoogleDriveMediaBackupManager.syncProgress
+    val connectedDriveAccount = com.example.util.GoogleDriveMediaBackupManager.connectedAccount
+
+    fun syncMediaToGoogleDriveNow() {
+        viewModelScope.launch {
+            val result = com.example.util.GoogleDriveMediaBackupManager.performCompleteMediaBackup(getApplication(), isAutoNightly = false)
+            if (result.isSuccess) {
+                showSnackbar("✅ " + (result.getOrNull() ?: "Google Drive मीडिया बॅकअप यशस्वी!"))
+            } else {
+                showSnackbar("❌ त्रुटी: " + (result.exceptionOrNull()?.message ?: "सिंक अयशस्वी"))
+            }
+        }
+    }
+
+    fun handleGoogleDriveSignIn(account: com.google.android.gms.auth.api.signin.GoogleSignInAccount?) {
+        val ok = com.example.util.GoogleDriveMediaBackupManager.handleSignInResult(getApplication(), account)
+        if (ok) {
+            showSnackbar("✅ Google Drive जोडले: ${account?.email}")
+            syncMediaToGoogleDriveNow()
+        } else {
+            showSnackbar("Google खाते जोडता आले नाही.")
+        }
+    }
+
     fun saveBackupToGoogleDrive(backupItem: com.example.util.BackupItem) {
         com.example.util.CloudBackupManager.saveToGoogleDrive(getApplication(), backupItem.file)
     }
