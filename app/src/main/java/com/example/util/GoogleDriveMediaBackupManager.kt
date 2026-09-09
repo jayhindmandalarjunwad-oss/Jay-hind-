@@ -133,15 +133,83 @@ object GoogleDriveMediaBackupManager {
         }
     }
 
+    private fun isFolderOrDirectory(doc: DocumentFile): Boolean {
+        val type = doc.type ?: ""
+        return doc.isDirectory || 
+               type.equals("vnd.android.document/directory", ignoreCase = true) || 
+               type.equals("application/vnd.google-apps.folder", ignoreCase = true) ||
+               (!doc.isFile && doc.canWrite())
+    }
+
     /**
      * Finds an existing subfolder inside a DocumentFile or creates it if it doesn't exist.
+     * Prevents duplicate folders on Google Drive by:
+     * 1. Checking local SharedPreferences cache for the exact folder tree URI.
+     * 2. Inspecting parent's existing children using case-insensitive name matching and handling
+     *    both standard Android and Google Drive custom MIME types.
+     * 3. Reusing existing folder if found, only creating if truly absent.
      */
-    private fun findOrCreateSubFolder(parent: DocumentFile, subFolderName: String): DocumentFile? {
-        val existing = parent.findFile(subFolderName)
-        if (existing != null && existing.isDirectory) {
-            return existing
+    private fun findOrCreateSubFolder(
+        context: Context,
+        parent: DocumentFile,
+        subFolderName: String,
+        pathKey: String = ""
+    ): DocumentFile? {
+        val cleanName = subFolderName.trim()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        // 1. Try resolving from cached URI if available
+        if (pathKey.isNotBlank()) {
+            val cachedUriStr = prefs.getString("cached_folder_uri_$pathKey", null)
+            if (!cachedUriStr.isNullOrBlank()) {
+                try {
+                    val cachedUri = Uri.parse(cachedUriStr)
+                    val cachedDoc = DocumentFile.fromTreeUri(context, cachedUri)
+                    if (cachedDoc != null && cachedDoc.exists() && isFolderOrDirectory(cachedDoc) && cachedDoc.canWrite()) {
+                        return cachedDoc
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Cached folder URI lookup skipped: ${e.message}")
+                }
+            }
         }
-        return parent.createDirectory(subFolderName)
+
+        // 2. Query parent's children to find any existing folder with same name (case-insensitive)
+        val children = try {
+            parent.listFiles()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to list files in parent: ${e.message}")
+            emptyArray()
+        }
+
+        val matchingFolders = children.filter { child ->
+            val name = child.name?.trim() ?: ""
+            name.equals(cleanName, ignoreCase = true) && isFolderOrDirectory(child)
+        }
+
+        val existingFolder = if (matchingFolders.isNotEmpty()) {
+            // If multiple folders exist from earlier syncs, pick the newest/most populated one
+            matchingFolders.maxByOrNull { it.lastModified() } ?: matchingFolders.first()
+        } else {
+            children.firstOrNull { child ->
+                val name = child.name?.trim() ?: ""
+                name.equals(cleanName, ignoreCase = true)
+            }
+        }
+
+        if (existingFolder != null) {
+            if (pathKey.isNotBlank()) {
+                prefs.edit().putString("cached_folder_uri_$pathKey", existingFolder.uri.toString()).apply()
+            }
+            return existingFolder
+        }
+
+        // 3. Truly doesn't exist, create it
+        val created = parent.createDirectory(cleanName)
+        if (created != null && pathKey.isNotBlank()) {
+            prefs.edit().putString("cached_folder_uri_$pathKey", created.uri.toString()).apply()
+        }
+        return created
     }
 
     /**
@@ -203,8 +271,14 @@ object GoogleDriveMediaBackupManager {
         bytes: ByteArray
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Check if file already exists
-            val existing = folder.findFile(fileName)
+            // Check if file already exists (prevent duplicate file uploads)
+            val existing = try {
+                folder.listFiles().firstOrNull { it.name?.trim().equals(fileName.trim(), ignoreCase = true) }
+                    ?: folder.findFile(fileName)
+            } catch (e: Exception) {
+                folder.findFile(fileName)
+            }
+
             if (existing != null && existing.isFile && existing.length() > 0) {
                 return@withContext true // Already uploaded safely
             }
@@ -273,24 +347,29 @@ object GoogleDriveMediaBackupManager {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val uploadedSet = prefs.getStringSet("uploaded_item_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
 
-            // 1. Build Folders on Google Drive
-            val yearFolder = findOrCreateSubFolder(rootFolder, yearFolderName) ?: rootFolder
-            val monthFolder = findOrCreateSubFolder(yearFolder, monthFolderName) ?: yearFolder
+            // 1. Build Folders on Google Drive with persistent caching to ensure a single folder per month/year
+            val yearKey = yearFolderName
+            val monthKey = "${yearKey}_${monthFolderName}"
+            val photosKey = "${monthKey}_PHOTOS"
+            val voiceKey = "${monthKey}_VOICE"
 
-            val photosRootFolder = findOrCreateSubFolder(monthFolder, PHOTOS_FOLDER_NAME) ?: monthFolder
-            val voiceRootFolder = findOrCreateSubFolder(monthFolder, VOICE_FOLDER_NAME) ?: monthFolder
+            val yearFolder = findOrCreateSubFolder(context, rootFolder, yearFolderName, yearKey) ?: rootFolder
+            val monthFolder = findOrCreateSubFolder(context, yearFolder, monthFolderName, monthKey) ?: yearFolder
+
+            val photosRootFolder = findOrCreateSubFolder(context, monthFolder, PHOTOS_FOLDER_NAME, photosKey) ?: monthFolder
+            val voiceRootFolder = findOrCreateSubFolder(context, monthFolder, VOICE_FOLDER_NAME, voiceKey) ?: monthFolder
 
             // Subfolders in PHOTOS
-            val galleryFolder = findOrCreateSubFolder(photosRootFolder, "Gallary") ?: photosRootFolder
-            val bannerFolder = findOrCreateSubFolder(photosRootFolder, "Banner") ?: photosRootFolder
-            val eventFolder = findOrCreateSubFolder(photosRootFolder, "Event") ?: photosRootFolder
-            val postFolder = findOrCreateSubFolder(photosRootFolder, "Post") ?: photosRootFolder
-            val groupChatPhotoFolder = findOrCreateSubFolder(photosRootFolder, "Group Chat") ?: photosRootFolder
-            val oneToOneChatPhotoFolder = findOrCreateSubFolder(photosRootFolder, "One to One Chat") ?: photosRootFolder
+            val galleryFolder = findOrCreateSubFolder(context, photosRootFolder, "Gallary", "${photosKey}_Gallary") ?: photosRootFolder
+            val bannerFolder = findOrCreateSubFolder(context, photosRootFolder, "Banner", "${photosKey}_Banner") ?: photosRootFolder
+            val eventFolder = findOrCreateSubFolder(context, photosRootFolder, "Event", "${photosKey}_Event") ?: photosRootFolder
+            val postFolder = findOrCreateSubFolder(context, photosRootFolder, "Post", "${photosKey}_Post") ?: photosRootFolder
+            val groupChatPhotoFolder = findOrCreateSubFolder(context, photosRootFolder, "Group Chat", "${photosKey}_GroupChat") ?: photosRootFolder
+            val oneToOneChatPhotoFolder = findOrCreateSubFolder(context, photosRootFolder, "One to One Chat", "${photosKey}_OneToOneChat") ?: photosRootFolder
 
             // Subfolders in VOICE MESSAGE
-            val groupChatVoiceFolder = findOrCreateSubFolder(voiceRootFolder, "Group Chat") ?: voiceRootFolder
-            val oneToOneChatVoiceFolder = findOrCreateSubFolder(voiceRootFolder, "One to One Chat") ?: voiceRootFolder
+            val groupChatVoiceFolder = findOrCreateSubFolder(context, voiceRootFolder, "Group Chat", "${voiceKey}_GroupChat") ?: voiceRootFolder
+            val oneToOneChatVoiceFolder = findOrCreateSubFolder(context, voiceRootFolder, "One to One Chat", "${voiceKey}_OneToOneChat") ?: voiceRootFolder
 
             // Fetch Items from Database
             val allPhotos = db.galleryDao().getAllPhotosDirect()
