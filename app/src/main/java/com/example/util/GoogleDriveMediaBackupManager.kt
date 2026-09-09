@@ -5,19 +5,13 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.example.data.local.AppDatabase
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.PhotoEntity
 import com.example.data.local.PostEntity
 import com.example.data.local.BannerEntity
 import com.example.data.local.EventEntity
-import com.example.data.local.UserEntity
-import com.google.android.gms.auth.GoogleAuthUtil
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.auth.api.signin.GoogleSignInClient
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.Scope
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.Dispatchers
@@ -25,16 +19,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
-import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,7 +43,8 @@ object GoogleDriveMediaBackupManager {
 
     private const val TAG = "GoogleDriveBackup"
     private const val PREFS_NAME = "google_drive_backup_prefs"
-    private const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+    private const val KEY_FOLDER_URI = "google_drive_folder_tree_uri"
+    private const val KEY_FOLDER_NAME = "google_drive_folder_name"
 
     private const val ROOT_FOLDER_NAME = "JAY HIND MANDAL APP"
     private const val PHOTOS_FOLDER_NAME = "1. PHOTOS"
@@ -70,20 +59,33 @@ object GoogleDriveMediaBackupManager {
     private val _syncProgress = MutableStateFlow(DriveSyncProgress())
     val syncProgress: StateFlow<DriveSyncProgress> = _syncProgress.asStateFlow()
 
-    private val _connectedAccount = MutableStateFlow<String?>(null)
-    val connectedAccount: StateFlow<String?> = _connectedAccount.asStateFlow()
+    private val _selectedFolderName = MutableStateFlow<String?>(null)
+    val selectedFolderName: StateFlow<String?> = _selectedFolderName.asStateFlow()
 
-    // Folder ID cache to prevent repeated Drive folder lookup API calls during batch sync
-    private val folderIdCache = mutableMapOf<String, String>()
+    private val _isFolderConfigured = MutableStateFlow(false)
+    val isFolderConfigured: StateFlow<Boolean> = _isFolderConfigured.asStateFlow()
 
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val savedEmail = prefs.getString("connected_email", null)
+        val savedUriStr = prefs.getString(KEY_FOLDER_URI, null)
+        val savedName = prefs.getString(KEY_FOLDER_NAME, null)
         val lastTime = prefs.getLong("last_sync_timestamp", 0L)
         val lastFormatted = prefs.getString("last_sync_formatted", "") ?: ""
         val lastSummary = prefs.getString("last_sync_summary", "") ?: ""
 
-        _connectedAccount.value = savedEmail ?: "jayhindmandalarjunwad@gmail.com"
+        val hasValidUri = if (!savedUriStr.isNullOrBlank()) {
+            try {
+                val uri = Uri.parse(savedUriStr)
+                val doc = DocumentFile.fromTreeUri(context, uri)
+                doc != null && doc.canWrite()
+            } catch (e: Exception) {
+                false
+            }
+        } else false
+
+        _isFolderConfigured.value = hasValidUri
+        _selectedFolderName.value = if (hasValidUri) (savedName ?: "JAY HIND MANDAL APP (Google Drive)") else null
+
         _syncProgress.value = DriveSyncProgress(
             lastSyncTimestamp = lastTime,
             lastSyncFormatted = lastFormatted,
@@ -92,227 +94,54 @@ object GoogleDriveMediaBackupManager {
     }
 
     /**
-     * Builds Google Sign-In Client configured with the Drive scope
+     * Persists permanent URI read/write permissions granted by user via Storage Access Framework
      */
-    fun getGoogleSignInClient(context: Context): GoogleSignInClient {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestScopes(Scope(DRIVE_SCOPE))
-            .build()
-        return GoogleSignIn.getClient(context, gso)
-    }
-
-    fun handleSignInResult(context: Context, account: GoogleSignInAccount?): Boolean {
-        if (account == null) return false
-        val email = account.email ?: "jayhindmandalarjunwad@gmail.com"
-        _connectedAccount.value = email
-
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString("connected_email", email)
-            .apply()
-        Log.d(TAG, "Google Drive linked to account: $email")
-        return true
-    }
-
-    suspend fun getAccessToken(context: Context): String? = withContext(Dispatchers.IO) {
+    fun saveSelectedFolderUri(context: Context, treeUri: Uri): Boolean {
         try {
-            val account = GoogleSignIn.getLastSignedInAccount(context)?.account
-            if (account != null) {
-                return@withContext GoogleAuthUtil.getToken(context, account, "oauth2:$DRIVE_SCOPE")
-            }
-            // Fallback to checking accounts via AccountManager
-            val am = android.accounts.AccountManager.get(context)
-            val accounts = am.getAccountsByType("com.google")
-            val targetAccount = accounts.firstOrNull { 
-                it.name.equals("jayhindmandalarjunwad@gmail.com", ignoreCase = true) 
-            } ?: accounts.firstOrNull()
+            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            context.contentResolver.takePersistableUriPermission(treeUri, takeFlags)
 
-            if (targetAccount != null) {
-                return@withContext GoogleAuthUtil.getToken(context, targetAccount, "oauth2:$DRIVE_SCOPE")
-            }
+            val doc = DocumentFile.fromTreeUri(context, treeUri)
+            val name = doc?.name ?: "JAY HIND MANDAL APP"
+
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_FOLDER_URI, treeUri.toString())
+                .putString(KEY_FOLDER_NAME, name)
+                .apply()
+
+            _isFolderConfigured.value = true
+            _selectedFolderName.value = name
+            Log.d(TAG, "Storage Access Framework folder saved successfully: $name ($treeUri)")
+            return true
         } catch (e: Exception) {
-            Log.w(TAG, "Unable to get OAuth token: ${e.message}")
+            Log.e(TAG, "Failed to persist folder permission: ${e.message}", e)
+            return false
         }
-        return@withContext null
+    }
+
+    private fun getSavedRootFolder(context: Context): DocumentFile? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val uriStr = prefs.getString(KEY_FOLDER_URI, null) ?: return null
+        return try {
+            val uri = Uri.parse(uriStr)
+            val doc = DocumentFile.fromTreeUri(context, uri)
+            if (doc != null && doc.canWrite()) doc else null
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**
-     * Finds an existing folder or creates a new one in Google Drive.
+     * Finds an existing subfolder inside a DocumentFile or creates it if it doesn't exist.
      */
-    private suspend fun findOrCreateDriveFolder(
-        token: String,
-        folderName: String,
-        parentFolderId: String = "root"
-    ): String? = withContext(Dispatchers.IO) {
-        val cacheKey = "$parentFolderId/$folderName"
-        folderIdCache[cacheKey]?.let { return@withContext it }
-
-        try {
-            // 1. Search if folder already exists
-            val query = "name = '${folderName.replace("'", "\\'")}' and '$parentFolderId' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-            val searchUrl = "https://www.googleapis.com/drive/v3/files?q=${Uri.encode(query)}&fields=files(id,name)"
-
-            val searchReq = Request.Builder()
-                .url(searchUrl)
-                .addHeader("Authorization", "Bearer $token")
-                .get()
-                .build()
-
-            httpClient.newCall(searchReq).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val json = JSONObject(body)
-                        val files = json.optJSONArray("files")
-                        if (files != null && files.length() > 0) {
-                            val id = files.getJSONObject(0).getString("id")
-                            folderIdCache[cacheKey] = id
-                            return@withContext id
-                        }
-                    }
-                }
-            }
-
-            // 2. Not found, create new folder
-            val createJson = JSONObject().apply {
-                put("name", folderName)
-                put("mimeType", "application/vnd.google-apps.folder")
-                put("parents", JSONArray().put(parentFolderId))
-            }
-
-            val createReq = Request.Builder()
-                .url("https://www.googleapis.com/drive/v3/files")
-                .addHeader("Authorization", "Bearer $token")
-                .post(createJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .build()
-
-            httpClient.newCall(createReq).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val json = JSONObject(body)
-                        val id = json.getString("id")
-                        folderIdCache[cacheKey] = id
-                        Log.d(TAG, "Created Drive Folder: $folderName (ID: $id)")
-                        return@withContext id
-                    }
-                } else {
-                    Log.e(TAG, "Failed creating folder $folderName: ${response.code} - ${response.message}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in findOrCreateDriveFolder for $folderName: ${e.message}", e)
+    private fun findOrCreateSubFolder(parent: DocumentFile, subFolderName: String): DocumentFile? {
+        val existing = parent.findFile(subFolderName)
+        if (existing != null && existing.isDirectory) {
+            return existing
         }
-        return@withContext null
-    }
-
-    /**
-     * Uploads media bytes to Google Drive inside the specified parent folder with a unique filename.
-     * Sets reader permission and returns the direct CDN image/audio URL.
-     */
-    private suspend fun uploadFileToDrive(
-        token: String,
-        folderId: String,
-        fileName: String,
-        mimeType: String,
-        bytes: ByteArray
-    ): String? = withContext(Dispatchers.IO) {
-        try {
-            // Check if file already exists in folder
-            val query = "name = '${fileName.replace("'", "\\'")}' and '$folderId' in parents and trashed = false"
-            val searchUrl = "https://www.googleapis.com/drive/v3/files?q=${Uri.encode(query)}&fields=files(id,name)"
-
-            val searchReq = Request.Builder()
-                .url(searchUrl)
-                .addHeader("Authorization", "Bearer $token")
-                .get()
-                .build()
-
-            httpClient.newCall(searchReq).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val files = JSONObject(body).optJSONArray("files")
-                        if (files != null && files.length() > 0) {
-                            val existingId = files.getJSONObject(0).getString("id")
-                            return@withContext if (mimeType.startsWith("image/")) {
-                                "https://lh3.googleusercontent.com/d/$existingId"
-                            } else {
-                                "https://drive.google.com/uc?export=download&id=$existingId"
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Multipart upload to Google Drive v3
-            val metadataJson = JSONObject().apply {
-                put("name", fileName)
-                put("parents", JSONArray().put(folderId))
-            }
-
-            val multipartBody = MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart(
-                    "metadata",
-                    null,
-                    metadataJson.toString().toRequestBody("application/json; charset=UTF-8".toMediaType())
-                )
-                .addFormDataPart(
-                    "file",
-                    fileName,
-                    bytes.toRequestBody(mimeType.toMediaType())
-                )
-                .build()
-
-            val uploadReq = Request.Builder()
-                .url("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
-                .addHeader("Authorization", "Bearer $token")
-                .post(multipartBody)
-                .build()
-
-            var fileId: String? = null
-            httpClient.newCall(uploadReq).execute().use { response ->
-                if (response.isSuccessful) {
-                    val respBody = response.body?.string()
-                    if (!respBody.isNullOrBlank()) {
-                        fileId = JSONObject(respBody).getString("id")
-                    }
-                } else {
-                    Log.e(TAG, "Failed uploading $fileName: ${response.code} ${response.message}")
-                }
-            }
-
-            if (fileId != null) {
-                // Grant public read permission so the file can be viewed directly in app
-                try {
-                    val permJson = JSONObject().apply {
-                        put("role", "reader")
-                        put("type", "anyone")
-                    }
-                    val permReq = Request.Builder()
-                        .url("https://www.googleapis.com/drive/v3/files/$fileId/permissions")
-                        .addHeader("Authorization", "Bearer $token")
-                        .post(permJson.toString().toRequestBody("application/json".toMediaType()))
-                        .build()
-                    httpClient.newCall(permReq).execute().close()
-                } catch (pe: Exception) {
-                    Log.w(TAG, "Drive permission grant note: ${pe.message}")
-                }
-
-                val directUrl = if (mimeType.startsWith("image/")) {
-                    "https://lh3.googleusercontent.com/d/$fileId"
-                } else {
-                    "https://drive.google.com/uc?export=download&id=$fileId"
-                }
-                Log.d(TAG, "Uploaded to Google Drive: $fileName -> $directUrl")
-                return@withContext directUrl
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error uploading $fileName to Drive: ${e.message}", e)
-        }
-        return@withContext null
+        return parent.createDirectory(subFolderName)
     }
 
     /**
@@ -334,7 +163,6 @@ object GoogleDriveMediaBackupManager {
                     context.contentResolver.openInputStream(Uri.parse(source))?.use { it.readBytes() }
                 }
                 source.length > 200 && !source.contains("/") -> {
-                    // Raw Base64
                     Base64.decode(source.trim(), Base64.DEFAULT)
                 }
                 else -> {
@@ -365,8 +193,39 @@ object GoogleDriveMediaBackupManager {
     }
 
     /**
-     * Main Sync Function:
-     * Builds the exact requested folder hierarchy:
+     * Writes bytes directly into DocumentFile safely using Android ContentResolver.
+     */
+    private suspend fun writeMediaToDocumentFile(
+        context: Context,
+        folder: DocumentFile,
+        fileName: String,
+        mimeType: String,
+        bytes: ByteArray
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            // Check if file already exists
+            val existing = folder.findFile(fileName)
+            if (existing != null && existing.isFile && existing.length() > 0) {
+                return@withContext true // Already uploaded safely
+            }
+
+            val targetFile = existing ?: folder.createFile(mimeType, fileName)
+                ?: return@withContext false
+
+            context.contentResolver.openOutputStream(targetFile.uri)?.use { os ->
+                os.write(bytes)
+                os.flush()
+            }
+            return@withContext true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed writing to document file $fileName: ${e.message}", e)
+            return@withContext false
+        }
+    }
+
+    /**
+     * Main Sync Function using 100% Free, Native Android SAF (Storage Access Framework).
+     * Creates exact requested hierarchy on Google Drive:
      * JAY HIND MANDAL APP
      *   └── YEAR2026
      *       └── SEP
@@ -380,8 +239,6 @@ object GoogleDriveMediaBackupManager {
      *           └── 2. VOICE MESSAGE
      *               ├── Group Chat
      *               └── One to One Chat
-     *
-     * Uploads with unique filenames: [SenderName]_[Mobile]_[DateTime].[jpg/m4a]
      */
     suspend fun performCompleteMediaBackup(
         context: Context,
@@ -391,14 +248,21 @@ object GoogleDriveMediaBackupManager {
             return@withContext Result.failure(Exception("सिंक आधीपासूनच प्रगतीपथावर आहे."))
         }
 
+        val rootFolder = getSavedRootFolder(context)
+        if (rootFolder == null) {
+            _isFolderConfigured.value = false
+            return@withContext Result.failure(
+                Exception("कृपया आधी Google Drive मधील 'JAY HIND MANDAL APP' फोल्डर निवडा ('फोल्डर जोडा' बटण दाबा).")
+            )
+        }
+
         _syncProgress.value = _syncProgress.value.copy(
             isSyncing = true,
-            currentStep = "गुगल ड्राइव्ह पडताळणी...",
+            currentStep = "गुगल ड्राइव्ह फोल्डर तयार करत आहे...",
             error = null
         )
 
         try {
-            val token = getAccessToken(context)
             val db = AppDatabase.getDatabase(context)
             val userMap = db.userDao().getAllUsersDirect().associateBy { it.id }
 
@@ -409,7 +273,26 @@ object GoogleDriveMediaBackupManager {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val uploadedSet = prefs.getStringSet("uploaded_item_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
 
-            // Collect all pending media items from Room
+            // 1. Build Folders on Google Drive
+            val yearFolder = findOrCreateSubFolder(rootFolder, yearFolderName) ?: rootFolder
+            val monthFolder = findOrCreateSubFolder(yearFolder, monthFolderName) ?: yearFolder
+
+            val photosRootFolder = findOrCreateSubFolder(monthFolder, PHOTOS_FOLDER_NAME) ?: monthFolder
+            val voiceRootFolder = findOrCreateSubFolder(monthFolder, VOICE_FOLDER_NAME) ?: monthFolder
+
+            // Subfolders in PHOTOS
+            val galleryFolder = findOrCreateSubFolder(photosRootFolder, "Gallary") ?: photosRootFolder
+            val bannerFolder = findOrCreateSubFolder(photosRootFolder, "Banner") ?: photosRootFolder
+            val eventFolder = findOrCreateSubFolder(photosRootFolder, "Event") ?: photosRootFolder
+            val postFolder = findOrCreateSubFolder(photosRootFolder, "Post") ?: photosRootFolder
+            val groupChatPhotoFolder = findOrCreateSubFolder(photosRootFolder, "Group Chat") ?: photosRootFolder
+            val oneToOneChatPhotoFolder = findOrCreateSubFolder(photosRootFolder, "One to One Chat") ?: photosRootFolder
+
+            // Subfolders in VOICE MESSAGE
+            val groupChatVoiceFolder = findOrCreateSubFolder(voiceRootFolder, "Group Chat") ?: voiceRootFolder
+            val oneToOneChatVoiceFolder = findOrCreateSubFolder(voiceRootFolder, "One to One Chat") ?: voiceRootFolder
+
+            // Fetch Items from Database
             val allPhotos = db.galleryDao().getAllPhotosDirect()
             val allPosts = db.postDao().getAllPostsDirect().filter { !it.imageUrlsJson.isNullOrBlank() || !it.authorPhotoUrl.isNullOrBlank() }
             val allBanners = db.bannerDao().getAllBannersDirect().filter { it.imageUrl.isNotBlank() }
@@ -424,217 +307,187 @@ object GoogleDriveMediaBackupManager {
             _syncProgress.value = _syncProgress.value.copy(
                 totalItems = totalCount,
                 completedItems = 0,
-                currentStep = "फोल्डर स्ट्रक्चर तयार करत आहे..."
+                currentStep = "अपलोड सुरू करत आहे..."
             )
 
             var uploadedCount = 0
             var skippedCount = 0
             var failCount = 0
 
-            // If we have an OAuth token, we create real Google Drive folders via REST API
-            if (token != null) {
-                val rootId = findOrCreateDriveFolder(token, ROOT_FOLDER_NAME, "root")
-                    ?: return@withContext Result.failure(Exception("गुगल ड्राइव्ह मुख्य फोल्डर तयार करता आले नाही."))
-
-                val yearId = findOrCreateDriveFolder(token, yearFolderName, rootId) ?: rootId
-                val monthId = findOrCreateDriveFolder(token, monthFolderName, yearId) ?: yearId
-
-                val photosRootId = findOrCreateDriveFolder(token, PHOTOS_FOLDER_NAME, monthId) ?: monthId
-                val voiceRootId = findOrCreateDriveFolder(token, VOICE_FOLDER_NAME, monthId) ?: monthId
-
-                // Photos Subfolders
-                val galleryFolderId = findOrCreateDriveFolder(token, "Gallary", photosRootId) ?: photosRootId
-                val bannerFolderId = findOrCreateDriveFolder(token, "Banner", photosRootId) ?: photosRootId
-                val eventFolderId = findOrCreateDriveFolder(token, "Event", photosRootId) ?: photosRootId
-                val postFolderId = findOrCreateDriveFolder(token, "Post", photosRootId) ?: photosRootId
-                val groupChatPhotoFolderId = findOrCreateDriveFolder(token, "Group Chat", photosRootId) ?: photosRootId
-                val oneToOneChatPhotoFolderId = findOrCreateDriveFolder(token, "One to One Chat", photosRootId) ?: photosRootId
-
-                // Voice Subfolders
-                val groupChatVoiceFolderId = findOrCreateDriveFolder(token, "Group Chat", voiceRootId) ?: voiceRootId
-                val oneToOneChatVoiceFolderId = findOrCreateDriveFolder(token, "One to One Chat", voiceRootId) ?: voiceRootId
-
-                // 1. Upload Gallery Photos
-                for (photo in allPhotos) {
-                    val key = "gallery_${photo.id}"
-                    if (uploadedSet.contains(key)) {
-                        skippedCount++
-                        continue
-                    }
-                    _syncProgress.value = _syncProgress.value.copy(
-                        currentStep = "गॅलरी फोटो अपलोड: ${photo.caption.take(15)}",
-                        completedItems = uploadedCount + skippedCount
-                    )
-                    val bytes = resolveMediaBytes(context, photo.imageUrl)
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        val dateStr = formatTimestamp(photo.uploadedAt)
-                        val captionClean = sanitizeName(photo.caption)
-                        val fileName = "Gallary_${captionClean}_${dateStr}.jpg"
-                        val driveUrl = uploadFileToDrive(token, galleryFolderId, fileName, "image/jpeg", bytes)
-                        if (driveUrl != null) {
-                            uploadedSet.add(key)
-                            uploadedCount++
-                        } else failCount++
+            // 1. Upload Gallery Photos
+            for (photo in allPhotos) {
+                val key = "gallery_${photo.id}"
+                if (uploadedSet.contains(key)) {
+                    skippedCount++
+                    continue
+                }
+                _syncProgress.value = _syncProgress.value.copy(
+                    currentStep = "गॅलरी फोटो: ${photo.caption.take(15)}",
+                    completedItems = uploadedCount + skippedCount
+                )
+                val bytes = resolveMediaBytes(context, photo.imageUrl)
+                if (bytes != null && bytes.isNotEmpty()) {
+                    val dateStr = formatTimestamp(photo.uploadedAt)
+                    val captionClean = sanitizeName(photo.caption)
+                    val fileName = "Gallary_${captionClean}_${dateStr}.jpg"
+                    val success = writeMediaToDocumentFile(context, galleryFolder, fileName, "image/jpeg", bytes)
+                    if (success) {
+                        uploadedSet.add(key)
+                        uploadedCount++
                     } else failCount++
-                }
-
-                // 2. Upload Banners
-                for (banner in allBanners) {
-                    val key = "banner_${banner.id}"
-                    if (uploadedSet.contains(key)) {
-                        skippedCount++
-                        continue
-                    }
-                    _syncProgress.value = _syncProgress.value.copy(
-                        currentStep = "बॅनर फोटो अपलोड...",
-                        completedItems = uploadedCount + skippedCount
-                    )
-                    val bytes = resolveMediaBytes(context, banner.imageUrl)
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        val dateStr = formatTimestamp(banner.createdAt)
-                        val titleClean = sanitizeName(banner.title)
-                        val fileName = "Banner_${titleClean}_${dateStr}.jpg"
-                        val driveUrl = uploadFileToDrive(token, bannerFolderId, fileName, "image/jpeg", bytes)
-                        if (driveUrl != null) {
-                            uploadedSet.add(key)
-                            uploadedCount++
-                        } else failCount++
-                    } else failCount++
-                }
-
-                // 3. Upload Events
-                for (event in allEvents) {
-                    val key = "event_${event.id}"
-                    if (uploadedSet.contains(key)) {
-                        skippedCount++
-                        continue
-                    }
-                    _syncProgress.value = _syncProgress.value.copy(
-                        currentStep = "कार्यक्रम फोटो अपलोड: ${event.title.take(15)}",
-                        completedItems = uploadedCount + skippedCount
-                    )
-                    val img = event.imageUrl ?: ""
-                    val bytes = resolveMediaBytes(context, img)
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        val dateStr = formatTimestamp(event.createdAt)
-                        val titleClean = sanitizeName(event.title)
-                        val fileName = "Event_${titleClean}_${dateStr}.jpg"
-                        val driveUrl = uploadFileToDrive(token, eventFolderId, fileName, "image/jpeg", bytes)
-                        if (driveUrl != null) {
-                            uploadedSet.add(key)
-                            uploadedCount++
-                        } else failCount++
-                    } else failCount++
-                }
-
-                // 4. Upload Posts Photos
-                for (post in allPosts) {
-                    val key = "post_${post.id}"
-                    if (uploadedSet.contains(key)) {
-                        skippedCount++
-                        continue
-                    }
-                    _syncProgress.value = _syncProgress.value.copy(
-                        currentStep = "पोस्ट फोटो अपलोड: ${post.authorName}",
-                        completedItems = uploadedCount + skippedCount
-                    )
-                    val user = userMap[post.authorId]
-                    val authorName = sanitizeName(post.authorName)
-                    val mobile = user?.mobileNumber ?: "9800000000"
-                    val dateStr = formatTimestamp(post.timestamp)
-
-                    val imgSource = post.imageUrlsJson?.let {
-                        try { JSONArray(it).optString(0) } catch (e: Exception) { null }
-                    } ?: post.authorPhotoUrl ?: ""
-
-                    val bytes = resolveMediaBytes(context, imgSource)
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        val fileName = "Post_${authorName}_${mobile}_${dateStr}.jpg"
-                        val driveUrl = uploadFileToDrive(token, postFolderId, fileName, "image/jpeg", bytes)
-                        if (driveUrl != null) {
-                            uploadedSet.add(key)
-                            uploadedCount++
-                        } else failCount++
-                    } else failCount++
-                }
-
-                // 5. Upload Chat Photos & Voice Notes
-                for (chat in allChats) {
-                    val user = userMap[chat.senderId]
-                    val senderName = sanitizeName(chat.senderName.ifBlank { user?.fullName ?: "Member" })
-                    val mobile = user?.mobileNumber ?: "9800000000"
-                    val dateStr = formatTimestamp(chat.timestamp)
-                    val isGroup = chat.conversationId.contains("group", ignoreCase = true) || chat.receiverId.contains("group", ignoreCase = true)
-
-                    // Photo in Chat (imageUrl or attachmentType == IMAGE)
-                    val chatPhotoSrc = if (!chat.imageUrl.isNullOrBlank()) chat.imageUrl else if (chat.attachmentType.equals("IMAGE", ignoreCase = true)) chat.attachmentUrl else null
-                    if (!chatPhotoSrc.isNullOrBlank()) {
-                        val pKey = "chat_photo_${chat.id}"
-                        if (!uploadedSet.contains(pKey)) {
-                            _syncProgress.value = _syncProgress.value.copy(
-                                currentStep = "चॅट फोटो अपलोड: $senderName",
-                                completedItems = uploadedCount + skippedCount
-                            )
-                            val bytes = resolveMediaBytes(context, chatPhotoSrc)
-                            if (bytes != null && bytes.isNotEmpty()) {
-                                val targetFolderId = if (isGroup) groupChatPhotoFolderId else oneToOneChatPhotoFolderId
-                                val prefix = if (isGroup) "GroupChat" else "OneToOneChat"
-                                val fileName = "${prefix}_${senderName}_${mobile}_${dateStr}.jpg"
-                                val driveUrl = uploadFileToDrive(token, targetFolderId, fileName, "image/jpeg", bytes)
-                                if (driveUrl != null) {
-                                    uploadedSet.add(pKey)
-                                    uploadedCount++
-                                } else failCount++
-                            }
-                        } else skippedCount++
-                    }
-
-                    // Voice Note in Chat (attachmentType == VOICE / AUDIO or audio URL)
-                    val isVoice = chat.attachmentType.equals("VOICE", ignoreCase = true) ||
-                            chat.attachmentType.equals("AUDIO", ignoreCase = true) ||
-                            chat.attachmentUrl?.endsWith(".m4a", ignoreCase = true) == true ||
-                            chat.attachmentUrl?.endsWith(".mp3", ignoreCase = true) == true ||
-                            chat.attachmentName?.contains("voice", ignoreCase = true) == true
-
-                    val chatVoiceSrc = if (isVoice) chat.attachmentUrl else null
-                    if (!chatVoiceSrc.isNullOrBlank()) {
-                        val aKey = "chat_voice_${chat.id}"
-                        if (!uploadedSet.contains(aKey)) {
-                            _syncProgress.value = _syncProgress.value.copy(
-                                currentStep = "व्हॉइस मेसेज अपलोड: $senderName",
-                                completedItems = uploadedCount + skippedCount
-                            )
-                            val bytes = resolveMediaBytes(context, chatVoiceSrc)
-                            if (bytes != null && bytes.isNotEmpty()) {
-                                val targetFolderId = if (isGroup) groupChatVoiceFolderId else oneToOneChatVoiceFolderId
-                                val prefix = if (isGroup) "GroupChat" else "OneToOneChat"
-                                val fileName = "${prefix}_${senderName}_${mobile}_${dateStr}.m4a"
-                                val driveUrl = uploadFileToDrive(token, targetFolderId, fileName, "audio/mp4", bytes)
-                                if (driveUrl != null) {
-                                    uploadedSet.add(aKey)
-                                    uploadedCount++
-                                } else failCount++
-                            }
-                        } else skippedCount++
-                    }
-                }
-            } else {
-                Log.w(TAG, "No Google OAuth token available. Ready for user Drive connection.")
+                } else failCount++
             }
 
-            // Save set of uploaded keys
+            // 2. Upload Banners
+            for (banner in allBanners) {
+                val key = "banner_${banner.id}"
+                if (uploadedSet.contains(key)) {
+                    skippedCount++
+                    continue
+                }
+                _syncProgress.value = _syncProgress.value.copy(
+                    currentStep = "बॅनर फोटो: ${banner.title.take(15)}",
+                    completedItems = uploadedCount + skippedCount
+                )
+                val bytes = resolveMediaBytes(context, banner.imageUrl)
+                if (bytes != null && bytes.isNotEmpty()) {
+                    val dateStr = formatTimestamp(banner.createdAt)
+                    val titleClean = sanitizeName(banner.title)
+                    val fileName = "Banner_${titleClean}_${dateStr}.jpg"
+                    val success = writeMediaToDocumentFile(context, bannerFolder, fileName, "image/jpeg", bytes)
+                    if (success) {
+                        uploadedSet.add(key)
+                        uploadedCount++
+                    } else failCount++
+                } else failCount++
+            }
+
+            // 3. Upload Events
+            for (event in allEvents) {
+                val key = "event_${event.id}"
+                if (uploadedSet.contains(key)) {
+                    skippedCount++
+                    continue
+                }
+                _syncProgress.value = _syncProgress.value.copy(
+                    currentStep = "कार्यक्रम: ${event.title.take(15)}",
+                    completedItems = uploadedCount + skippedCount
+                )
+                val img = event.imageUrl ?: ""
+                val bytes = resolveMediaBytes(context, img)
+                if (bytes != null && bytes.isNotEmpty()) {
+                    val dateStr = formatTimestamp(event.createdAt)
+                    val titleClean = sanitizeName(event.title)
+                    val fileName = "Event_${titleClean}_${dateStr}.jpg"
+                    val success = writeMediaToDocumentFile(context, eventFolder, fileName, "image/jpeg", bytes)
+                    if (success) {
+                        uploadedSet.add(key)
+                        uploadedCount++
+                    } else failCount++
+                } else failCount++
+            }
+
+            // 4. Upload Posts
+            for (post in allPosts) {
+                val key = "post_${post.id}"
+                if (uploadedSet.contains(key)) {
+                    skippedCount++
+                    continue
+                }
+                _syncProgress.value = _syncProgress.value.copy(
+                    currentStep = "पोस्ट: ${post.authorName}",
+                    completedItems = uploadedCount + skippedCount
+                )
+                val user = userMap[post.authorId]
+                val authorName = sanitizeName(post.authorName)
+                val mobile = user?.mobileNumber ?: "9800000000"
+                val dateStr = formatTimestamp(post.timestamp)
+
+                val imgSource = post.imageUrlsJson?.let {
+                    try { JSONArray(it).optString(0) } catch (e: Exception) { null }
+                } ?: post.authorPhotoUrl ?: ""
+
+                val bytes = resolveMediaBytes(context, imgSource)
+                if (bytes != null && bytes.isNotEmpty()) {
+                    val fileName = "Post_${authorName}_${mobile}_${dateStr}.jpg"
+                    val success = writeMediaToDocumentFile(context, postFolder, fileName, "image/jpeg", bytes)
+                    if (success) {
+                        uploadedSet.add(key)
+                        uploadedCount++
+                    } else failCount++
+                } else failCount++
+            }
+
+            // 5. Upload Chat Photos & Voice Notes
+            for (chat in allChats) {
+                val user = userMap[chat.senderId]
+                val senderName = sanitizeName(chat.senderName.ifBlank { user?.fullName ?: "Member" })
+                val mobile = user?.mobileNumber ?: "9800000000"
+                val dateStr = formatTimestamp(chat.timestamp)
+                val isGroup = chat.conversationId.contains("group", ignoreCase = true) || chat.receiverId.contains("group", ignoreCase = true)
+
+                // Photo
+                val chatPhotoSrc = if (!chat.imageUrl.isNullOrBlank()) chat.imageUrl else if (chat.attachmentType.equals("IMAGE", ignoreCase = true)) chat.attachmentUrl else null
+                if (!chatPhotoSrc.isNullOrBlank()) {
+                    val pKey = "chat_photo_${chat.id}"
+                    if (!uploadedSet.contains(pKey)) {
+                        _syncProgress.value = _syncProgress.value.copy(
+                            currentStep = "चॅट फोटो: $senderName",
+                            completedItems = uploadedCount + skippedCount
+                        )
+                        val bytes = resolveMediaBytes(context, chatPhotoSrc)
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val targetFolder = if (isGroup) groupChatPhotoFolder else oneToOneChatPhotoFolder
+                            val prefix = if (isGroup) "GroupChat" else "OneToOneChat"
+                            val fileName = "${prefix}_${senderName}_${mobile}_${dateStr}.jpg"
+                            val success = writeMediaToDocumentFile(context, targetFolder, fileName, "image/jpeg", bytes)
+                            if (success) {
+                                uploadedSet.add(pKey)
+                                uploadedCount++
+                            } else failCount++
+                        }
+                    } else skippedCount++
+                }
+
+                // Voice
+                val isVoice = chat.attachmentType.equals("VOICE", ignoreCase = true) ||
+                        chat.attachmentType.equals("AUDIO", ignoreCase = true) ||
+                        chat.attachmentUrl?.endsWith(".m4a", ignoreCase = true) == true ||
+                        chat.attachmentUrl?.endsWith(".mp3", ignoreCase = true) == true ||
+                        chat.attachmentName?.contains("voice", ignoreCase = true) == true
+
+                val chatVoiceSrc = if (isVoice) chat.attachmentUrl else null
+                if (!chatVoiceSrc.isNullOrBlank()) {
+                    val aKey = "chat_voice_${chat.id}"
+                    if (!uploadedSet.contains(aKey)) {
+                        _syncProgress.value = _syncProgress.value.copy(
+                            currentStep = "व्हॉइस मेसेज: $senderName",
+                            completedItems = uploadedCount + skippedCount
+                        )
+                        val bytes = resolveMediaBytes(context, chatVoiceSrc)
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val targetFolder = if (isGroup) groupChatVoiceFolder else oneToOneChatVoiceFolder
+                            val prefix = if (isGroup) "GroupChat" else "OneToOneChat"
+                            val fileName = "${prefix}_${senderName}_${mobile}_${dateStr}.m4a"
+                            val success = writeMediaToDocumentFile(context, targetFolder, fileName, "audio/mp4", bytes)
+                            if (success) {
+                                uploadedSet.add(aKey)
+                                uploadedCount++
+                            } else failCount++
+                        }
+                    } else skippedCount++
+                }
+            }
+
+            // Save state
             prefs.edit()
                 .putStringSet("uploaded_item_ids", uploadedSet)
                 .putLong("last_sync_timestamp", now)
                 .putString("last_sync_formatted", SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale("mr", "IN")).format(Date(now)))
-                .putString("last_sync_summary", "$uploadedCount फाइल्स Google Drive वर यशस्वीरीत्या सेव्ह!")
+                .putString("last_sync_summary", "$uploadedCount फाइल्स Google Drive वर सुरक्षित सेव्ह!")
                 .apply()
 
-            val summaryMsg = if (token != null) {
-                "$uploadedCount नवीन मीडिया फाइल्स ($yearFolderName / $monthFolderName) Google Drive वर यशस्वीरीत्या सिंक झाल्या! ($skippedCount आधीच सुरक्षित)"
-            } else {
-                "Google Drive खाते कनेक्ट करणे आवश्यक आहे. कृपया 'Connect Drive' बटण दाबा."
-            }
+            val summaryMsg = "$uploadedCount नवीन मीडिया फाइल्स ($yearFolderName / $monthFolderName) Google Drive वर यशस्वीरीत्या सेव्ह झाल्या! ($skippedCount आधीच सुरक्षित)"
 
             _syncProgress.value = DriveSyncProgress(
                 isSyncing = false,
@@ -646,7 +499,7 @@ object GoogleDriveMediaBackupManager {
                 lastSyncSummary = summaryMsg
             )
 
-            // Also mirror metadata in Firestore system settings
+            // Firebase Firestore meta
             try {
                 FirebaseFirestore.getInstance().collection("system_settings").document("media_backup_meta")
                     .set(
@@ -664,7 +517,7 @@ object GoogleDriveMediaBackupManager {
 
             return@withContext Result.success(summaryMsg)
         } catch (e: Exception) {
-            Log.e(TAG, "Fatal error during media sync: ${e.message}", e)
+            Log.e(TAG, "Fatal error during SAF media sync: ${e.message}", e)
             _syncProgress.value = _syncProgress.value.copy(
                 isSyncing = false,
                 error = e.message

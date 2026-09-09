@@ -1524,7 +1524,22 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     val driveSyncProgress = com.example.util.GoogleDriveMediaBackupManager.syncProgress
-    val connectedDriveAccount = com.example.util.GoogleDriveMediaBackupManager.connectedAccount
+    val isDriveFolderConfigured = com.example.util.GoogleDriveMediaBackupManager.isFolderConfigured
+    val selectedDriveFolderName = com.example.util.GoogleDriveMediaBackupManager.selectedFolderName
+
+    fun onDriveFolderSelected(uri: android.net.Uri?) {
+        if (uri == null) {
+            showSnackbar("कोणतेही फोल्डर निवडले नाही.")
+            return
+        }
+        val success = com.example.util.GoogleDriveMediaBackupManager.saveSelectedFolderUri(getApplication(), uri)
+        if (success) {
+            showSnackbar("✅ Google Drive फोल्डर यशस्वीरीत्या जोडले!")
+            syncMediaToGoogleDriveNow()
+        } else {
+            showSnackbar("❌ फोल्डर जोडताना त्रुटी आली. कृपया पुन्हा प्रयत्न करा.")
+        }
+    }
 
     fun syncMediaToGoogleDriveNow() {
         viewModelScope.launch {
@@ -1532,18 +1547,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             if (result.isSuccess) {
                 showSnackbar("✅ " + (result.getOrNull() ?: "Google Drive मीडिया बॅकअप यशस्वी!"))
             } else {
-                showSnackbar("❌ त्रुटी: " + (result.exceptionOrNull()?.message ?: "सिंक अयशस्वी"))
+                showSnackbar("❌ " + (result.exceptionOrNull()?.message ?: "सिंक अयशस्वी"))
             }
-        }
-    }
-
-    fun handleGoogleDriveSignIn(account: com.google.android.gms.auth.api.signin.GoogleSignInAccount?) {
-        val ok = com.example.util.GoogleDriveMediaBackupManager.handleSignInResult(getApplication(), account)
-        if (ok) {
-            showSnackbar("✅ Google Drive जोडले: ${account?.email}")
-            syncMediaToGoogleDriveNow()
-        } else {
-            showSnackbar("Google खाते जोडता आले नाही.")
         }
     }
 

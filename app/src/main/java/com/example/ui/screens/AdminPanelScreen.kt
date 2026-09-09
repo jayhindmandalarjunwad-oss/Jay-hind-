@@ -3879,18 +3879,13 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
     val isCloudSyncing by viewModel.isCloudSyncing.collectAsStateWithLifecycle()
     val cloudProgress by viewModel.cloudProgress.collectAsStateWithLifecycle()
     val driveSyncProgress by viewModel.driveSyncProgress.collectAsStateWithLifecycle()
-    val connectedDriveAccount by viewModel.connectedDriveAccount.collectAsStateWithLifecycle()
+    val isDriveFolderConfigured by viewModel.isDriveFolderConfigured.collectAsStateWithLifecycle()
+    val selectedDriveFolderName by viewModel.selectedDriveFolderName.collectAsStateWithLifecycle()
 
-    val driveSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-            viewModel.handleGoogleDriveSignIn(account)
-        } catch (e: Exception) {
-            viewModel.handleGoogleDriveSignIn(null)
-        }
+    val driveFolderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        viewModel.onDriveFolderSelected(uri)
     }
 
     var selectedBackupForRestore by remember { mutableStateOf<com.example.util.BackupItem?>(null) }
@@ -4015,34 +4010,42 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "अधिकृत: ${connectedDriveAccount ?: "jayhindmandalarjunwad@gmail.com"}",
+                                text = if (isDriveFolderConfigured) {
+                                    "जोडलेले फोल्डर: ${selectedDriveFolderName ?: "JAY HIND MANDAL APP"}"
+                                } else {
+                                    "Google Drive (jayhindmandalarjunwad@gmail.com)"
+                                },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF0F9D58),
+                                color = if (isDriveFolderConfigured) Color(0xFF0F9D58) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
 
-                        OutlinedButton(
+                        Button(
                             onClick = {
-                                val client = com.example.util.GoogleDriveMediaBackupManager.getGoogleSignInClient(context)
-                                driveSignInLauncher.launch(client.signInIntent)
+                                driveFolderPickerLauncher.launch(null)
                             },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            colors = if (isDriveFolderConfigured) {
+                                ButtonDefaults.outlinedButtonColors()
+                            } else {
+                                ButtonDefaults.buttonColors(containerColor = Color(0xFF0F9D58))
+                            },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.height(34.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AccountCircle,
+                                imageVector = if (isDriveFolderConfigured) Icons.Default.Check else Icons.Default.FolderOpen,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                                tint = Color(0xFF0F9D58)
+                                tint = if (isDriveFolderConfigured) Color(0xFF0F9D58) else Color.White
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "खाते जोडा",
+                                text = if (isDriveFolderConfigured) "बदला" else "फोल्डर जोडा",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF0F9D58)
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDriveFolderConfigured) Color(0xFF0F9D58) else Color.White
                             )
                         }
                     }
@@ -4139,6 +4142,13 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
                                 text = driveSyncProgress.lastSyncSummary,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = SuccessGreen,
+                                modifier = Modifier.padding(start = 22.dp, top = 2.dp)
+                            )
+                        } else if (!isDriveFolderConfigured) {
+                            Text(
+                                text = "💡 वरील 'फोल्डर जोडा' बटण दाबून तुमच्या Google Drive मधील 'JAY HIND MANDAL APP' फोल्डर निवडा.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFE65100),
                                 modifier = Modifier.padding(start = 22.dp, top = 2.dp)
                             )
                         }
