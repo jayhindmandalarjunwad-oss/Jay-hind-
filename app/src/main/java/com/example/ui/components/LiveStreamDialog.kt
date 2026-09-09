@@ -501,8 +501,12 @@ fun LiveStreamDialog(
                 .fillMaxSize()
                 .background(if (effectiveFullscreen) Color.Black else MaterialTheme.colorScheme.surface)
         ) {
-            // Top Header Bar (Only shown in Portrait Mode for maximum screen real estate in Landscape)
-            if (!effectiveFullscreen) {
+            // Top Header Bar (Only shown in Portrait Mode when keyboard is closed for maximum chat real estate like YouTube)
+            AnimatedVisibility(
+                visible = !effectiveFullscreen && !isKeyboardOpen,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -983,86 +987,92 @@ fun LiveStreamDialog(
 
 
 
-                    // 1.5 DIRECT QUICK ACTION STRIP (Sound, Open in App, Fullscreen)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF1F1F1F))
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    // 1.5 DIRECT QUICK ACTION STRIP (Sound, Open in App, Fullscreen) - Hidden when keyboard is open for YouTube style compact space
+                    AnimatedVisibility(
+                        visible = !isKeyboardOpen,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1F1F1F))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = SaffronPrimary,
-                                modifier = Modifier.clickable { toggleMute() }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = SaffronPrimary,
+                                    modifier = Modifier.clickable { toggleMute() }
                                 ) {
-                                    Icon(
-                                        imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                                        contentDescription = "Mute Toggle",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = if (isMuted) "आवाज बंद आहे (Tap करा)" else "आवाज चालू आहे",
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color.White.copy(alpha = 0.15f),
-                                modifier = Modifier.clickable { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                                    Text(
-                                        text = when (platform) {
-                                            StreamPlatform.YOUTUBE -> "YouTube ॲप"
-                                            StreamPlatform.FACEBOOK -> "Facebook ॲप"
-                                            StreamPlatform.INSTAGRAM -> "Instagram ॲप"
-                                            else -> "थेट ॲप"
-                                        },
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                            contentDescription = "Mute Toggle",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Text(
+                                            text = if (isMuted) "आवाज बंद आहे (Tap करा)" else "आवाज चालू आहे",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
 
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color.White.copy(alpha = 0.15f),
-                                modifier = Modifier.clickable { toggleOrientationFullscreen() }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.White.copy(alpha = 0.15f),
+                                    modifier = Modifier.clickable { openStreamInExternalApp(context, streamKeyOrUrl, platform) }
                                 ) {
-                                    Icon(Icons.Default.Fullscreen, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Text("आडवा", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                        Text(
+                                            text = when (platform) {
+                                                StreamPlatform.YOUTUBE -> "YouTube ॲप"
+                                                StreamPlatform.FACEBOOK -> "Facebook ॲप"
+                                                StreamPlatform.INSTAGRAM -> "Instagram ॲप"
+                                                else -> "थेट ॲप"
+                                            },
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.White.copy(alpha = 0.15f),
+                                    modifier = Modifier.clickable { toggleOrientationFullscreen() }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(Icons.Default.Fullscreen, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                        Text("आडवा", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -1120,38 +1130,44 @@ fun LiveStreamDialog(
                         }
                     }
 
-                    // 3. LIVE CHAT & COMMENTS FEED
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    // 3. LIVE CHAT & COMMENTS FEED - Hidden when keyboard is open to keep full focus on chat messages
+                    AnimatedVisibility(
+                        visible = !isKeyboardOpen,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
                     ) {
                         Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF2E7D32))
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2E7D32))
+                                )
+                                Text(
+                                    text = "थेट संवाद (Real-time Live Chat)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            }
                             Text(
-                                text = "थेट संवाद (Real-time Live Chat)",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                text = "सर्व प्रेक्षकांना थेट दिसते ⚡",
+                                fontSize = 10.sp,
+                                color = SaffronDark,
+                                fontWeight = FontWeight.Medium
                             )
                         }
-                        Text(
-                            text = "सर्व प्रेक्षकांना थेट दिसते ⚡",
-                            fontSize = 10.sp,
-                            color = SaffronDark,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
 
                     Box(
@@ -1427,7 +1443,7 @@ fun LiveStreamDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    .padding(horizontal = 10.dp, vertical = if (isKeyboardOpen) 4.dp else 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -1438,13 +1454,18 @@ fun LiveStreamDialog(
                                         Text(
                                             if (editingCommentId != null) "बदललेली कमेंट टाईप करा..." else "✍️ तुमची प्रतिक्रिया येथे टाईप करा...",
                                             fontSize = 13.sp,
-                                            color = TextMuted
+                                            color = TextMuted,
+                                            maxLines = 1
                                         )
                                     },
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("live_comment_input"),
-                                    shape = RoundedCornerShape(24.dp),
+                                    shape = RoundedCornerShape(20.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = SaffronPrimary,
                                         unfocusedBorderColor = CardBorderColor,
@@ -1486,7 +1507,7 @@ fun LiveStreamDialog(
                                         }
                                     },
                                     modifier = Modifier
-                                        .size(42.dp)
+                                        .size(38.dp)
                                         .background(if (editingCommentId != null) SuccessGreen else SaffronPrimary, CircleShape)
                                         .testTag("send_live_comment_btn")
                                 ) {
@@ -1494,7 +1515,7 @@ fun LiveStreamDialog(
                                         imageVector = if (editingCommentId != null) Icons.Default.Check else Icons.Default.Send,
                                         contentDescription = if (editingCommentId != null) "Update" else "Send",
                                         tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(17.dp)
                                     )
                                 }
                             }
