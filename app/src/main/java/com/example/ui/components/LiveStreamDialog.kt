@@ -460,13 +460,13 @@ fun LiveStreamDialog(
     LaunchedEffect(isKeyboardOpen) {
         if (isKeyboardOpen && comments.isNotEmpty()) {
             delay(100)
-            commentsListState.animateScrollToItem(comments.size - 1)
+            commentsListState.animateScrollToItem(0)
         }
     }
     LaunchedEffect(comments.size) {
         if (comments.isNotEmpty()) {
-            commentsListState.animateScrollToItem(comments.size - 1)
-            val latest = comments.last()
+            commentsListState.animateScrollToItem(0)
+            val latest = comments.last() // Most recent incoming comment
             if (latest.id != lastSeenCommentId) {
                 lastSeenCommentId = latest.id
                 val msg = latest.message.trim()
@@ -863,7 +863,10 @@ fun LiveStreamDialog(
                 // 2. PORTRAIT MODE (VIDEO PLAYER + LIVE CHAT + ACTIONS)
                 // ==========================================
                 Column(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding()
+                        .navigationBarsPadding()
                 ) {
                     // 1. BRANDED MULTI-PLATFORM VIDEO PLAYER (16:9 Aspect Ratio)
                     Box(
@@ -1205,6 +1208,7 @@ fun LiveStreamDialog(
                                 )
                             }
                         } else {
+                            val reversedComments = remember(comments) { comments.asReversed() }
                             LazyColumn(
                                 state = commentsListState,
                                 modifier = Modifier
@@ -1212,7 +1216,7 @@ fun LiveStreamDialog(
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                items(comments, key = { it.id }) { comment ->
+                                items(reversedComments, key = { it.id }) { comment ->
                                     val isOwnComment = currentUserId.isNotBlank() && (comment.userId == currentUserId || comment.userId.isBlank())
                                     val canModerate = isOwnComment || isAdmin
 
@@ -1382,15 +1386,11 @@ fun LiveStreamDialog(
 
                     HorizontalDivider(color = CardBorderColor)
 
-                    // 4. TYPE & SEND LIVE COMMENT INPUT + 5. WHATSAPP SHARE CONTAINER (SAFE IME PADDING)
+                    // 4. TYPE & SEND LIVE COMMENT INPUT + 5. WHATSAPP SHARE CONTAINER
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
                         shadowElevation = 4.dp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(
-                                if (isKeyboardOpen) Modifier.imePadding() else Modifier.navigationBarsPadding()
-                            )
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth()
