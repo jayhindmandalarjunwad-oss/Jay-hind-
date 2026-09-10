@@ -91,18 +91,18 @@ fun PostItemCard(
                             text = post.authorName,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = 14.5.sp
                             ),
                             color = TextPrimary
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = formatTimestampToMarathi(post.timestamp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = formatTimestampToEnglish(post.timestamp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF64748B), // Clear muted slate grey for English date/time
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Normal
+                        )
                     }
                 }
 
@@ -167,61 +167,57 @@ fun PostItemCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Post Stats (Likes & Comments counts)
+            // Post Stats (Likes & Comments counts - Clean Facebook / Reference Video Style)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(SaffronPrimary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ThumbUp,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(11.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Likes",
+                        tint = BloodRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = "${post.likesCount} लाईक्स",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
+                        color = if (isLiked) BloodRed else Color(0xFF64748B),
+                        fontWeight = if (isLiked) FontWeight.Bold else FontWeight.Medium,
                         fontSize = 12.sp
                     )
                 }
 
                 Text(
-                    text = "${post.commentsCount} प्रतिक्रिया",
+                    text = "${post.commentsCount} प्रतिक्रिया (Comments)",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    color = Color(0xFF64748B),
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     modifier = Modifier.clickable { onCommentClick() }
                 )
             }
 
             HorizontalDivider(
-                color = DividerColor,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                color = DividerColor.copy(alpha = 0.7f),
+                thickness = 0.8.dp,
+                modifier = Modifier.padding(horizontal = 14.dp)
             )
 
-            // Bottom Action Bar: Like, Comment, Share
+            // Bottom Action Bar: Like, Comment, Share (Matching Reference Video)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 val likeTint by animateColorAsState(
-                    targetValue = if (isLiked) SaffronPrimary else TextSecondary,
+                    targetValue = if (isLiked) BloodRed else Color(0xFF475569),
                     label = "likeColor"
                 )
 
@@ -230,16 +226,16 @@ fun PostItemCard(
                     modifier = Modifier.weight(1f).testTag("post_like_button_${post.id}")
                 ) {
                     Icon(
-                        imageVector = if (isLiked) Icons.Default.ThumbUp else Icons.Outlined.ThumbUp,
+                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "लाईक",
                         tint = likeTint,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "लाईक",
+                        text = if (isLiked) "लाईक केले" else "लाईक करा",
                         color = likeTint,
-                        fontWeight = if (isLiked) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = if (isLiked) FontWeight.Bold else FontWeight.Medium,
                         fontSize = 13.sp
                     )
                 }
@@ -250,12 +246,17 @@ fun PostItemCard(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.ChatBubbleOutline,
-                        contentDescription = "प्रतिक्रिया",
-                        tint = TextSecondary,
+                        contentDescription = "कमेंट",
+                        tint = Color(0xFF475569),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "प्रतिक्रिया", color = TextSecondary, fontSize = 13.sp)
+                    Text(
+                        text = "कमेंट",
+                        color = Color(0xFF475569),
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp
+                    )
                 }
 
                 TextButton(
@@ -272,11 +273,16 @@ fun PostItemCard(
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = "शेअर",
-                        tint = TextSecondary,
+                        tint = Color(0xFF475569),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "शेअर", color = TextSecondary, fontSize = 13.sp)
+                    Text(
+                        text = "शेअर",
+                        color = Color(0xFF475569),
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp
+                    )
                 }
             }
         }

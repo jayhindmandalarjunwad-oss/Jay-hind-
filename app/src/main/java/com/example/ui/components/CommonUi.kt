@@ -701,6 +701,28 @@ fun EmptyStateView(
     }
 }
 
+fun formatTimestampToEnglish(timestamp: Long): String {
+    if (timestamp <= 0L) return ""
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    return when {
+        diff < 60 * 1000 -> "Just now"
+        diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)}m ago"
+        diff < 24 * 60 * 60 * 1000 -> {
+            val sdf = SimpleDateFormat("hh:mm a", Locale.ENGLISH)
+            "Today, ${sdf.format(Date(timestamp))}"
+        }
+        diff < 48 * 60 * 60 * 1000 -> {
+            val sdf = SimpleDateFormat("hh:mm a", Locale.ENGLISH)
+            "Yesterday, ${sdf.format(Date(timestamp))}"
+        }
+        else -> {
+            val sdf = SimpleDateFormat("dd MMM, yyyy, hh:mm a", Locale.ENGLISH)
+            sdf.format(Date(timestamp))
+        }
+    }
+}
+
 fun formatTimestampToMarathi(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp

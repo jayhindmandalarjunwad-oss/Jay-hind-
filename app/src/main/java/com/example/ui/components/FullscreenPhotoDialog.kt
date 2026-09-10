@@ -64,8 +64,8 @@ fun FullscreenPhotoDialog(
         pageCount = { validPhotos.size }
     )
 
-    // Allow download for admin or if viewing community post photos
-    val canDownload = allowDownload || isAdmin || validPhotos.any { it.contains("posts") || it.contains("JayHind_Post_") }
+    // Allow download for everyone (Admin or regular member)
+    val canDownload = true
 
     Dialog(
         onDismissRequest = onDismiss,
