@@ -290,8 +290,11 @@ fun PostImagesGallery(
     onMultiImageClick: (List<String>, Int) -> Unit = { _, _ -> }
 ) {
     val handlePhotoClick: (Int) -> Unit = { index ->
-        onMultiImageClick(images, index)
-        onImageClick(images.getOrElse(index) { "" })
+        if (images.size > 1) {
+            onMultiImageClick(images, index)
+        } else {
+            onImageClick(images.getOrElse(index) { "" })
+        }
     }
 
     when (images.size) {
