@@ -58,8 +58,8 @@ object FirebaseStorageHelper {
     suspend fun compressImageToWebp(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 1600,
-        initialQuality: Int = 85
+        maxDimension: Int = 1080,
+        initialQuality: Int = 82
     ): ByteArray = withContext(Dispatchers.IO) {
         try {
             // 1. Read bounds
@@ -77,10 +77,10 @@ object FirebaseStorageHelper {
                 }
             }
 
-            // 2. Decode bitmap with inSampleSize
+            // 2. Decode bitmap with inSampleSize (RGB_565 halves RAM allocation from 4 bytes/px to 2 bytes/px)
             val decodeOptions = BitmapFactory.Options().apply {
                 this.inSampleSize = inSampleSize
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inPreferredConfig = Bitmap.Config.RGB_565
             }
 
             var bitmap: Bitmap? = context.contentResolver.openInputStream(uri)?.use { stream ->
@@ -115,9 +115,9 @@ object FirebaseStorageHelper {
             bitmap.compress(format, quality, outputStream)
             var bytes = outputStream.toByteArray()
 
-            // If still larger than 250KB, reduce quality slightly to stay in 120-180KB sweet spot
+            // If still larger than 250KB, reduce quality slightly to stay in 100-180KB sweet spot
             if (bytes.size > 250 * 1024 && quality > 65) {
-                quality = 72
+                quality = 70
                 outputStream = ByteArrayOutputStream()
                 bitmap.compress(format, quality, outputStream)
                 bytes = outputStream.toByteArray()
@@ -125,9 +125,14 @@ object FirebaseStorageHelper {
 
             bitmap.recycle()
             return@withContext bytes
-        } catch (e: Exception) {
-            Log.e(TAG, "Error compressing to WebP: ${e.message}", e)
-            return@withContext context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Safely handled error/OOM compressing to WebP: ${t.message}")
+            System.gc()
+            return@withContext try {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+            } catch (_: Throwable) {
+                ByteArray(0)
+            }
         }
     }
 
@@ -136,7 +141,7 @@ object FirebaseStorageHelper {
      * Supports standardized unique naming convention:
      * - Posts: JayHind_Post_[Author]_[Timestamp]_[Index].webp
      * - Chat: JayHind_ChatPhoto_[Author]_[Timestamp].webp
-     * Returns public download URL. Falls back to base64 if offline/error.
+     * Returns public download URL. Falls back to compact WebP base64 if offline/error.
      */
     suspend fun uploadImage(
         context: Context,
@@ -146,8 +151,9 @@ object FirebaseStorageHelper {
         senderName: String? = null,
         onProgress: ((Int) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
+        var webpBytes = ByteArray(0)
         try {
-            val webpBytes = compressImageToWebp(context, uri)
+            webpBytes = compressImageToWebp(context, uri)
             if (webpBytes.isEmpty()) {
                 return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
             }
@@ -184,8 +190,14 @@ object FirebaseStorageHelper {
             val downloadUrl = ref.downloadUrl.await().toString()
             Log.d(TAG, "Image uploaded successfully: $downloadUrl (Size: ${webpBytes.size / 1024} KB)")
             return@withContext downloadUrl
-        } catch (e: Exception) {
-            Log.w(TAG, "Firebase Storage upload failed, falling back to base64: ${e.message}")
+        } catch (t: Throwable) {
+            Log.w(TAG, "Firebase Storage upload failed or offline (${t.message}), falling back to compact WebP base64")
+            if (webpBytes.isNotEmpty()) {
+                // Direct Base64 conversion of already-compressed WebP bytes:
+                // Zero extra bitmap allocations, zero memory spike, instant execution
+                val b64 = Base64.encodeToString(webpBytes, Base64.NO_WRAP)
+                return@withContext "data:image/webp;base64,$b64"
+            }
             return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
         }
     }

@@ -33,7 +33,9 @@ import com.example.data.model.User
 import com.example.ui.theme.*
 import com.example.util.FirebaseStorageHelper
 import com.example.util.MediaUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CreatePostDialog(
@@ -57,22 +59,30 @@ fun CreatePostDialog(
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
             coroutineScope.launch {
-                isProcessingImage = true
-                val newImages = mutableListOf<String>()
-                val rawAuthor = currentUser?.fullName ?: "Member"
-                val cleanAuthor = rawAuthor.replace(Regex("[^a-zA-Z0-9_]"), "").ifBlank { "Member" }
-                val timeStamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
-                val startIdx = selectedImages.size
+                try {
+                    isProcessingImage = true
+                    val newImages = mutableListOf<String>()
+                    val rawAuthor = currentUser?.fullName ?: "Member"
+                    val cleanAuthor = rawAuthor.replace(Regex("[^a-zA-Z0-9_]"), "").ifBlank { "Member" }
+                    val timeStamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault()).format(java.util.Date())
+                    val startIdx = selectedImages.size
 
-                for ((idx, uri) in uris.withIndex()) {
-                    val customName = "JayHind_Post_${cleanAuthor}_${timeStamp}_${startIdx + idx + 1}.webp"
-                    val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, folder = "posts", customFileName = customName)
-                    if (uploadedUrl.isNotBlank()) {
-                        newImages.add(uploadedUrl)
+                    withContext(Dispatchers.IO) {
+                        for ((idx, uri) in uris.withIndex()) {
+                            val customName = "JayHind_Post_${cleanAuthor}_${timeStamp}_${startIdx + idx + 1}.webp"
+                            val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, folder = "posts", customFileName = customName)
+                            if (uploadedUrl.isNotBlank()) {
+                                newImages.add(uploadedUrl)
+                            }
+                        }
                     }
+                    selectedImages = (selectedImages + newImages).distinct().take(10)
+                } catch (t: Throwable) {
+                    android.util.Log.e("CreatePostDialog", "Safe catch during image selection: ${t.message}", t)
+                } finally {
+                    isProcessingImage = false
+                    System.gc()
                 }
-                selectedImages = (selectedImages + newImages).distinct().take(10)
-                isProcessingImage = false
             }
         }
     }
@@ -200,7 +210,7 @@ fun CreatePostDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(color = SaffronPrimary, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("फोटो लोड होत आहेत...", color = TextPrimary, fontSize = 13.sp)
+                            Text("फोटो सुरक्षितपणे लोड होत आहेत...", color = TextPrimary, fontSize = 13.sp)
                         }
                     }
                 } else if (selectedImages.isEmpty()) {
@@ -255,6 +265,7 @@ fun CreatePostDialog(
                                     model = imgUrl,
                                     contentDescription = "Selected photo ${index + 1}",
                                     contentScale = ContentScale.Crop,
+                                    targetDimensionPx = 250,
                                     modifier = Modifier.fillMaxSize()
                                 )
 

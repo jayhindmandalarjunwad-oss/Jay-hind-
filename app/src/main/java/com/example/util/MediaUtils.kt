@@ -41,8 +41,8 @@ object MediaUtils {
     suspend fun uriToBase64(
         context: Context,
         uri: Uri,
-        maxDimension: Int = 1280,
-        quality: Int = 88
+        maxDimension: Int = 1080,
+        quality: Int = 80
     ): String? = withContext(Dispatchers.IO) {
         try {
             val uriStr = uri.toString()
@@ -80,10 +80,10 @@ object MediaUtils {
                 inSampleSize *= 2
             }
 
-            // 3. Decode scaled bitmap with ARGB_8888 (preserves transparency for PNGs and sharpness)
+            // 3. Decode scaled bitmap with RGB_565 to save 50% RAM
             val decodeOptions = BitmapFactory.Options().apply {
                 this.inSampleSize = inSampleSize
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inPreferredConfig = Bitmap.Config.RGB_565
             }
             inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext null
             val originalBitmap = BitmapFactory.decodeStream(inputStream, null, decodeOptions)
@@ -120,7 +120,11 @@ object MediaUtils {
             var workingBitmap = originalBitmap
             if (rotationAngle != 0) {
                 val matrix = Matrix().apply { postRotate(rotationAngle.toFloat()) }
-                workingBitmap = Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+                val rotated = Bitmap.createBitmap(originalBitmap, 0, 0, originalBitmap.width, originalBitmap.height, matrix, true)
+                if (rotated != originalBitmap) {
+                    originalBitmap.recycle()
+                    workingBitmap = rotated
+                }
             }
 
             // 5. Scale to exact maxDimension if still larger
@@ -136,26 +140,27 @@ object MediaUtils {
             val finalBitmap = if (scale < 1.0f) {
                 val targetW = (finalWidth * scale).toInt().coerceAtLeast(1)
                 val targetH = (finalHeight * scale).toInt().coerceAtLeast(1)
-                Bitmap.createScaledBitmap(workingBitmap, targetW, targetH, true)
+                val scaled = Bitmap.createScaledBitmap(workingBitmap, targetW, targetH, true)
+                if (scaled != workingBitmap) {
+                    workingBitmap.recycle()
+                }
+                scaled
             } else {
                 workingBitmap
             }
 
-            // 6. Compress appropriately (PNG if alpha, JPEG otherwise)
+            // 6. Compress to compact JPEG
             val outputStream = ByteArrayOutputStream()
-            val isAlpha = finalBitmap.hasAlpha()
-            if (isAlpha) {
-                finalBitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-            } else {
-                finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-            }
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
             val byteArray = outputStream.toByteArray()
-            val base64Str = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            finalBitmap.recycle()
 
-            val mime = if (isAlpha) "image/png" else "image/jpeg"
-            "data:$mime;base64,$base64Str"
-        } catch (e: Exception) {
-            Log.e("MediaUtils", "Failed to convert Uri to Base64: ${e.message}", e)
+            val base64Str = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            "data:image/jpeg;base64,$base64Str"
+        } catch (t: Throwable) {
+            Log.e("MediaUtils", "Safely handled Uri to Base64 failure: ${t.message}")
+            clearBitmapCache()
+            System.gc()
             try {
                 val rawBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                 if (rawBytes != null && rawBytes.isNotEmpty()) {
@@ -163,7 +168,7 @@ object MediaUtils {
                     val b64 = Base64.encodeToString(rawBytes, Base64.NO_WRAP)
                     "data:$mime;base64,$b64"
                 } else null
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 null
             }
         }
@@ -618,8 +623,8 @@ object MediaUtils {
             // 3. Decode actual bitmap with downsampling and lightweight config
             val decodeOptions = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize.coerceAtLeast(1)
-                // Use RGB_565 for small avatars to halve memory consumption, ARGB_8888 for high-res
-                inPreferredConfig = if (targetMaxDim <= 200) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+                // Use RGB_565 for small avatars and thumbnails to halve memory consumption, ARGB_8888 for high-res
+                inPreferredConfig = if (targetMaxDim <= 500) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
             }
 
             val decodedBitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size, decodeOptions)
