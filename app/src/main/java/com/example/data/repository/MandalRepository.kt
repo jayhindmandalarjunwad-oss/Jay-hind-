@@ -254,7 +254,12 @@ class MandalRepository(context: Context) {
             // 9. Sync Notifications
             val notifSnap = Tasks.await(firestore.collection("notifications").get())
             val notifs = notifSnap.documents.mapNotNull { it.toNotificationEntity() }
-            if (notifs.isNotEmpty()) notificationDao.insertNotifications(notifs)
+            val deletedIds = getDeletedNotificationIds()
+            val readIds = getReadNotificationIds()
+            val filteredNotifs = notifs.filter { it.id !in deletedIds }.map { notif ->
+                if (notif.id in readIds) notif.copy(isRead = true) else notif
+            }
+            if (filteredNotifs.isNotEmpty()) notificationDao.insertNotifications(filteredNotifs)
 
             // 10. Sync Mandal Info
             val infoDoc = Tasks.await(firestore.collection("mandal_info").document("mandal_default").get())
@@ -628,7 +633,12 @@ class MandalRepository(context: Context) {
                 if (snapshots == null) return@addSnapshotListener
                 repositoryScope.launch {
                     val list = snapshots.documents.mapNotNull { it.toNotificationEntity() }
-                    if (list.isNotEmpty()) notificationDao.insertNotifications(list)
+                    val deletedIds = getDeletedNotificationIds()
+                    val readIds = getReadNotificationIds()
+                    val filteredList = list.filter { it.id !in deletedIds }.map { notif ->
+                        if (notif.id in readIds) notif.copy(isRead = true) else notif
+                    }
+                    if (filteredList.isNotEmpty()) notificationDao.insertNotifications(filteredList)
                     val currentUser = _currentUser.value
                     for (change in snapshots.documentChanges) {
                         if (change.type == DocumentChange.Type.ADDED) {
@@ -1892,13 +1902,25 @@ class MandalRepository(context: Context) {
         }
     }
 
+    private fun getReadNotificationIds(): MutableSet<String> {
+        return prefs.getStringSet("read_notif_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+    }
+
+    private fun getDeletedNotificationIds(): MutableSet<String> {
+        return prefs.getStringSet("deleted_notif_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+    }
+
     // NOTIFICATIONS
     val notifications: Flow<List<MandalNotification>> = combine(
         notificationDao.getAllNotifications(),
         _currentUser,
         todayBirthdayMembers
     ) { allNotifs, user, birthdayMembers ->
+        val deletedIds = getDeletedNotificationIds()
+        val readIds = getReadNotificationIds()
+
         val filtered = allNotifs.filter { notif ->
+            if (notif.id in deletedIds) return@filter false
             when (notif.type) {
                 "COMMENT" -> notif.targetUserId == user?.id
                 "CHAT" -> notif.targetUserId == user?.id
@@ -1908,17 +1930,25 @@ class MandalRepository(context: Context) {
                     notif.targetUserId == null || notif.targetUserId == user?.id || (notif.targetUserId == "ADMIN" && user?.isAdmin == true)
                 }
             }
-        }.map { it.toDomain() }
+        }.map { entity ->
+            val domain = entity.toDomain()
+            if (domain.id in readIds) domain.copy(isRead = true) else domain
+        }
 
-        if (birthdayMembers.isNotEmpty() && filtered.none { it.type == "BIRTHDAY" }) {
+        val todayDateStr = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH).format(Date())
+        val bdayId = "dyn_bday_$todayDateStr"
+        val isBdayDeleted = bdayId in deletedIds
+        val isBdayRead = bdayId in readIds
+
+        val resultList = if (birthdayMembers.isNotEmpty() && !isBdayDeleted && filtered.none { it.type == "BIRTHDAY" }) {
             val names = birthdayMembers.take(2).joinToString(" व ") { it.fullName } + (if (birthdayMembers.size > 2) " आणि इतर" else "")
             val dynBirthday = MandalNotification(
-                id = "dyn_bday_today",
+                id = bdayId,
                 title = "आज वाढदिवस आहे! 🎂🎉",
                 message = "आज आपले सहकारी सभासद $names यांचा वाढदिवस आहे. त्यांना हार्दिक शुभेच्छा द्या!",
                 type = "BIRTHDAY",
                 timestamp = System.currentTimeMillis(),
-                isRead = false,
+                isRead = isBdayRead,
                 targetRoute = "BIRTHDAYS",
                 targetId = birthdayMembers.firstOrNull()?.id
             )
@@ -1926,6 +1956,8 @@ class MandalRepository(context: Context) {
         } else {
             filtered
         }
+
+        resultList.sortedByDescending { it.timestamp }
     }
 
     val unreadNotificationsCount: Flow<Int> = notifications.map { list ->
@@ -1933,18 +1965,48 @@ class MandalRepository(context: Context) {
     }
 
     suspend fun markAllNotificationsAsRead() = withContext(Dispatchers.IO) {
+        val currentRead = getReadNotificationIds()
+        try {
+            val allList = notificationDao.getAllNotificationsList()
+            allList.forEach { currentRead.add(it.id) }
+        } catch (_: Exception) {}
+        val todayDateStr = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH).format(Date())
+        currentRead.add("dyn_bday_$todayDateStr")
+        currentRead.add("dyn_bday_today")
+        prefs.edit().putStringSet("read_notif_ids", currentRead).apply()
         notificationDao.markAllAsRead()
         com.example.util.SystemNotificationHelper.cancelAllNotifications(appContext)
     }
 
     suspend fun clearAllNotifications() = withContext(Dispatchers.IO) {
+        val currentDeleted = getDeletedNotificationIds()
+        try {
+            val allList = notificationDao.getAllNotificationsList()
+            allList.forEach { currentDeleted.add(it.id) }
+        } catch (_: Exception) {}
+        val todayDateStr = SimpleDateFormat("yyyyMMdd", Locale.ENGLISH).format(Date())
+        currentDeleted.add("dyn_bday_$todayDateStr")
+        currentDeleted.add("dyn_bday_today")
+        prefs.edit().putStringSet("deleted_notif_ids", currentDeleted).apply()
         notificationDao.deleteAllNotifications()
         com.example.util.SystemNotificationHelper.cancelAllNotifications(appContext)
     }
 
     suspend fun markNotificationAsRead(id: String) = withContext(Dispatchers.IO) {
+        val currentRead = getReadNotificationIds()
+        currentRead.add(id)
+        prefs.edit().putStringSet("read_notif_ids", currentRead).apply()
         if (!id.startsWith("dyn_")) {
             notificationDao.markAsRead(id)
+        }
+    }
+
+    suspend fun deleteNotification(id: String) = withContext(Dispatchers.IO) {
+        val currentDeleted = getDeletedNotificationIds()
+        currentDeleted.add(id)
+        prefs.edit().putStringSet("deleted_notif_ids", currentDeleted).apply()
+        if (!id.startsWith("dyn_")) {
+            notificationDao.deleteNotification(id)
         }
     }
 

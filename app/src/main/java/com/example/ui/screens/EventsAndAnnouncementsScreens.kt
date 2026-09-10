@@ -9,8 +9,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -39,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.model.Announcement
 import com.example.data.model.MandalEvent
+import com.example.data.model.MandalNotification
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppScreen
@@ -869,6 +872,7 @@ fun AddEditAnnouncementDialog(
 }
 
 // NOTIFICATIONS SCREEN
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NotificationsScreen(
     viewModel: MandalViewModel,
@@ -877,6 +881,7 @@ fun NotificationsScreen(
     val context = LocalContext.current
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var notificationToDelete by remember { mutableStateOf<MandalNotification?>(null) }
 
     var isNotificationPermissionGranted by remember {
         mutableStateOf(
@@ -1011,7 +1016,7 @@ fun NotificationsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "💡 संबंधित पानावर जाण्यासाठी नोटिफिकेशनवर टॅप करा.",
+                                    text = "💡 उघडण्यासाठी टॅप करा किंवा डावीकडे स्वाईप करून (Swipe Left) हटवा.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = SaffronDark,
                                     modifier = Modifier.weight(1f)
@@ -1049,96 +1054,159 @@ fun NotificationsScreen(
                             else -> SaffronPrimary
                         }
 
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.handleNotificationClick(notif)
-                                },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (notif.isRead) MaterialTheme.colorScheme.surface else SurfaceWarm
-                            ),
-                            border = if (!notif.isRead) androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)) else null,
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (!notif.isRead) 2.dp else 1.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { dismissValue ->
+                                if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                                    viewModel.deleteNotification(notif.id)
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                        )
+
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = false,
+                            enableDismissFromEndToStart = true,
+                            backgroundContent = {
+                                val isSwiping = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
                                 Box(
                                     modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .background(iconBgColor.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (isSwiping) BloodRed else BloodRed.copy(alpha = 0.85f))
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd
                                 ) {
-                                    Icon(
-                                        imageVector = iconVector,
-                                        contentDescription = null,
-                                        tint = iconBgColor,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = notif.title,
-                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = TextPrimary,
-                                            modifier = Modifier.weight(1f)
+                                            text = "हटवा",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
                                         )
-                                        if (!notif.isRead) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(8.dp)
-                                                    .clip(CircleShape)
-                                                    .background(SaffronPrimary)
-                                            )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "हटवा",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            viewModel.handleNotificationClick(notif)
+                                        },
+                                        onLongClick = {
+                                            notificationToDelete = notif
                                         }
+                                    ),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (notif.isRead) MaterialTheme.colorScheme.surface else SurfaceWarm
+                                ),
+                                border = if (!notif.isRead) androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)) else null,
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (!notif.isRead) 2.dp else 1.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(CircleShape)
+                                            .background(iconBgColor.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = iconVector,
+                                            contentDescription = null,
+                                            tint = iconBgColor,
+                                            modifier = Modifier.size(22.dp)
+                                        )
                                     }
 
-                                    Spacer(modifier = Modifier.height(3.dp))
-                                    Text(
-                                        text = notif.message,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextSecondary,
-                                        lineHeight = 18.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = formatTimestampToMarathi(notif.timestamp),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = SaffronPrimary,
-                                            fontSize = 10.sp
-                                        )
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             Text(
-                                                text = "पहा",
+                                                text = notif.title,
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = TextPrimary,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                if (!notif.isRead) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .clip(CircleShape)
+                                                            .background(SaffronPrimary)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                }
+                                                IconButton(
+                                                    onClick = { notificationToDelete = notif },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "हटवा",
+                                                        tint = Color(0xFF94A3B8),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(
+                                            text = notif.message,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextSecondary,
+                                            lineHeight = 18.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = formatTimestampToEnglish(notif.timestamp),
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = SaffronPrimary,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp
+                                                color = Color(0xFF64748B),
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Medium
                                             )
-                                            Icon(
-                                                imageVector = Icons.Default.ChevronRight,
-                                                contentDescription = null,
-                                                tint = SaffronPrimary,
-                                                modifier = Modifier.size(14.dp)
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "पहा",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = SaffronPrimary,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.ChevronRight,
+                                                    contentDescription = null,
+                                                    tint = SaffronPrimary,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1148,6 +1216,33 @@ fun NotificationsScreen(
                 }
             }
         }
+    }
+
+    if (notificationToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { notificationToDelete = null },
+            title = { Text("नोटिफिकेशन हटवा", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            text = { Text("हे नोटिफिकेशन कायमचे हटवायचे आहे का?", color = TextPrimary) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val id = notificationToDelete?.id
+                        if (id != null) {
+                            viewModel.deleteNotification(id)
+                        }
+                        notificationToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                ) {
+                    Text("हटवा")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { notificationToDelete = null }) {
+                    Text("रद्द करा", color = TextPrimary)
+                }
+            }
+        )
     }
 
     if (showClearConfirmDialog) {

@@ -856,6 +856,13 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun deleteNotification(notifId: String) {
+        viewModelScope.launch {
+            repository.deleteNotification(notifId)
+            showSnackbar("नोटिफिकेशन हटवले गेले.")
+        }
+    }
+
     fun markNotificationAsRead(notifId: String) {
         viewModelScope.launch {
             repository.markNotificationAsRead(notifId)
