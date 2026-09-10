@@ -63,23 +63,18 @@ object SystemNotificationHelper {
                 vibrationPattern = longArrayOf(0, 450, 150, 450, 150, 450)
             }
 
-            val bgServiceChannel = NotificationChannel(
-                CHANNEL_BACKGROUND_SERVICE,
-                "बॅकग्राउंड पुश सेवा (Background Notification Service)",
-                NotificationManager.IMPORTANCE_MIN
-            ).apply {
-                description = "ॲप बंद असतानाही नवीन मेसेज व सूचना मिळवण्यासाठी"
-                setShowBadge(false)
-                enableVibration(false)
-                setSound(null, null)
-            }
-
             notificationManager.createNotificationChannels(
-                listOf(generalChannel, chatChannel, groupChatChannel, bloodChannel, bgServiceChannel)
+                listOf(generalChannel, chatChannel, groupChatChannel, bloodChannel)
             )
+
+            // Remove legacy background service channel if previously created
+            try {
+                notificationManager.deleteNotificationChannel(CHANNEL_BACKGROUND_SERVICE)
+            } catch (_: Exception) {}
         }
     }
 
+    @Deprecated("Legacy foreground notification replaced by Firebase Cloud Messaging")
     fun createForegroundServiceNotification(context: Context): android.app.Notification {
         initNotificationChannels(context)
         val intent = Intent(context, MainActivity::class.java).apply {

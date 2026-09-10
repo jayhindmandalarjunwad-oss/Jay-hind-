@@ -286,14 +286,18 @@ fun ProfileScreen(viewModel: MandalViewModel) {
             }
         }
 
-        // BACKGROUND NOTIFICATION & BATTERY OPTIMIZATION CARD
+        // PUSH NOTIFICATIONS & ALERTS STATUS CARD (Google FCM)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable {
-                    com.example.util.BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(context)
-                    com.example.util.MandalNotificationService.startService(context)
-                    com.example.util.MandalSyncJobService.scheduleJob(context)
+                    com.example.util.SystemNotificationHelper.showSystemNotification(
+                        context = context,
+                        title = "🚩 जय हिंद मंडळ अर्जुनवाड",
+                        message = "गुगल पुश नोटिफिकेशन्स (FCM) यशस्वीरित्या सक्रिय आहेत! 🔔",
+                        channelId = com.example.util.SystemNotificationHelper.CHANNEL_GENERAL
+                    )
+                    android.widget.Toast.makeText(context, "चाचणी नोटिफिकेशन पाठवले आहे! 🔔", android.widget.Toast.LENGTH_SHORT).show()
                 },
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
@@ -325,7 +329,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "ॲप बंद असताना पुश नोटिफिकेशन्स",
+                            text = "गुगल पुश नोटिफिकेशन्स (FCM)",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = TextPrimary
                         )
@@ -345,7 +349,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                     }
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "मोबाईल बंद किंवा लॉक असतानाही त्वरित मेसेज येण्यासाठी बॅटरी मर्यादा हटवा",
+                        text = "मोबाईल बंद असतानाही नवीन मेसेज व सूचना थेट मिळतात • ०% अतिरिक्त बॅटरी खर्च",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         fontSize = 11.5.sp
@@ -353,9 +357,9 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 }
 
                 Icon(
-                    imageVector = Icons.Default.ChevronRight,
+                    imageVector = Icons.Default.Notifications,
                     contentDescription = null,
-                    tint = TextSecondary
+                    tint = SaffronPrimary
                 )
             }
         }

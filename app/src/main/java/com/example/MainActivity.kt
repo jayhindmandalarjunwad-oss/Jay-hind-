@@ -47,30 +47,38 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleIntent(intent)
 
-        // Initialize background notification services & Cloud Messaging
+        // Initialize Google FCM push messaging and dismiss any legacy persistent notification
         try {
-            com.example.util.MandalNotificationService.startService(this)
+            // Dismiss legacy foreground notification (ID 999) if lingering from past versions
+            com.example.util.SystemNotificationHelper.cancelNotification(this, 999)
+            try {
+                stopService(Intent(this, com.example.util.MandalNotificationService::class.java))
+            } catch (_: Exception) {}
+
             com.example.util.MandalSyncJobService.scheduleJob(this)
 
             val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
             val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
             if (resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
-                // Safely check FCM token without forcing auto-init or topic synchronization
                 lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     try {
                         val fcm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                        fcm.isAutoInitEnabled = false
+                        fcm.isAutoInitEnabled = true
                         fcm.token.addOnSuccessListener { token ->
                             if (!token.isNullOrBlank()) {
                                 viewModel.updateFcmToken(token)
                             }
                         }
+                        // Subscribe to broadcast topics for instant push alerts without battery drain
+                        fcm.subscribeToTopic("mandal_announcements")
+                        fcm.subscribeToTopic("mandal_emergency_blood")
+                        fcm.subscribeToTopic("mandal_events")
                     } catch (fcmErr: Exception) {
                         android.util.Log.d("MainActivity", "FCM token lookup note: ${fcmErr.message}")
                     }
                 }
             } else {
-                android.util.Log.i("MainActivity", "Google Play Services note ($resultCode). Using native real-time Firestore listeners and MandalNotificationService.")
+                android.util.Log.i("MainActivity", "Google Play Services note ($resultCode). JobScheduler will handle periodic sync.")
             }
         } catch (e: Exception) {
             android.util.Log.w("MainActivity", "Background notification services note: ${e.message}")
