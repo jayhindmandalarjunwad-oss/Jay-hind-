@@ -1200,6 +1200,17 @@ class MandalRepository(context: Context) {
             firestore.collection("posts").document(newPost.id).set(newPost.toMap(), SetOptions.merge())
             firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
             Log.d("FirebaseSync", "New post ${newPost.id} and notification published to Firestore")
+
+            // Send high-priority FCM push so phones wake up on lock screen
+            com.example.util.FcmPushSenderHelper.sendPushToTopic(
+                topic = "mandal_posts",
+                title = notif.title,
+                message = notif.message,
+                type = "POST",
+                targetRoute = "POST",
+                targetId = newPost.id,
+                senderId = user.id
+            )
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Failed to upload post to Firestore: ${e.message}", e)
         }
@@ -1384,6 +1395,32 @@ class MandalRepository(context: Context) {
             firestore.collection("chat_messages").document(msg.id).set(msg.toMap(), SetOptions.merge())
             firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
             Log.d("FirebaseSync", "Chat message sent to Firestore: ${msg.id}")
+
+            if (isGroup) {
+                com.example.util.FcmPushSenderHelper.sendPushToTopic(
+                    topic = "mandal_group_chat",
+                    title = notif.title,
+                    message = notif.message,
+                    type = "GROUP_CHAT",
+                    targetRoute = "CHAT",
+                    targetId = "GROUP_MANDAL",
+                    senderId = user.id
+                )
+            } else if (!receiverId.isNullOrBlank()) {
+                val receiverDoc = Tasks.await(firestore.collection("users").document(receiverId).get())
+                val receiverToken = receiverDoc.getString("fcmToken")
+                if (!receiverToken.isNullOrBlank()) {
+                    com.example.util.FcmPushSenderHelper.sendPushToToken(
+                        token = receiverToken,
+                        title = notif.title,
+                        message = notif.message,
+                        type = "CHAT",
+                        targetRoute = "CHAT",
+                        targetId = user.id,
+                        senderId = user.id
+                    )
+                }
+            }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error sending chat message on Firestore", e)
         }
@@ -1781,6 +1818,16 @@ class MandalRepository(context: Context) {
         try {
             firestore.collection("events").document(event.id).set(event.toMap(), SetOptions.merge())
             firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
+
+            com.example.util.FcmPushSenderHelper.sendPushToTopic(
+                topic = "mandal_events",
+                title = notif.title,
+                message = notif.message,
+                type = "EVENT",
+                targetRoute = "EVENTS",
+                targetId = event.id,
+                senderId = ""
+            )
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error creating event on Firestore", e)
         }
@@ -1859,6 +1906,16 @@ class MandalRepository(context: Context) {
         try {
             firestore.collection("announcements").document(ann.id).set(ann.toMap(), SetOptions.merge())
             firestore.collection("notifications").document(notifId).set(notif.toMap(), SetOptions.merge())
+
+            com.example.util.FcmPushSenderHelper.sendPushToTopic(
+                topic = "mandal_announcements",
+                title = notif.title,
+                message = notif.message,
+                type = "ANNOUNCEMENT",
+                targetRoute = "ANNOUNCEMENTS",
+                targetId = ann.id,
+                senderId = user?.id ?: ""
+            )
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error creating announcement on Firestore", e)
         }
@@ -2754,6 +2811,17 @@ class MandalRepository(context: Context) {
             notificationDao.insertNotification(notif)
             firestore.collection("notifications").document(notif.id).set(notif.toMap())
 
+            // Trigger FCM push to all registered members
+            com.example.util.FcmPushSenderHelper.sendPushToTopic(
+                topic = "mandal_emergency_blood",
+                title = notif.title,
+                message = notif.message,
+                type = "BLOOD_ALERT",
+                targetRoute = "BLOOD_ALERT",
+                targetId = alertId,
+                senderId = alert.createdBy
+            )
+
             // Trigger immediate local notification on device
             com.example.util.SystemNotificationHelper.showSystemNotification(
                 context = appContext,
@@ -2781,6 +2849,64 @@ class MandalRepository(context: Context) {
         } catch (e: Exception) {
             Log.e("FirebaseSync", "resolveEmergencyBloodAlert error: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    suspend fun checkAndDispatchBirthdayNotifications() = withContext(Dispatchers.IO) {
+        try {
+            val prefs = appContext.getSharedPreferences("mandal_prefs", Context.MODE_PRIVATE)
+            val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val lastSentDate = prefs.getString("last_birthday_push_date", "")
+            if (lastSentDate == todayStr) {
+                return@withContext // Already dispatched today
+            }
+
+            val sdfMonthDay = SimpleDateFormat("MM-dd", Locale.getDefault())
+            val currentMonthDay = sdfMonthDay.format(Date())
+
+            val allUsers = userDao.getApprovedUsers().first()
+            val bdayUsers = allUsers.filter { member ->
+                val dob = member.dateOfBirth.trim()
+                if (dob.isBlank()) return@filter false
+                try {
+                    val parts = if (dob.contains("-")) dob.split("-") else if (dob.contains("/")) dob.split("/") else emptyList()
+                    if (parts.size == 3) {
+                        val (m, d) = if (parts[0].length == 4) {
+                            parts[1].padStart(2, '0') to parts[2].padStart(2, '0')
+                        } else {
+                            parts[1].padStart(2, '0') to parts[0].padStart(2, '0')
+                        }
+                        "$m-$d" == currentMonthDay
+                    } else false
+                } catch (e: Exception) {
+                    false
+                }
+            }
+
+            if (bdayUsers.isNotEmpty()) {
+                val title = "🎂 आजचे वाढदिवस! (जय हिंद मंडळ)"
+                val message = if (bdayUsers.size == 1) {
+                    "🚩 आज आपले सक्रिय सभासद ${bdayUsers.first().fullName} यांचा वाढदिवस आहे. त्यांना शुभेच्छा देण्यासाठी येथे क्लिक करा!"
+                } else {
+                    val names = bdayUsers.take(2).joinToString(", ") { it.fullName } + (if (bdayUsers.size > 2) " आणि इतर" else "")
+                    "🚩 आज आपले सभासद $names यांचे वाढदिवस आहेत. त्यांना शुभेच्छा देण्यासाठी येथे क्लिक करा!"
+                }
+
+                com.example.util.FcmPushSenderHelper.sendPushToTopic(
+                    topic = "mandal_birthdays",
+                    title = title,
+                    message = message,
+                    type = "BIRTHDAY",
+                    targetRoute = "BIRTHDAYS",
+                    targetId = bdayUsers.first().id,
+                    senderId = "SYSTEM"
+                )
+
+                prefs.edit().putString("last_birthday_push_date", todayStr).apply()
+                Log.d("MandalRepository", "Birthday push dispatched successfully for ${bdayUsers.size} members")
+            }
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error checking/dispatching birthday push: ${e.message}")
         }
     }
 
@@ -3269,6 +3395,7 @@ fun NotificationEntity.toMap(): Map<String, Any?> = mapOf(
     "message" to message,
     "type" to type,
     "timestamp" to timestamp,
+    "createdAt" to timestamp,
     "isRead" to isRead,
     "targetUserId" to targetUserId,
     "targetRoute" to targetRoute,

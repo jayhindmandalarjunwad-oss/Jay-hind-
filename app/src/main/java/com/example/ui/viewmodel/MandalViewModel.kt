@@ -257,6 +257,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun checkAndDispatchBirthdayNotifications() {
+        viewModelScope.launch {
+            repository.checkAndDispatchBirthdayNotifications()
+        }
+    }
+
     fun navigateTo(screen: AppScreen) {
         _currentScreen.value = screen
         if (screen == AppScreen.ADMIN_PANEL || screen == AppScreen.NOTIFICATIONS || screen == AppScreen.EVENTS) {

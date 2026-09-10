@@ -17,6 +17,8 @@ object SystemNotificationHelper {
     const val CHANNEL_CHAT = "channel_mandal_chat"
     const val CHANNEL_GROUP_CHAT = "channel_mandal_group_chat"
     const val CHANNEL_EMERGENCY_BLOOD = "channel_emergency_blood"
+    const val CHANNEL_POSTS = "channel_mandal_posts"
+    const val CHANNEL_BIRTHDAY = "channel_mandal_birthday"
     const val CHANNEL_BACKGROUND_SERVICE = "channel_mandal_background_service"
 
     private val recentNotificationTimestamps = java.util.concurrent.ConcurrentHashMap<String, Long>()
@@ -31,8 +33,29 @@ object SystemNotificationHelper {
                 "मंडळ सूचना व कार्यक्रम (General Alerts)",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "मंडळातील महत्त्वाच्या सूचना, कार्यक्रम आणि वाढदिवस नोटिफिकेशन्स"
+                description = "मंडळातील महत्त्वाच्या सूचना आणि कार्यक्रम नोटिफिकेशन्स"
                 enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+
+            val postsChannel = NotificationChannel(
+                CHANNEL_POSTS,
+                "नवीन पोस्ट व उपक्रम (New Posts)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "मंडळातील सदस्यांनी केलेल्या नवीन पोस्ट व उपक्रम"
+                enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+
+            val birthdayChannel = NotificationChannel(
+                CHANNEL_BIRTHDAY,
+                "वाढदिवस शुभेच्छा (Birthday Alerts)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "मंडळातील कार्यकर्त्यांचे व सदस्यांचे वाढदिवस अलर्ट्स"
+                enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
             val chatChannel = NotificationChannel(
@@ -42,6 +65,7 @@ object SystemNotificationHelper {
             ).apply {
                 description = "सभासदांचे खाजगी संदेश"
                 enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
             val groupChatChannel = NotificationChannel(
@@ -51,6 +75,7 @@ object SystemNotificationHelper {
             ).apply {
                 description = "🚩 जय हिंद मंडळ सर्व सदस्य ग्रुप मेसेज"
                 enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
             val bloodChannel = NotificationChannel(
@@ -61,16 +86,33 @@ object SystemNotificationHelper {
                 description = "तातडीची रक्ताची गरज व जीवनदायी आणीबाणी अलर्ट्स"
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 450, 150, 450, 150, 450)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
             notificationManager.createNotificationChannels(
-                listOf(generalChannel, chatChannel, groupChatChannel, bloodChannel)
+                listOf(generalChannel, postsChannel, birthdayChannel, chatChannel, groupChatChannel, bloodChannel)
             )
 
             // Remove legacy background service channel if previously created
             try {
                 notificationManager.deleteNotificationChannel(CHANNEL_BACKGROUND_SERVICE)
             } catch (_: Exception) {}
+        }
+    }
+
+    private fun wakeUpScreenIfNeeded(context: Context) {
+        try {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+            if (powerManager != null && !powerManager.isInteractive) {
+                @Suppress("DEPRECATION")
+                val wakeLock = powerManager.newWakeLock(
+                    android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK or android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "MandalApp:NotificationWakeLock"
+                )
+                wakeLock.acquire(3000L) // Light up screen for 3 seconds on lock screen
+            }
+        } catch (e: Exception) {
+            // Non-critical fallback
         }
     }
 
@@ -142,6 +184,9 @@ object SystemNotificationHelper {
 
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
+        // Wake up screen if locked or in sleep mode so user immediately sees incoming alert
+        wakeUpScreenIfNeeded(context)
+
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -149,8 +194,10 @@ object SystemNotificationHelper {
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setAutoCancel(true)
             .setSound(defaultSoundUri)
-            .setVibrate(longArrayOf(0, 250, 150, 250))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVibrate(if (channelId == CHANNEL_EMERGENCY_BLOOD) longArrayOf(0, 450, 150, 450, 150, 450) else longArrayOf(0, 250, 150, 250))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pendingIntent)
 
         try {

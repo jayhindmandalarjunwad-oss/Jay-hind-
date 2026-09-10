@@ -79,12 +79,20 @@ class MandalSyncJobService : JobService() {
         // 1. Check notifications
         try {
             val notifsSnapshot = firestore.collection("notifications")
-                .whereGreaterThan("createdAt", lastCheckedTime)
+                .whereGreaterThan("timestamp", lastCheckedTime)
                 .get()
                 .await()
 
             for (doc in notifsSnapshot.documents) {
                 val targetUserId = doc.getString("targetUserId")
+                val authorId = doc.getString("targetExtra")
+                val type = doc.getString("type") ?: "GENERAL"
+
+                // Skip if authored by self
+                if (!authorId.isNullOrBlank() && authorId == currentUserId) {
+                    continue
+                }
+
                 val isRelevant = when {
                     targetUserId == null || targetUserId.isBlank() || targetUserId == "ALL" -> true
                     targetUserId == "ADMIN" -> isAdmin
@@ -95,15 +103,28 @@ class MandalSyncJobService : JobService() {
                     val title = doc.getString("title") ?: "🚩 जय हिंद मंडळ"
                     val message = doc.getString("message") ?: ""
                     val notifId = doc.id
-                    val targetRoute = doc.getString("targetRoute") ?: "ANNOUNCEMENTS"
+                    val targetRoute = doc.getString("targetRoute") ?: when (type) {
+                        "POST" -> "POST"
+                        "BIRTHDAY" -> "BIRTHDAYS"
+                        "BLOOD_ALERT" -> "BLOOD_ALERT"
+                        "EVENT" -> "EVENTS"
+                        else -> "NOTIFICATIONS"
+                    }
                     val targetId = doc.getString("targetId")
+
+                    val channelId = when (type) {
+                        "POST" -> SystemNotificationHelper.CHANNEL_POSTS
+                        "BIRTHDAY" -> SystemNotificationHelper.CHANNEL_BIRTHDAY
+                        "BLOOD_ALERT" -> SystemNotificationHelper.CHANNEL_EMERGENCY_BLOOD
+                        else -> SystemNotificationHelper.CHANNEL_GENERAL
+                    }
 
                     SystemNotificationHelper.showSystemNotification(
                         context = applicationContext,
                         title = title,
                         message = message,
                         notificationId = Math.abs(notifId.hashCode()),
-                        channelId = SystemNotificationHelper.CHANNEL_GENERAL,
+                        channelId = channelId,
                         targetRoute = targetRoute,
                         targetId = targetId
                     )

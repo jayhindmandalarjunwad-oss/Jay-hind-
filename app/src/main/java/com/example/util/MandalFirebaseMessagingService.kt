@@ -58,6 +58,8 @@ class MandalFirebaseMessagingService : FirebaseMessagingService() {
 
         // Map channels accurately
         val channelId = when (type) {
+            "POST" -> SystemNotificationHelper.CHANNEL_POSTS
+            "BIRTHDAY" -> SystemNotificationHelper.CHANNEL_BIRTHDAY
             "CHAT" -> SystemNotificationHelper.CHANNEL_CHAT
             "GROUP_CHAT" -> SystemNotificationHelper.CHANNEL_GROUP_CHAT
             "BLOOD_ALERT" -> SystemNotificationHelper.CHANNEL_EMERGENCY_BLOOD
@@ -66,9 +68,12 @@ class MandalFirebaseMessagingService : FirebaseMessagingService() {
 
         // Map target routes for seamless in-app navigation on tap
         val targetRoute = data["targetRoute"] ?: when (type) {
+            "POST" -> "POST"
+            "BIRTHDAY" -> "BIRTHDAYS"
             "CHAT", "GROUP_CHAT" -> "CHAT"
-            "BLOOD_ALERT" -> "BLOOD_DONATION"
+            "BLOOD_ALERT" -> "BLOOD_ALERT"
             "EVENT" -> "EVENTS"
+            "ANNOUNCEMENT" -> "ANNOUNCEMENTS"
             else -> "NOTIFICATIONS"
         }
         val targetId = data["targetId"] ?: if (type == "CHAT") senderId else null

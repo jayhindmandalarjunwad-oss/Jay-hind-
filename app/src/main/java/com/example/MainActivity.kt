@@ -73,6 +73,12 @@ class MainActivity : ComponentActivity() {
                         fcm.subscribeToTopic("mandal_announcements")
                         fcm.subscribeToTopic("mandal_emergency_blood")
                         fcm.subscribeToTopic("mandal_events")
+                        fcm.subscribeToTopic("mandal_posts")
+                        fcm.subscribeToTopic("mandal_birthdays")
+                        fcm.subscribeToTopic("mandal_group_chat")
+
+                        // Daily birthday check and notification dispatch
+                        viewModel.checkAndDispatchBirthdayNotifications()
                     } catch (fcmErr: Exception) {
                         android.util.Log.d("MainActivity", "FCM token lookup note: ${fcmErr.message}")
                     }
