@@ -47,6 +47,7 @@ fun AuthScreen(
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
 
     // Login Form State
+    val isLoggingIn by viewModel.isLoggingIn.collectAsStateWithLifecycle()
     var loginMobile by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
@@ -221,8 +222,11 @@ fun AuthScreen(
 
                     Button(
                         onClick = {
-                            viewModel.login(loginMobile, loginPassword) {}
+                            if (!isLoggingIn) {
+                                viewModel.login(loginMobile, loginPassword) {}
+                            }
                         },
+                        enabled = !isLoggingIn,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
@@ -230,9 +234,19 @@ fun AuthScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Login, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("लॉगिन करा (Login)", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        if (isLoggingIn) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White,
+                                strokeWidth = 2.5.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("तपासत आहे...", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(imageVector = Icons.Default.Login, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("लॉगिन करा (Login)", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))

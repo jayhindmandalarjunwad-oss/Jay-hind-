@@ -47,14 +47,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleIntent(intent)
 
-        // Initialize Google FCM push messaging and dismiss any legacy persistent notification
+        // Initialize background sync & real-time notification service
         try {
-            // Dismiss legacy foreground notification (ID 999) if lingering from past versions
-            com.example.util.SystemNotificationHelper.cancelNotification(this, 999)
-            try {
-                stopService(Intent(this, com.example.util.MandalNotificationService::class.java))
-            } catch (_: Exception) {}
-
+            com.example.util.MandalNotificationService.startService(this)
             com.example.util.MandalSyncJobService.scheduleJob(this)
 
             val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
@@ -69,7 +64,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel.updateFcmToken(token)
                             }
                         }
-                        // Subscribe to broadcast topics for instant push alerts without battery drain
+                        // Subscribe to broadcast topics for dual redundancy
                         fcm.subscribeToTopic("mandal_announcements")
                         fcm.subscribeToTopic("mandal_emergency_blood")
                         fcm.subscribeToTopic("mandal_events")
@@ -80,11 +75,11 @@ class MainActivity : ComponentActivity() {
                         // Daily birthday check and notification dispatch
                         viewModel.checkAndDispatchBirthdayNotifications()
                     } catch (fcmErr: Exception) {
-                        android.util.Log.d("MainActivity", "FCM token lookup note: ${fcmErr.message}")
+                        android.util.Log.d("MainActivity", "FCM setup note: ${fcmErr.message}")
                     }
                 }
             } else {
-                android.util.Log.i("MainActivity", "Google Play Services note ($resultCode). JobScheduler will handle periodic sync.")
+                android.util.Log.i("MainActivity", "Google Play Services note ($resultCode). Foreground service & JobScheduler handle notifications.")
             }
         } catch (e: Exception) {
             android.util.Log.w("MainActivity", "Background notification services note: ${e.message}")

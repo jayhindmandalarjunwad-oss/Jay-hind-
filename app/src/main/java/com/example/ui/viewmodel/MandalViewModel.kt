@@ -69,6 +69,9 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
 
+    private val _isLoggingIn = MutableStateFlow(false)
+    val isLoggingIn: StateFlow<Boolean> = _isLoggingIn.asStateFlow()
+
     // Members Directory & Filtering
     val approvedMembers: StateFlow<List<User>> = repository.approvedMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -310,16 +313,23 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             showSnackbar("कृपया मोबाईल नंबर आणि पासवर्ड टाका.")
             return
         }
+        if (_isLoggingIn.value) return
+        _isLoggingIn.value = true
         viewModelScope.launch {
-            val res = repository.login(mobile, pass)
-            res.onSuccess {
-                showSnackbar("स्वागत आहे, ${it.fullName}!")
-                _currentScreen.value = AppScreen.MAIN
-                _currentTab.value = NavigationTab.POSTS
-                refreshAllData(silent = true)
-                onSuccess()
-            }.onFailure {
-                showSnackbar(it.message ?: "लॉगिन अयशस्वी झाले.")
+            try {
+                val res = repository.login(mobile, pass)
+                res.onSuccess {
+                    showSnackbar("स्वागत आहे, ${it.fullName}!")
+                    _currentScreen.value = AppScreen.MAIN
+                    _currentTab.value = NavigationTab.POSTS
+                    lastSilentSyncTime = 0L
+                    refreshAllData(silent = true)
+                    onSuccess()
+                }.onFailure {
+                    showSnackbar(it.message ?: "लॉगिन अयशस्वी झाले.")
+                }
+            } finally {
+                _isLoggingIn.value = false
             }
         }
     }

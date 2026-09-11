@@ -294,7 +294,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                     com.example.util.SystemNotificationHelper.showSystemNotification(
                         context = context,
                         title = "🚩 जय हिंद मंडळ अर्जुनवाड",
-                        message = "गुगल पुश नोटिफिकेशन्स (FCM) यशस्वीरित्या सक्रिय आहेत! 🔔",
+                        message = "२४×७ बॅकग्राउंड नोटिफिकेशन्स व पुश अलर्ट्स सक्रिय आहेत! 🔔",
                         channelId = com.example.util.SystemNotificationHelper.CHANNEL_GENERAL
                     )
                     android.widget.Toast.makeText(context, "चाचणी नोटिफिकेशन पाठवले आहे! 🔔", android.widget.Toast.LENGTH_SHORT).show()
@@ -329,7 +329,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "गुगल पुश नोटिफिकेशन्स (FCM)",
+                            text = "२४×७ थेट नोटिफिकेशन्स",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = TextPrimary
                         )
@@ -349,7 +349,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                     }
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "मोबाईल बंद असतानाही नवीन मेसेज व सूचना थेट मिळतात • ०% अतिरिक्त बॅटरी खर्च",
+                        text = "ॲप बंद असले तरीही सर्व पोस्ट, वाढदिवस, मेसेज व सूचना थेट मिळतील",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         fontSize = 11.5.sp

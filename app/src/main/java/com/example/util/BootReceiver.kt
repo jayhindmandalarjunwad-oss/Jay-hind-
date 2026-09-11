@@ -14,6 +14,7 @@ class BootReceiver : BroadcastReceiver() {
             action == Intent.ACTION_MY_PACKAGE_REPLACED
         ) {
             SystemNotificationHelper.initNotificationChannels(context)
+            MandalNotificationService.startService(context)
             MandalSyncJobService.scheduleJob(context)
             MandalBackupJobService.scheduleDailyBackup(context)
         }

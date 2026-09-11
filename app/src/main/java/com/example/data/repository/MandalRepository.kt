@@ -188,93 +188,157 @@ class MandalRepository(context: Context) {
 
     suspend fun forceSyncFromFirebase() = withContext(Dispatchers.IO) {
         try {
-            Log.d("FirebaseSync", "Starting manual Firestore force sync...")
-            // 1. Sync Users
-            val userSnap = Tasks.await(firestore.collection("users").get())
-            val users = userSnap.documents.mapNotNull { it.toUserEntity() }
-            if (users.isNotEmpty()) {
-                userDao.insertUsers(users)
-                Log.d("FirebaseSync", "Fetched ${users.size} users from Firestore")
-            }
+            Log.d("FirebaseSync", "Starting Firestore force sync in parallel coroutines...")
 
-            // 2. Sync Posts
-            val postSnap = Tasks.await(firestore.collection("posts").get())
-            val posts = postSnap.documents.mapNotNull { it.toPostEntity() }
-            if (posts.isNotEmpty()) {
-                postDao.insertPosts(posts)
-                Log.d("FirebaseSync", "Fetched ${posts.size} posts from Firestore")
-            }
+            // Run independent sync tasks concurrently so that failure in one collection does not stop others
+            kotlinx.coroutines.coroutineScope {
+                // 1. Sync Users
+                launch {
+                    try {
+                        val userSnap = Tasks.await(firestore.collection("users").get())
+                        val users = userSnap.documents.mapNotNull { it.toUserEntity() }
+                        if (users.isNotEmpty()) {
+                            userDao.insertUsers(users)
+                            Log.d("FirebaseSync", "Fetched ${users.size} users from Firestore")
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Users sync error: ${e.message}")
+                    }
+                }
 
-            // 3. Sync Comments
-            val commSnap = Tasks.await(firestore.collection("comments").get())
-            val comments = commSnap.documents.mapNotNull { it.toCommentEntity() }
-            if (comments.isNotEmpty()) {
-                commentDao.insertComments(comments)
-            }
+                // 2. Sync Posts
+                launch {
+                    try {
+                        val postSnap = Tasks.await(firestore.collection("posts").get())
+                        val posts = postSnap.documents.mapNotNull { it.toPostEntity() }
+                        if (posts.isNotEmpty()) {
+                            postDao.insertPosts(posts)
+                            Log.d("FirebaseSync", "Fetched ${posts.size} posts from Firestore")
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Posts sync error: ${e.message}")
+                    }
+                }
 
-            // 4. Sync Chat Messages
-            val chatSnap = Tasks.await(firestore.collection("chat_messages").get())
-            val chats = chatSnap.documents.mapNotNull { it.toChatMessageEntity() }
-            if (chats.isNotEmpty()) {
-                chatDao.insertMessages(chats)
-            }
+                // 3. Sync Comments
+                launch {
+                    try {
+                        val commSnap = Tasks.await(firestore.collection("comments").get())
+                        val comments = commSnap.documents.mapNotNull { it.toCommentEntity() }
+                        if (comments.isNotEmpty()) {
+                            commentDao.insertComments(comments)
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Comments sync error: ${e.message}")
+                    }
+                }
 
-            // 5. Sync Announcements
-            val annSnap = Tasks.await(firestore.collection("announcements").get())
-            val anns = annSnap.documents.mapNotNull { it.toAnnouncementEntity() }
-            if (anns.isNotEmpty()) {
-                announcementDao.insertAnnouncements(anns)
-            }
+                // 4. Sync Chat Messages
+                launch {
+                    try {
+                        val chatSnap = Tasks.await(firestore.collection("chat_messages").get())
+                        val chats = chatSnap.documents.mapNotNull { it.toChatMessageEntity() }
+                        if (chats.isNotEmpty()) {
+                            chatDao.insertMessages(chats)
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Chats sync error: ${e.message}")
+                    }
+                }
 
-            // 6. Sync Events
-            val eventSnap = Tasks.await(firestore.collection("events").get())
-            val events = eventSnap.documents.mapNotNull { it.toEventEntity() }
-            if (events.isNotEmpty()) {
-                eventDao.insertEvents(events)
-            }
+                // 5. Sync Announcements
+                launch {
+                    try {
+                        val annSnap = Tasks.await(firestore.collection("announcements").get())
+                        val anns = annSnap.documents.mapNotNull { it.toAnnouncementEntity() }
+                        if (anns.isNotEmpty()) {
+                            announcementDao.insertAnnouncements(anns)
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Announcements sync error: ${e.message}")
+                    }
+                }
 
-            // 7. Sync Gallery
-            val albumSnap = Tasks.await(firestore.collection("albums").get())
-            val albums = albumSnap.documents.mapNotNull { it.toAlbumEntity() }
-            if (albums.isNotEmpty()) galleryDao.insertAlbums(albums)
+                // 6. Sync Events
+                launch {
+                    try {
+                        val eventSnap = Tasks.await(firestore.collection("events").get())
+                        val events = eventSnap.documents.mapNotNull { it.toEventEntity() }
+                        if (events.isNotEmpty()) {
+                            eventDao.insertEvents(events)
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Events sync error: ${e.message}")
+                    }
+                }
 
-            val photoSnap = Tasks.await(firestore.collection("photos").get())
-            val photos = photoSnap.documents.mapNotNull { it.toPhotoEntity() }
-            if (photos.isNotEmpty()) galleryDao.insertPhotos(photos)
+                // 7. Sync Gallery
+                launch {
+                    try {
+                        val albumSnap = Tasks.await(firestore.collection("albums").get())
+                        val albums = albumSnap.documents.mapNotNull { it.toAlbumEntity() }
+                        if (albums.isNotEmpty()) galleryDao.insertAlbums(albums)
 
-            val videoSnap = Tasks.await(firestore.collection("videos").get())
-            val videos = videoSnap.documents.mapNotNull { it.toVideoEntity() }
-            if (videos.isNotEmpty()) galleryDao.insertVideos(videos)
+                        val photoSnap = Tasks.await(firestore.collection("photos").get())
+                        val photos = photoSnap.documents.mapNotNull { it.toPhotoEntity() }
+                        if (photos.isNotEmpty()) galleryDao.insertPhotos(photos)
 
-            // 8. Sync Banners
-            val bannerSnap = Tasks.await(firestore.collection("banners").get())
-            val banners = bannerSnap.documents.mapNotNull { it.toBannerEntity() }
-            if (banners.isNotEmpty()) bannerDao.insertBanners(banners)
+                        val videoSnap = Tasks.await(firestore.collection("videos").get())
+                        val videos = videoSnap.documents.mapNotNull { it.toVideoEntity() }
+                        if (videos.isNotEmpty()) galleryDao.insertVideos(videos)
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Gallery sync error: ${e.message}")
+                    }
+                }
 
-            // 9. Sync Notifications
-            val notifSnap = Tasks.await(firestore.collection("notifications").get())
-            val notifs = notifSnap.documents.mapNotNull { it.toNotificationEntity() }
-            val deletedIds = getDeletedNotificationIds()
-            val readIds = getReadNotificationIds()
-            val filteredNotifs = notifs.filter { it.id !in deletedIds }.map { notif ->
-                if (notif.id in readIds) notif.copy(isRead = true) else notif
-            }
-            if (filteredNotifs.isNotEmpty()) notificationDao.insertNotifications(filteredNotifs)
+                // 8. Sync Banners
+                launch {
+                    try {
+                        val bannerSnap = Tasks.await(firestore.collection("banners").get())
+                        val banners = bannerSnap.documents.mapNotNull { it.toBannerEntity() }
+                        if (banners.isNotEmpty()) bannerDao.insertBanners(banners)
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Banners sync error: ${e.message}")
+                    }
+                }
 
-            // 10. Sync Mandal Info
-            val infoDoc = Tasks.await(firestore.collection("mandal_info").document("mandal_default").get())
-            if (infoDoc.exists()) {
-                val info = infoDoc.toMandalInfoEntity()
-                if (info != null) {
-                    mandalInfoDao.saveMandalInfo(info)
-                    if (!info.logoUrl.isNullOrBlank()) {
-                        _mandalLogoUrl.value = info.logoUrl
+                // 9. Sync Notifications
+                launch {
+                    try {
+                        val notifSnap = Tasks.await(firestore.collection("notifications").get())
+                        val notifs = notifSnap.documents.mapNotNull { it.toNotificationEntity() }
+                        val deletedIds = getDeletedNotificationIds()
+                        val readIds = getReadNotificationIds()
+                        val filteredNotifs = notifs.filter { it.id !in deletedIds }.map { notif ->
+                            if (notif.id in readIds) notif.copy(isRead = true) else notif
+                        }
+                        if (filteredNotifs.isNotEmpty()) notificationDao.insertNotifications(filteredNotifs)
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Notifications sync error: ${e.message}")
+                    }
+                }
+
+                // 10. Sync Mandal Info
+                launch {
+                    try {
+                        val infoDoc = Tasks.await(firestore.collection("mandal_info").document("mandal_default").get())
+                        if (infoDoc.exists()) {
+                            val info = infoDoc.toMandalInfoEntity()
+                            if (info != null) {
+                                mandalInfoDao.saveMandalInfo(info)
+                                if (!info.logoUrl.isNullOrBlank()) {
+                                    _mandalLogoUrl.value = info.logoUrl
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Mandal info sync error: ${e.message}")
                     }
                 }
             }
-            Log.d("FirebaseSync", "Firestore force sync completed successfully.")
+            Log.d("FirebaseSync", "Firestore parallel force sync completed.")
         } catch (e: Exception) {
-            Log.e("FirebaseSync", "Firestore force sync failed: ${e.message}", e)
+            Log.e("FirebaseSync", "Firestore force sync error: ${e.message}", e)
         }
     }
 
@@ -812,15 +876,26 @@ class MandalRepository(context: Context) {
     // AUTH & USERS
     suspend fun login(mobile: String, pass: String): Result<User> = withContext(Dispatchers.IO) {
         val cleanMobile = mobile.trim()
+        val digitsOnlyMobile = cleanMobile.filter { it.isDigit() }
+        val raw10Digit = if (digitsOnlyMobile.length >= 10) digitsOnlyMobile.takeLast(10) else digitsOnlyMobile
         val cleanPass = pass.trim()
 
         var user = userDao.getUserByMobile(cleanMobile)
+            ?: if (raw10Digit.isNotBlank()) userDao.getUserByMobile(raw10Digit) else null
 
         // If not found in local Room or status is still PENDING_APPROVAL locally, fetch latest from Firestore
         try {
             val queryTask = firestore.collection("users").whereEqualTo("mobileNumber", cleanMobile).get(com.google.firebase.firestore.Source.DEFAULT)
             val snapshot = Tasks.await(queryTask)
-            val doc = snapshot.documents.firstOrNull()
+            var doc = snapshot.documents.firstOrNull()
+
+            // If not found by cleanMobile, try looking up by 10-digit raw number
+            if (doc == null && raw10Digit.isNotBlank() && raw10Digit != cleanMobile) {
+                val fallbackTask = firestore.collection("users").whereEqualTo("mobileNumber", raw10Digit).get(com.google.firebase.firestore.Source.DEFAULT)
+                val fallbackSnapshot = Tasks.await(fallbackTask)
+                doc = fallbackSnapshot.documents.firstOrNull()
+            }
+
             if (doc != null) {
                 val remoteUser = doc.toUserEntity()
                 if (remoteUser != null) {

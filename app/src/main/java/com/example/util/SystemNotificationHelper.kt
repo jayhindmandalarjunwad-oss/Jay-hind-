@@ -89,14 +89,20 @@ object SystemNotificationHelper {
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
-            notificationManager.createNotificationChannels(
-                listOf(generalChannel, postsChannel, birthdayChannel, chatChannel, groupChatChannel, bloodChannel)
-            )
+            val backgroundServiceChannel = NotificationChannel(
+                CHANNEL_BACKGROUND_SERVICE,
+                "बॅकग्राउंड सिंक सेवा (Background Service)",
+                NotificationManager.IMPORTANCE_MIN
+            ).apply {
+                description = "मंडळातील नवीन मेसेज व सूचना वेळेवर मिळवण्यासाठी बॅकग्राउंड सेवा"
+                enableVibration(false)
+                setShowBadge(false)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_SECRET
+            }
 
-            // Remove legacy background service channel if previously created
-            try {
-                notificationManager.deleteNotificationChannel(CHANNEL_BACKGROUND_SERVICE)
-            } catch (_: Exception) {}
+            notificationManager.createNotificationChannels(
+                listOf(generalChannel, postsChannel, birthdayChannel, chatChannel, groupChatChannel, bloodChannel, backgroundServiceChannel)
+            )
         }
     }
 
@@ -116,7 +122,6 @@ object SystemNotificationHelper {
         }
     }
 
-    @Deprecated("Legacy foreground notification replaced by Firebase Cloud Messaging")
     fun createForegroundServiceNotification(context: Context): android.app.Notification {
         initNotificationChannels(context)
         val intent = Intent(context, MainActivity::class.java).apply {
