@@ -58,7 +58,6 @@ fun ChatBubble(
     val scope = rememberCoroutineScope()
     var isDownloadingImage by remember { mutableStateOf(false) }
     var isDownloadingDoc by remember { mutableStateOf(false) }
-    var isOpeningDoc by remember { mutableStateOf(false) }
     var isDownloadingVideo by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
@@ -544,14 +543,9 @@ fun ChatBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                if (docUrl.isNotBlank() && !isOpeningDoc) {
+                                if (docUrl.isNotBlank()) {
                                     scope.launch {
-                                        isOpeningDoc = true
-                                        try {
-                                            MediaUtils.openDocumentFile(context, docUrl, docName)
-                                        } finally {
-                                            isOpeningDoc = false
-                                        }
+                                        MediaUtils.openDocumentFile(context, docUrl, docName)
                                     }
                                 }
                             }
@@ -566,20 +560,12 @@ fun ChatBubble(
                                 modifier = Modifier.size(38.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    if (isOpeningDoc) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.dp,
-                                            color = BloodRed
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.PictureAsPdf,
-                                            contentDescription = "PDF Document",
-                                            tint = BloodRed,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.PictureAsPdf,
+                                        contentDescription = "PDF Document",
+                                        tint = BloodRed,
+                                        modifier = Modifier.size(22.dp)
+                                    )
                                 }
                             }
 
@@ -595,9 +581,9 @@ fun ChatBubble(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = if (isOpeningDoc) "PDF उघडत आहे..." else (message.attachmentExtra ?: "PDF Document • उघडण्यासाठी टॅप करा"),
+                                    text = message.attachmentExtra ?: "PDF Document • उघडण्यासाठी टॅप करा",
                                     fontSize = 11.sp,
-                                    color = if (isOpeningDoc) BloodRed else TextSecondary
+                                    color = TextSecondary
                                 )
                             }
 

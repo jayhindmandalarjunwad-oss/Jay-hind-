@@ -945,16 +945,6 @@ object MediaUtils {
                 docUrlOrBase64.startsWith("content://") || docUrlOrBase64.startsWith("file://") -> {
                     context.contentResolver.openInputStream(Uri.parse(docUrlOrBase64))?.use { it.readBytes() }
                 }
-                docUrlOrBase64.startsWith("/") -> {
-                    try {
-                        val localFile = File(docUrlOrBase64)
-                        if (localFile.exists() && localFile.length() > 0) {
-                            localFile.readBytes()
-                        } else null
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
                 else -> {
                     try {
                         Base64.decode(docUrlOrBase64.trim(), Base64.DEFAULT)
@@ -1160,16 +1150,6 @@ object MediaUtils {
                         null
                     }
                 }
-                docUrlOrBase64.startsWith("/") -> {
-                    try {
-                        val localFile = File(docUrlOrBase64)
-                        if (localFile.exists() && localFile.length() > 0) {
-                            localFile.readBytes()
-                        } else null
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
                 else -> {
                     try {
                         Base64.decode(docUrlOrBase64.trim(), Base64.DEFAULT)
@@ -1198,26 +1178,10 @@ object MediaUtils {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            // Explicitly grant read permissions to all apps that can handle this intent
-            val resInfoList = context.packageManager.queryIntentActivities(
-                viewIntent,
-                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
-            )
-            for (resolveInfo in resInfoList) {
-                val packageName = resolveInfo.activityInfo.packageName
-                context.grantUriPermission(
-                    packageName,
-                    contentUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-
             withContext(Dispatchers.Main) {
                 try {
-                    val chooser = Intent.createChooser(viewIntent, "PDF दस्तऐवज उघडा ($safeFileName)").apply {
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
+                    val chooser = Intent.createChooser(viewIntent, "PDF दस्तऐवज उघडा ($safeFileName)")
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(chooser)
                 } catch (e: Exception) {
                     Toast.makeText(context, "PDF उघडण्यासाठी Google Drive किंवा PDF Viewer आवश्यक आहे", Toast.LENGTH_LONG).show()

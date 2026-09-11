@@ -41,10 +41,7 @@ class MandalNotificationService : Service() {
                     context.startService(intent)
                 }
             } catch (e: Exception) {
-                // In Android 12+ (API 31+), starting a foreground service while app is in background throws
-                // ForegroundServiceStartNotAllowedException if not in allowlist.
-                // In that case, MandalSyncJobService and Google FCM take over seamlessly.
-                Log.w(TAG, "MandalNotificationService deferred: ${e.message}")
+                Log.e(TAG, "Failed to start MandalNotificationService: ${e.message}")
             }
         }
 
@@ -63,15 +60,7 @@ class MandalNotificationService : Service() {
         Log.d(TAG, "MandalNotificationService onCreate - Starting background listeners")
         try {
             val foregroundNotification = SystemNotificationHelper.createForegroundServiceNotification(this)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                    NOTIFICATION_ID_FOREGROUND,
-                    foregroundNotification,
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                )
-            } else {
-                startForeground(NOTIFICATION_ID_FOREGROUND, foregroundNotification)
-            }
+            startForeground(NOTIFICATION_ID_FOREGROUND, foregroundNotification)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground notification: ${e.message}")
         }
@@ -82,15 +71,7 @@ class MandalNotificationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
             val foregroundNotification = SystemNotificationHelper.createForegroundServiceNotification(this)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                    NOTIFICATION_ID_FOREGROUND,
-                    foregroundNotification,
-                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                )
-            } else {
-                startForeground(NOTIFICATION_ID_FOREGROUND, foregroundNotification)
-            }
+            startForeground(NOTIFICATION_ID_FOREGROUND, foregroundNotification)
         } catch (e: Exception) {
             Log.e(TAG, "Failed in onStartCommand startForeground: ${e.message}")
         }

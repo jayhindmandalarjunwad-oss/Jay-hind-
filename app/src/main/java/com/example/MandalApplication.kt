@@ -46,6 +46,7 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
             }
 
             // Schedule native background sync job & daily database backup
+            com.example.util.MandalNotificationService.startService(this)
             com.example.util.MandalSyncJobService.scheduleJob(this)
             com.example.util.MandalBackupJobService.scheduleDailyBackup(this)
             com.example.util.GoogleDriveMediaBackupManager.init(this)
