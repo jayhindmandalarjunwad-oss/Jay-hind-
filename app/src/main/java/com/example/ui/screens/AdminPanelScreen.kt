@@ -55,7 +55,8 @@ enum class AdminTab(val title: String) {
     MANAGE_GALLERY("फोटो व व्हिडिओ"),
     POSTS_MODERATION("पोस्ट्स नियंत्रण"),
     MEMBER_FEEDBACK("सभासद अभिप्राय"),
-    DATABASE_BACKUP("💾 बॅकअप व डेटा सुरक्षा")
+    DATABASE_BACKUP("💾 बॅकअप व डेटा सुरक्षा"),
+    CLOUD_MEMORY("📊 क्लाऊड मेमरी स्टेटस")
 }
 
 @Composable
@@ -203,6 +204,7 @@ fun AdminPanelScreen(
                 AdminTab.POSTS_MODERATION -> PostsModerationAdminTab(posts, viewModel)
                 AdminTab.MEMBER_FEEDBACK -> MemberFeedbacksAdminTab(feedbacks, viewModel)
                 AdminTab.DATABASE_BACKUP -> DatabaseBackupAdminTab(viewModel)
+                AdminTab.CLOUD_MEMORY -> CloudMemoryAdminTab(viewModel)
             }
         }
     }
@@ -3881,6 +3883,8 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
     val driveSyncProgress by viewModel.driveSyncProgress.collectAsStateWithLifecycle()
     val isDriveFolderConfigured by viewModel.isDriveFolderConfigured.collectAsStateWithLifecycle()
     val selectedDriveFolderName by viewModel.selectedDriveFolderName.collectAsStateWithLifecycle()
+    val firebaseStorageStats by viewModel.firebaseStorageStats.collectAsStateWithLifecycle()
+    val isCalculatingMemory by viewModel.isCalculatingMemory.collectAsStateWithLifecycle()
 
     val driveFolderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -3902,6 +3906,331 @@ fun DatabaseBackupAdminTab(viewModel: MandalViewModel) {
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // 0. FIREBASE CLOUD MEMORY & STORAGE HEALTH CARD (ADMIN ONLY)
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                border = BorderStroke(
+                    1.5.dp,
+                    if (firebaseStorageStats.isNearLimit) Color(0xFFD32F2F) else Color(0xFF1976D2).copy(alpha = 0.4f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (firebaseStorageStats.isNearLimit) Color(0xFFD32F2F).copy(alpha = 0.12f) else Color(0xFF1976D2).copy(alpha = 0.12f),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudQueue,
+                                        contentDescription = null,
+                                        tint = if (firebaseStorageStats.isNearLimit) Color(0xFFD32F2F) else Color(0xFF1976D2),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Text(
+                                    text = "Firebase क्लाऊड मेमरी स्टेटस",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "फक्त ॲडमिनसाठी • मोफत Spark प्लॅन (5 GB)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.recalculateFirebaseMemory() },
+                            enabled = !isCalculatingMemory,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            if (isCalculatingMemory) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF1976D2)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "रीफ्रेश करा",
+                                    tint = Color(0xFF1976D2),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 3 KPI Boxes: Total, Used, Remaining
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Total Quota
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "एकूण मेमरी",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = firebaseStorageStats.formattedTotal,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        // Used Memory
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (firebaseStorageStats.isNearLimit) Color(0xFFFFEBEE) else Color(0xFFE3F2FD),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "वापरलेली मेमरी",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (firebaseStorageStats.isNearLimit) Color(0xFFC62828) else Color(0xFF1565C0)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = firebaseStorageStats.formattedUsed,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (firebaseStorageStats.isNearLimit) Color(0xFFC62828) else Color(0xFF1565C0)
+                                )
+                            }
+                        }
+
+                        // Remaining Memory
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFE8F5E9),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "शिल्लक मेमरी",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = firebaseStorageStats.formattedRemaining,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Progress Bar
+                    val progressRatio = (firebaseStorageStats.usedPercentage / 100f).coerceIn(0f, 1f)
+                    val barColor = when {
+                        firebaseStorageStats.usedPercentage >= 85f -> Color(0xFFD32F2F)
+                        firebaseStorageStats.usedPercentage >= 65f -> Color(0xFFF57C00)
+                        else -> Color(0xFF2E7D32)
+                    }
+
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "स्टोरेज वापर: ${String.format("%.1f", firebaseStorageStats.usedPercentage)}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = barColor
+                            )
+                            Text(
+                                text = if (firebaseStorageStats.isNearLimit) "⚠️ मेमरी भरत आली आहे!" else "सुरक्षित (Safe)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (firebaseStorageStats.isNearLimit) Color(0xFFD32F2F) else SuccessGreen
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { progressRatio },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = barColor,
+                            trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Breakdown of storage
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "📁 स्टोरेज विभागनिहाय तपशील (एकूण ${firebaseStorageStats.totalFilesCount} फाइल्स):",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "• फोटो, बॅनर व पोस्ट्स:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = com.example.util.FirebaseMemoryManager.formatBytes(firebaseStorageStats.photosBytes),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "• व्हॉईस मेसेज ऑडिओ:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = com.example.util.FirebaseMemoryManager.formatBytes(firebaseStorageStats.voiceNotesBytes),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "• PDF व दस्तऐवज:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = com.example.util.FirebaseMemoryManager.formatBytes(firebaseStorageStats.documentsBytes),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            if (firebaseStorageStats.videosBytes > 0) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "• व्हिडिओ फाइल्स:",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = com.example.util.FirebaseMemoryManager.formatBytes(firebaseStorageStats.videosBytes),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "• स्थानिक डेटाबेस फाइल्स:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = com.example.util.FirebaseMemoryManager.formatBytes(firebaseStorageStats.databaseBytes),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Quick Action Button if near limit or to free up
+                    OutlinedButton(
+                        onClick = { viewModel.archiveMediaOlderThan15DaysNow() },
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, SaffronPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "१५ दिवसांपेक्षा जुना डेटा Drive वर हलवा व मेमरी मोकळी करा",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SaffronPrimary
+                        )
+                    }
+                }
+            }
+        }
         // 1. SYSTEM SECURITY & AUTO-SCHEDULE BANNER
         item {
             Card(
@@ -4808,6 +5137,480 @@ fun BackupItemCard(
                 }
             }
         }
+    }
+}
+
+// 13. SEPARATE CLOUD MEMORY REALTIME DASHBOARD TAB
+@Composable
+fun CloudMemoryAdminTab(viewModel: MandalViewModel) {
+    val stats by viewModel.firebaseStorageStats.collectAsStateWithLifecycle()
+    val isCalculating by viewModel.isCalculatingMemory.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshBackups()
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Hero Live Meter Card
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                border = BorderStroke(
+                    1.5.dp,
+                    if (stats.isNearLimit) Color(0xFFD32F2F) else Color(0xFF1976D2).copy(alpha = 0.35f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    // Header with Real-time status & Live Refresh Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (stats.isNearLimit) Color(0xFFD32F2F).copy(alpha = 0.12f) else Color(0xFF1976D2).copy(alpha = 0.12f),
+                                modifier = Modifier.size(50.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudQueue,
+                                        contentDescription = null,
+                                        tint = if (stats.isNearLimit) Color(0xFFD32F2F) else Color(0xFF1976D2),
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = "Firebase रिअल-टाईम मेमरी",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (stats.isNearLimit) Color(0xFFD32F2F) else SuccessGreen,
+                                        modifier = Modifier.size(8.dp)
+                                    ) {}
+                                    Text(
+                                        text = "लाईव्ह मॉनिटरिंग • मोफत Spark कोटा (5 GB)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.recalculateFirebaseMemory() },
+                            enabled = !isCalculating,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0xFF1976D2).copy(alpha = 0.08f), CircleShape)
+                        ) {
+                            if (isCalculating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF1976D2)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "रिफ्रेश करा",
+                                    tint = Color(0xFF1976D2),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // 3 KPI Boxes: Total, Used, Remaining
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Total Quota
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "एकूण कोटा",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = stats.formattedTotal,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "५,१२० MB",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Used Memory
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (stats.isNearLimit) Color(0xFFFFEBEE) else Color(0xFFE3F2FD),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "वापरलेली मेमरी",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (stats.isNearLimit) Color(0xFFC62828) else Color(0xFF1565C0)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = stats.formattedUsed,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (stats.isNearLimit) Color(0xFFC62828) else Color(0xFF1565C0)
+                                )
+                                Text(
+                                    text = "${String.format("%.1f", stats.usedPercentage)}% वापर",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (stats.isNearLimit) Color(0xFFC62828) else Color(0xFF1565C0)
+                                )
+                            }
+                        }
+
+                        // Remaining Memory
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFE8F5E9),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "शिल्लक मेमरी",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = stats.formattedRemaining,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Text(
+                                    text = "सुरक्षित शिल्लक",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Dynamic Progress Indicator
+                    val progressRatio = (stats.usedPercentage / 100f).coerceIn(0f, 1f)
+                    val barColor = when {
+                        stats.usedPercentage >= 85f -> Color(0xFFD32F2F)
+                        stats.usedPercentage >= 65f -> Color(0xFFF57C00)
+                        else -> Color(0xFF2E7D32)
+                    }
+
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "लाईव्ह क्षमता वापर: ${String.format("%.2f", stats.usedPercentage)}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = barColor
+                            )
+                            Text(
+                                text = if (stats.isNearLimit) "⚠️ मेमरी भरत आली आहे!" else "● उत्तम व सुरक्षित",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (stats.isNearLimit) Color(0xFFD32F2F) else SuccessGreen
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { progressRatio },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp)),
+                            color = barColor,
+                            trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Detailed Breakdown by Content Type
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PieChart,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "विस्तृत विभागनिहाय सांख्यिकी (एकूण ${stats.totalFilesCount} फाइल्स)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Photos & Posts
+                    MemoryBreakdownRow(
+                        icon = Icons.Default.PhotoLibrary,
+                        iconTint = Color(0xFFE65100),
+                        title = "फोटो, पोस्ट्स व ग्रुप बॅनर",
+                        subtitle = "गॅलरी, पोस्ट्स आणि बॅनर इमेज फाइल्स",
+                        sizeStr = com.example.util.FirebaseMemoryManager.formatBytes(stats.photosBytes)
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+
+                    // Voice Notes
+                    MemoryBreakdownRow(
+                        icon = Icons.Default.Mic,
+                        iconTint = Color(0xFF6A1B9A),
+                        title = "व्हॉईस मेसेज (ऑडिओ)",
+                        subtitle = "ग्रुप व वैयक्तिक चॅटमधील ऑडिओ नोट्स",
+                        sizeStr = com.example.util.FirebaseMemoryManager.formatBytes(stats.voiceNotesBytes)
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+
+                    // Documents & PDFs
+                    MemoryBreakdownRow(
+                        icon = Icons.Default.Description,
+                        iconTint = Color(0xFF0277BD),
+                        title = "PDF व दस्तऐवज फाइल्स",
+                        subtitle = "अहवाल, परिपत्रके व डॉक्युमेंट्स",
+                        sizeStr = com.example.util.FirebaseMemoryManager.formatBytes(stats.documentsBytes)
+                    )
+
+                    if (stats.videosBytes > 0) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+                        // Videos
+                        MemoryBreakdownRow(
+                            icon = Icons.Default.VideoLibrary,
+                            iconTint = Color(0xFFC2185B),
+                            title = "व्हिडिओ फाइल्स",
+                            subtitle = "कार्यक्रमांचे थेट व्हिडिओज",
+                            sizeStr = com.example.util.FirebaseMemoryManager.formatBytes(stats.videosBytes)
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+
+                    // SQLite Database
+                    MemoryBreakdownRow(
+                        icon = Icons.Default.Storage,
+                        iconTint = Color(0xFF2E7D32),
+                        title = "स्थानिक डेटाबेस (SQLite)",
+                        subtitle = "सभासद, संदेश व नोंदी इंडेक्स",
+                        sizeStr = com.example.util.FirebaseMemoryManager.formatBytes(stats.databaseBytes)
+                    )
+                }
+            }
+        }
+
+        // Action Buttons Card
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "⚡ मेमरी व्यवस्थापन व सुरक्षा",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Firebase वर नेहमी ५ GB मोफत कोटा असतो. १५ दिवसांपेक्षा जुना डेटा Google Drive वर हलवल्यास Firebase ची जागा कायम रिकामी व मोफत राहते.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = { viewModel.archiveMediaOlderThan15DaysNow() },
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "१५ दिवसांचा डेटा Google Drive वर पाठवा व जागा मोकळी करा",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = { viewModel.recalculateFirebaseMemory() },
+                        enabled = !isCalculating,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1976D2)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            tint = Color(0xFF1976D2),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isCalculating) "मेमरी मोजणी सुरू आहे..." else "रिअल-टाईम मेमरी पुन्हा तपासा (Live Refresh)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF1976D2)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoryBreakdownRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    title: String,
+    subtitle: String,
+    sizeStr: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = iconTint.copy(alpha = 0.12f),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Text(
+            text = sizeStr,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 8.dp)
+        )
     }
 }
 

@@ -1459,6 +1459,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _cloudProgress = MutableStateFlow(0f)
     val cloudProgress: StateFlow<Float> = _cloudProgress.asStateFlow()
 
+    private val _firebaseStorageStats = MutableStateFlow(com.example.util.FirebaseStorageUsageStats())
+    val firebaseStorageStats: StateFlow<com.example.util.FirebaseStorageUsageStats> = _firebaseStorageStats.asStateFlow()
+
+    private val _isCalculatingMemory = MutableStateFlow(false)
+    val isCalculatingMemory: StateFlow<Boolean> = _isCalculatingMemory.asStateFlow()
+
     init {
         refreshBackups()
     }
@@ -1468,9 +1474,22 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             val list = com.example.util.LocalBackupManager.getBackupsList(getApplication())
             val status = com.example.util.LocalBackupManager.getBackupStatusInfo(getApplication())
             val cloud = com.example.util.CloudBackupManager.getLatestCloudBackupInfo(getApplication())
+            val storageStats = com.example.util.FirebaseMemoryManager.calculateStorageUsage(getApplication())
             _localBackups.value = list
             _backupStatusInfo.value = status
             _cloudBackupInfo.value = cloud
+            _firebaseStorageStats.value = storageStats
+        }
+    }
+
+    fun recalculateFirebaseMemory() {
+        if (_isCalculatingMemory.value) return
+        _isCalculatingMemory.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val stats = com.example.util.FirebaseMemoryManager.calculateStorageUsage(getApplication())
+            _firebaseStorageStats.value = stats
+            _isCalculatingMemory.value = false
+            showSnackbar("📊 Firebase मेमरी तपशील रीफ्रेश झाला!")
         }
     }
 
