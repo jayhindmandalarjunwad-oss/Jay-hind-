@@ -45,10 +45,11 @@ jobs:
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Jayhind-Mandal-App-Debug-APK
           path: app/build/outputs/apk/debug/*.apk
-          retention-days: 30
+          retention-days: 1
 
       - name: Create GitHub Release with Direct APK
         uses: softprops/action-gh-release@v2
