@@ -296,18 +296,26 @@ fun GalleryScreen(
                                 )
                             } else {
                                 LazyVerticalGrid(
-                                    columns = GridCells.Fixed(3),
+                                    columns = GridCells.Fixed(2),
                                     contentPadding = PaddingValues(10.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     itemsIndexed(photos, key = { _, photo -> photo.id }) { index, photo ->
+                                        // Pinterest style staggered aspect ratios based on index
+                                        val itemAspectRatio = when (index % 4) {
+                                            0 -> 0.85f // Portrait tall
+                                            1 -> 1.15f // Slightly landscape
+                                            2 -> 1.0f  // Square
+                                            else -> 0.78f // Extended portrait
+                                        }
+
                                         Box(
                                             modifier = Modifier
-                                                .aspectRatio(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .border(1.dp, CardBorderColor, RoundedCornerShape(12.dp))
+                                                .aspectRatio(itemAspectRatio)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .border(1.dp, CardBorderColor.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
                                                 .clickable {
                                                     viewModel.openFullscreenPhotos(
                                                         photos = photos.map { it.imageUrl },
@@ -322,6 +330,27 @@ fun GalleryScreen(
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
                                             )
+
+                                            // Mandal Watermark Stamp (Top Left)
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopStart)
+                                                    .padding(6.dp)
+                                                    .background(
+                                                        Color.Black.copy(alpha = 0.45f),
+                                                        RoundedCornerShape(6.dp)
+                                                    )
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = "🚩 जय हिंद",
+                                                        color = Color.White,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
 
                                             if (photo.caption.isNotBlank()) {
                                                 Box(

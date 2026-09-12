@@ -258,9 +258,19 @@ fun MandalApp(viewModel: MandalViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(if (showLiveStreamPlayer || fullscreenViewerState != null || !fullscreenPhotoUrl.isNullOrBlank()) PaddingValues(0.dp) else innerPadding)
-                .background(BackgroundWarm)
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            when (currentScreen) {
+            AnimatedContent(
+                targetState = currentScreen,
+                transitionSpec = {
+                    fadeIn(animationSpec = androidx.compose.animation.core.tween(240)) +
+                            slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(240)) { width -> width / 4 } togetherWith
+                            fadeOut(animationSpec = androidx.compose.animation.core.tween(200)) +
+                            slideOutHorizontally(animationSpec = androidx.compose.animation.core.tween(200)) { width -> -width / 4 }
+                },
+                label = "screenTransition"
+            ) { targetScreen ->
+                when (targetScreen) {
                 AppScreen.SPLASH -> {
                     SplashScreen(
                         isLoggedIn = currentUser != null,
@@ -369,6 +379,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                         viewModel.navigateTo(AppScreen.MAIN)
                     }
                 }
+            }
             }
 
             // Global Create Post Dialog

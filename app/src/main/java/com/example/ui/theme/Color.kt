@@ -35,3 +35,12 @@ val TextSecondary = Color(0xFF000000)  // Pure Dark Black (#000000)
 val TextMuted = Color(0xFF111111)      // Deep Dark Black (#111111)
 val DividerColor = Color(0xFFE2E8F0)   // Light Slate 200 crisp divider
 
+// Soft Dark Theme Colors (Night Comfort / Eye-Safe)
+val DarkBackground = Color(0xFF121212)
+val DarkSurface = Color(0xFF1E1E1E)
+val DarkSurfaceVariant = Color(0xFF2C2C2C)
+val DarkCardBorder = Color(0xFF383838)
+val DarkTextPrimary = Color(0xFFEEEEEE)
+val DarkTextSecondary = Color(0xFFB0B0B0)
+
+

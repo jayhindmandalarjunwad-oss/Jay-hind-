@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -81,6 +82,24 @@ fun FullscreenPhotoDialog(
                 .background(Color.Black)
                 .testTag("fullscreen_photo_dialog")
         ) {
+            // Frosted Glass / Blurred Dynamic Background of current photo
+            val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
+            if (!activePhotoUrl.isNullOrBlank()) {
+                UniversalAsyncImage(
+                    model = activePhotoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.28f)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.65f))
+                )
+            }
+
             // Horizontal Pager for smooth left/right swipe
             HorizontalPager(
                 state = pagerState,

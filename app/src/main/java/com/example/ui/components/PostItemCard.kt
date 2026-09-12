@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import android.content.Intent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -38,6 +40,7 @@ fun PostItemCard(
     onImageClick: (String) -> Unit = {},
     onMultiImageClick: (List<String>, Int) -> Unit = { _, _ -> },
     onAuthorClick: ((authorId: String, authorName: String, authorPhoto: String) -> Unit)? = null,
+    onLikesCountClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -51,10 +54,10 @@ fun PostItemCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag("post_card_${post.id}"),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Post Header
@@ -175,7 +178,15 @@ fun PostItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(enabled = post.likesCount > 0 && onLikesCountClick != null) {
+                            onLikesCountClick?.invoke()
+                        }
+                        .padding(vertical = 2.dp, horizontal = 4.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Favorite,
                         contentDescription = "Likes",
@@ -220,6 +231,14 @@ fun PostItemCard(
                     targetValue = if (isLiked) BloodRed else Color(0xFF475569),
                     label = "likeColor"
                 )
+                val likeScale by animateFloatAsState(
+                    targetValue = if (isLiked) 1.25f else 1.0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "likeScale"
+                )
 
                 TextButton(
                     onClick = onLikeClick,
@@ -229,7 +248,9 @@ fun PostItemCard(
                         imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "लाईक",
                         tint = likeTint,
-                        modifier = Modifier.size(19.dp)
+                        modifier = Modifier
+                            .size(19.dp)
+                            .scale(likeScale)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -492,3 +513,114 @@ fun PostImagesGallery(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LikersBottomSheet(
+    post: Post,
+    allMembers: List<User>,
+    onDismiss: () -> Unit,
+    onMemberClick: ((authorId: String, authorName: String, authorPhoto: String) -> Unit)? = null
+) {
+    val likerUsers: List<User> = remember(post.likedUserIds, allMembers) {
+        val memberMap = allMembers.associateBy { it.id }
+        post.likedUserIds.mapNotNull { memberMap[it] }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = BloodRed,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "लाईक केलेले सभासद (${post.likesCount})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (likerUsers.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "सभासदांची माहिती लोड होत आहे...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 350.dp)
+                ) {
+                    items(likerUsers.size) { idx ->
+                        val user = likerUsers[idx]
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    onMemberClick?.invoke(user.id, user.fullName, user.profilePhotoUrl)
+                                    onDismiss()
+                                }
+                                .padding(vertical = 8.dp, horizontal = 4.dp)
+                        ) {
+                            MemberAvatar(
+                                photoUrl = user.profilePhotoUrl,
+                                name = user.fullName,
+                                size = 42
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = user.fullName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (user.role.isNotBlank()) {
+                                    Text(
+                                        text = user.role,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = BloodRed,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+

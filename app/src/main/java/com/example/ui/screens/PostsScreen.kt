@@ -34,7 +34,9 @@ fun PostsScreen(
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val activeCommentPost by viewModel.activeCommentPost.collectAsStateWithLifecycle()
     val activePostComments by viewModel.activePostComments.collectAsStateWithLifecycle()
+    val allMembers by viewModel.allMembers.collectAsStateWithLifecycle()
     var postToEdit by remember { mutableStateOf<Post?>(null) }
+    var postForLikers by remember { mutableStateOf<Post?>(null) }
 
     Box(
         modifier = Modifier
@@ -118,6 +120,9 @@ fun PostsScreen(
                         onMultiImageClick = { images, idx -> viewModel.openFullscreenPhotos(images, idx) },
                         onAuthorClick = { authorId, authorName, authorPhoto ->
                             viewModel.openUserPosts(authorId, authorName, authorPhoto)
+                        },
+                        onLikesCountClick = {
+                            postForLikers = post
                         }
                     )
                 }
@@ -161,6 +166,18 @@ fun PostsScreen(
                 currentUser = currentUser,
                 onDismiss = { viewModel.closeComments() },
                 onAddComment = { viewModel.addComment(it) }
+            )
+        }
+
+        // Likers Bottom Sheet (सभासदांची यादी ज्यांनी पोस्ट लाईक केली)
+        if (postForLikers != null) {
+            LikersBottomSheet(
+                post = postForLikers!!,
+                allMembers = allMembers,
+                onDismiss = { postForLikers = null },
+                onMemberClick = { authorId, authorName, authorPhoto ->
+                    viewModel.openUserPosts(authorId, authorName, authorPhoto)
+                }
             )
         }
     }

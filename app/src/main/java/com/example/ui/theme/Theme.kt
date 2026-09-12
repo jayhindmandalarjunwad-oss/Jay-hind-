@@ -35,12 +35,36 @@ private val HighContrastColorScheme =
     error = BloodRed,
   )
 
+private val DarkComfortColorScheme =
+  darkColorScheme(
+    primary = SaffronLight,
+    onPrimary = Color.Black,
+    primaryContainer = SaffronDark,
+    onPrimaryContainer = Color.White,
+    secondary = NavyContainer,
+    onSecondary = Color.Black,
+    secondaryContainer = NavySecondary,
+    onSecondaryContainer = Color.White,
+    tertiary = GoldenTertiary,
+    onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF78350F),
+    onTertiaryContainer = Color(0xFFFEF3C7),
+    background = DarkBackground,
+    onBackground = DarkTextPrimary,
+    surface = DarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    outline = DarkCardBorder,
+    error = BloodRed,
+  )
+
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
-  // Always use contrasting light background and pure dark black text for maximum clarity and visibility
-  MaterialTheme(colorScheme = HighContrastColorScheme, typography = Typography, content = content)
+  val colors = if (darkTheme) DarkComfortColorScheme else HighContrastColorScheme
+  MaterialTheme(colorScheme = colors, typography = Typography, content = content)
 }

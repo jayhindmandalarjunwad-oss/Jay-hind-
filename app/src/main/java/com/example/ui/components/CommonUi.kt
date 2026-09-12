@@ -596,59 +596,79 @@ fun MemberAvatar(
         else -> Modifier.border(1.dp, CardBorderColor, CircleShape)
     }
 
-    if (photoUrl.isNotBlank()) {
-        UniversalAsyncImage(
-            model = photoUrl,
-            contentDescription = name,
-            contentScale = ContentScale.Crop,
-            targetDimensionPx = (size * 3).coerceIn(96, 240),
-            modifier = modifier
-                .size(size.dp)
-                .clip(CircleShape)
-                .then(borderModifier),
-            placeholder = {
-                Box(
-                    modifier = modifier
-                        .size(size.dp)
-                        .clip(CircleShape)
-                        .then(borderModifier)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(SaffronPrimary, SaffronDark)
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val initial = name.firstOrNull()?.toString() ?: "ज"
-                    Text(
-                        text = initial,
-                        color = Color.White,
-                        fontSize = (size * 0.4).sp,
-                        fontWeight = FontWeight.Bold
-                    )
+    Box(modifier = modifier.size(size.dp)) {
+        if (photoUrl.isNotBlank()) {
+            UniversalAsyncImage(
+                model = photoUrl,
+                contentDescription = name,
+                contentScale = ContentScale.Crop,
+                targetDimensionPx = (size * 3).coerceIn(96, 240),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .then(borderModifier),
+                placeholder = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .then(borderModifier)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(SaffronPrimary, SaffronDark)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val initial = name.firstOrNull()?.toString() ?: "ज"
+                        Text(
+                            text = initial,
+                            color = Color.White,
+                            fontSize = (size * 0.4).sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
-            }
-        )
-    } else {
-        Box(
-            modifier = modifier
-                .size(size.dp)
-                .clip(CircleShape)
-                .then(borderModifier)
-                .background(
-                    Brush.linearGradient(
-                        listOf(SaffronPrimary, SaffronDark)
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            val initial = name.firstOrNull()?.toString() ?: "ज"
-            Text(
-                text = initial,
-                color = Color.White,
-                fontSize = (size * 0.4).sp,
-                fontWeight = FontWeight.Bold
             )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .then(borderModifier)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(SaffronPrimary, SaffronDark)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                val initial = name.firstOrNull()?.toString() ?: "ज"
+                Text(
+                    text = initial,
+                    color = Color.White,
+                    fontSize = (size * 0.4).sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // Celebratory Birthday Ribbon / Crown Badge
+        if (showPinkCelebrationRing) {
+            Box(
+                modifier = Modifier
+                    .size((size * 0.38f).coerceAtLeast(16f).dp)
+                    .align(Alignment.TopEnd)
+                    .background(BirthdayPinkDark, CircleShape)
+                    .border(1.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "🎂",
+                    fontSize = ((size * 0.22f).coerceAtLeast(9f)).sp,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

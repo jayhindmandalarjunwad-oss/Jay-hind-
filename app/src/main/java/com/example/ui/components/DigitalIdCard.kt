@@ -58,14 +58,26 @@ fun DigitalIdCardView(
         IdCardUtils.generateQrBitmap(payload, 300)
     }
 
+    val holographicGoldBrush = remember {
+        Brush.linearGradient(
+            colors = listOf(
+                GoldenTertiary,
+                Color(0xFFFFE082),
+                SaffronPrimary,
+                Color(0xFFFFF8E1),
+                GoldenTertiary
+            )
+        )
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .testTag("digital_id_card_view"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = androidx.compose.foundation.BorderStroke(2.dp, SaffronPrimary.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        border = androidx.compose.foundation.BorderStroke(2.5.dp, holographicGoldBrush),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // 1. TOP HEADER BANNER (Saffron & Gold)

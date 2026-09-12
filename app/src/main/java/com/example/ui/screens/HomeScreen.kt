@@ -364,10 +364,31 @@ fun HomeScreen(
                             .clickable { viewModel.navigateTo(AppScreen.ANNOUNCEMENTS) }
                             .testTag("notice_board_card"),
                         shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor.copy(alpha = 0.8f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
+                        // Notice Ribbon Banner Header
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(SaffronPrimary, GoldenTertiary)
+                                    )
+                                )
+                                .padding(horizontal = 14.dp, vertical = 5.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "📢 अधिकृत मंडळ सूचना",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),

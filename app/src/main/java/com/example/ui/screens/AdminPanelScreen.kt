@@ -5145,9 +5145,52 @@ fun BackupItemCard(
 fun CloudMemoryAdminTab(viewModel: MandalViewModel) {
     val stats by viewModel.firebaseStorageStats.collectAsStateWithLifecycle()
     val isCalculating by viewModel.isCalculatingMemory.collectAsStateWithLifecycle()
+    var showWarningDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshBackups()
+    }
+
+    // Auto-alert check if memory usage exceeds 80%
+    LaunchedEffect(stats.usedPercentage) {
+        if (stats.usedPercentage >= 80f) {
+            showWarningDialog = true
+        }
+    }
+
+    if (showWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showWarningDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFD32F2F),
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "मेमरी इशारा: ८०% पेक्षा जास्त वापर!",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFD32F2F)
+                )
+            },
+            text = {
+                Text(
+                    text = "आपल्या मंडळाची Firebase क्लाऊड मेमरी ${String.format("%.1f", stats.usedPercentage)}% वापरली गेली आहे (वापरलेली जागा: ${stats.formattedUsed}). मोफत Spark कोटा संपण्यापूर्वी जुन्या किंवा अनावश्यक फाइल्स साफ करा.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showWarningDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F))
+                ) {
+                    Text("समजले (OK)")
+                }
+            }
+        )
     }
 
     LazyColumn(
@@ -5156,6 +5199,45 @@ fun CloudMemoryAdminTab(viewModel: MandalViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Auto Warning Alert Banner if exceeds 80%
+        if (stats.usedPercentage >= 80f) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.5.dp, Color(0xFFD32F2F)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFD32F2F),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "⚠️ तातडीचा इशारा: क्लाऊड कोटा ८०% पेक्षा जास्त भरला आहे!",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFC62828)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "सध्या ${String.format("%.1f", stats.usedPercentage)}% जागा भरली आहे. नवीन फोटो/व्हॉईस मेसेजसाठी जागा मोकळी करा.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFB71C1C)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Hero Live Meter Card
         item {
             Card(
