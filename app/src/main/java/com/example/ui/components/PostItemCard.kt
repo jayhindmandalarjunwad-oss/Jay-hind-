@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -41,12 +42,18 @@ fun PostItemCard(
     onMultiImageClick: (List<String>, Int) -> Unit = { _, _ -> },
     onAuthorClick: ((authorId: String, authorName: String, authorPhoto: String) -> Unit)? = null,
     onLikesCountClick: (() -> Unit)? = null,
+    isAuthorBirthdayToday: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val isLiked = currentUser?.let { post.isLikedBy(it.id) } == true
     val canEdit = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
     val canDelete = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
+    val isOfficialPost = remember(post.authorRole) {
+        post.authorRole.contains("ADMIN", ignoreCase = true) ||
+            post.authorRole.contains("अध्यक्ष", ignoreCase = true) ||
+            post.authorRole.contains("कार्यकारणी", ignoreCase = true)
+    }
 
     var showMenu by remember { mutableStateOf(false) }
 
@@ -55,11 +62,34 @@ fun PostItemCard(
             .fillMaxWidth()
             .testTag("post_card_${post.id}"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor.copy(alpha = 0.6f)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            // Official Mandal Announcement Ribbon
+            if (isOfficialPost) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(SaffronPrimary, GoldenTertiary)
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "📢 मंडळाची अधिकृत घोषणा (Official Announcement)",
+                            color = Color.White,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
             // Post Header
             Row(
                 modifier = Modifier
@@ -84,7 +114,8 @@ fun PostItemCard(
                     MemberAvatar(
                         photoUrl = post.authorPhotoUrl,
                         name = post.authorName,
-                        size = 44
+                        size = 44,
+                        showPinkCelebrationRing = isAuthorBirthdayToday
                     )
 
                     Spacer(modifier = Modifier.width(10.dp))
@@ -529,7 +560,7 @@ fun LikersBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = Color.White
     ) {
         Column(
             modifier = Modifier
@@ -591,7 +622,8 @@ fun LikersBottomSheet(
                             MemberAvatar(
                                 photoUrl = user.profilePhotoUrl,
                                 name = user.fullName,
-                                size = 42
+                                size = 42,
+                                dateOfBirth = user.dateOfBirth
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {

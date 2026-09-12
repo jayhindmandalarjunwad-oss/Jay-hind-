@@ -146,11 +146,32 @@ fun AdminPanelScreen(
                 .background(BackgroundWarm)
                 .testTag("admin_panel_root")
         ) {
+            // Official Ribbon Banner Header
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(NavySecondary, SaffronDark, GoldenTertiary)
+                        )
+                    )
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "⚡ मुख्य व्यवस्थापन व नियंत्रण कक्ष (Official Control Panel)",
+                        color = Color.White,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             // Scrollable Admin Tab Bar
             val selectedTabIndex = availableTabs.indexOf(selectedTab).coerceAtLeast(0)
             ScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = SurfaceWarm,
                 contentColor = SaffronPrimary,
                 edgePadding = 12.dp
             ) {
@@ -243,13 +264,18 @@ fun PendingApprovalsTab(pendingList: List<User>, viewModel: MandalViewModel) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
                     border = androidx.compose.foundation.BorderStroke(1.dp, PendingOrange.copy(alpha = 0.4f)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            MemberAvatar(photoUrl = user.profilePhotoUrl, name = user.fullName, size = 52)
+                            MemberAvatar(
+                                photoUrl = user.profilePhotoUrl,
+                                name = user.fullName,
+                                size = 52,
+                                dateOfBirth = user.dateOfBirth
+                            )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -1103,12 +1129,18 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        MemberAvatar(photoUrl = memberPhoto, name = memberName, size = 48)
+                        MemberAvatar(
+                            photoUrl = memberPhoto,
+                            name = memberName,
+                            size = 48,
+                            dateOfBirth = member.dateOfBirth
+                        )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Row(
@@ -1120,7 +1152,8 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = TextPrimary
                                 )
                                 if (member.isAdmin) {
                                     Surface(
@@ -2075,7 +2108,8 @@ fun PostsModerationAdminTab(posts: List<Post>, viewModel: MandalViewModel) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Row(
@@ -2083,8 +2117,8 @@ fun PostsModerationAdminTab(posts: List<Post>, viewModel: MandalViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(text = post.authorName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text(text = post.content, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(text = post.authorName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextPrimary)
+                        Text(text = post.content, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = TextPrimary)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(text = "लाईक्स: ${post.likesCount} • कमेंट्स: ${post.commentsCount}", fontSize = 11.sp, color = TextMuted)
                     }

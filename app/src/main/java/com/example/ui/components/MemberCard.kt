@@ -60,7 +60,8 @@ fun MemberCard(
                     photoUrl = member.profilePhotoUrl,
                     name = member.fullName,
                     size = 52,
-                    showBlueRing = member.isAnyAdmin
+                    showBlueRing = member.isAnyAdmin,
+                    dateOfBirth = member.dateOfBirth
                 )
             }
 
@@ -209,7 +210,7 @@ fun MemberDetailSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = Color.White
     ) {
         Column(
             modifier = Modifier
@@ -228,7 +229,8 @@ fun MemberDetailSheet(
                 MemberAvatar(
                     photoUrl = member.profilePhotoUrl,
                     name = member.fullName,
-                    size = 80
+                    size = 80,
+                    dateOfBirth = member.dateOfBirth
                 )
             }
 

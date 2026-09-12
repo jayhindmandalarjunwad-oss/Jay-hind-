@@ -10,6 +10,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -182,8 +185,29 @@ fun GalleryScreen(
                 .background(BackgroundWarm)
                 .testTag("gallery_root_screen")
         ) {
-            // When NO album is currently opened, show Tab Bar (Photos / Videos)
+            // When NO album is currently opened, show Official Banner & Tab Bar (Photos / Videos)
             if (!isPhotoAlbumOpen && !isVideoAlbumOpen) {
+                // Official Ribbon Banner Header
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(SaffronPrimary, GoldenTertiary)
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 5.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "📸 मंडळाचे अधिकृत क्षणचित्रे व व्हिडिओ संग्रह",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
                 TabRow(
                     selectedTabIndex = selectedTab.ordinal,
                     containerColor = SurfaceWarm,
@@ -295,24 +319,26 @@ fun GalleryScreen(
                                     subtitle = if (isAdmin) "नवीन फोटो जोडण्यासाठी 'फोटो जोडा' बटण वापरा." else "लवकरच फोटो जोडले जातील."
                                 )
                             } else {
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(2),
+                                LazyVerticalStaggeredGrid(
+                                    columns = StaggeredGridCells.Fixed(2),
                                     contentPadding = PaddingValues(10.dp),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalItemSpacing = 10.dp,
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     itemsIndexed(photos, key = { _, photo -> photo.id }) { index, photo ->
-                                        // Pinterest style staggered aspect ratios based on index
-                                        val itemAspectRatio = when (index % 4) {
-                                            0 -> 0.85f // Portrait tall
-                                            1 -> 1.15f // Slightly landscape
+                                        // Pinterest / Instagram dynamic staggered aspect ratios
+                                        val itemAspectRatio = when (index % 5) {
+                                            0 -> 0.75f // Portrait tall
+                                            1 -> 1.25f // Landscape
                                             2 -> 1.0f  // Square
-                                            else -> 0.78f // Extended portrait
+                                            3 -> 0.85f // Medium vertical
+                                            else -> 1.15f // Extended landscape
                                         }
 
                                         Box(
                                             modifier = Modifier
+                                                .fillMaxWidth()
                                                 .aspectRatio(itemAspectRatio)
                                                 .clip(RoundedCornerShape(14.dp))
                                                 .border(1.dp, CardBorderColor.copy(alpha = 0.7f), RoundedCornerShape(14.dp))

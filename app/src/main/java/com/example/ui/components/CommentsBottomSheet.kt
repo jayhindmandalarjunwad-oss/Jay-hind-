@@ -37,7 +37,7 @@ fun CommentsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = Color.White
     ) {
         Column(
             modifier = Modifier

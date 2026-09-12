@@ -24,7 +24,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -82,22 +84,34 @@ fun FullscreenPhotoDialog(
                 .background(Color.Black)
                 .testTag("fullscreen_photo_dialog")
         ) {
-            // Frosted Glass / Blurred Dynamic Background of current photo
+            // Frosted Glass / Blurred Dynamic Background of current photo (iPhone / Modern App Frosted Glass Style)
             val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
             if (!activePhotoUrl.isNullOrBlank()) {
-                UniversalAsyncImage(
-                    model = activePhotoUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .alpha(0.28f)
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.65f))
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    UniversalAsyncImage(
+                        model = activePhotoUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(36.dp)
+                            .alpha(0.65f)
+                    )
+                    // High-end frosted glass dark vignette tint
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.Black.copy(alpha = 0.55f),
+                                        Color.Black.copy(alpha = 0.35f),
+                                        Color.Black.copy(alpha = 0.65f)
+                                    )
+                                )
+                            )
+                    )
+                }
             }
 
             // Horizontal Pager for smooth left/right swipe

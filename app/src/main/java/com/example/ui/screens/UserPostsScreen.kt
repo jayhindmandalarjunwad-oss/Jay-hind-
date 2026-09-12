@@ -87,7 +87,8 @@ fun UserPostsScreen(
                 MemberAvatar(
                     photoUrl = user.profilePhotoUrl,
                     name = user.fullName,
-                    size = 46
+                    size = 46,
+                    dateOfBirth = user.dateOfBirth
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -178,7 +179,8 @@ fun UserPostsScreen(
                             onEditClick = { postToEdit = post },
                             onImageClick = { viewModel.openFullscreenPhoto(it) },
                             onMultiImageClick = { images, idx -> viewModel.openFullscreenPhotos(images, idx) },
-                            onAuthorClick = null // Already viewing this user's timeline
+                            onAuthorClick = null, // Already viewing this user's timeline
+                            isAuthorBirthdayToday = com.example.ui.components.isBirthdayToday(user.dateOfBirth)
                         )
                     }
                 }

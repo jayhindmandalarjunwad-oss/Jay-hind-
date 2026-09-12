@@ -192,7 +192,8 @@ fun ProfileScreen(viewModel: MandalViewModel) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column {
@@ -220,69 +221,92 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 .testTag("profile_feedback_card"),
             shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = SurfaceWarm
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.4f))
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = SaffronPrimary.copy(alpha = 0.12f),
-                    modifier = Modifier.size(44.dp)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Official Ribbon Banner Header
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(NavySecondary, Color(0xFF2563EB))
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 5.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.RateReview,
-                            contentDescription = null,
-                            tint = SaffronPrimary,
-                            modifier = Modifier.size(24.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🔒 थेट ॲडमिनसाठी सुरक्षित व गोपनीय अभिप्राय",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "मंडळासाठी अभिप्राय व सूचना",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = SuccessGreen.copy(alpha = 0.12f)
-                        ) {
-                            Text(
-                                text = "🔒 ॲडमिनसाठी",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SuccessGreen,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = SaffronPrimary.copy(alpha = 0.12f),
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.RateReview,
+                                contentDescription = null,
+                                tint = SaffronPrimary,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = "आपल्या मोलाच्या सूचना थेट मुख्य ॲडमिनकडे नोंदवा",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        fontSize = 11.5.sp
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "मंडळासाठी अभिप्राय व सूचना",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SuccessGreen.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = "🔒 ॲडमिनसाठी",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SuccessGreen,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "आपल्या मोलाच्या सूचना थेट मुख्य ॲडमिनकडे नोंदवा",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 11.5.sp
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = TextSecondary
                     )
                 }
-
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = TextSecondary
-                )
             }
         }
 

@@ -35,6 +35,8 @@ fun PostsScreen(
     val activeCommentPost by viewModel.activeCommentPost.collectAsStateWithLifecycle()
     val activePostComments by viewModel.activePostComments.collectAsStateWithLifecycle()
     val allMembers by viewModel.allMembers.collectAsStateWithLifecycle()
+    val todayBirthdays by viewModel.todayBirthdays.collectAsStateWithLifecycle()
+    val todayBirthdayAuthorIds = remember(todayBirthdays) { todayBirthdays.map { it.id }.toSet() }
     var postToEdit by remember { mutableStateOf<Post?>(null) }
     var postForLikers by remember { mutableStateOf<Post?>(null) }
 
@@ -123,7 +125,8 @@ fun PostsScreen(
                         },
                         onLikesCountClick = {
                             postForLikers = post
-                        }
+                        },
+                        isAuthorBirthdayToday = todayBirthdayAuthorIds.contains(post.authorId)
                     )
                 }
             }

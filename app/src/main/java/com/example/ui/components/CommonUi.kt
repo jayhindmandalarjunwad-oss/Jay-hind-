@@ -581,6 +581,29 @@ fun PriorityBadge(priority: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Checks if a given date string (YYYY-MM-DD or DD/MM/YYYY or DD-MM-YYYY) matches today's month and day.
+ */
+fun isBirthdayToday(dob: String?): Boolean {
+    if (dob.isNullOrBlank()) return false
+    val sdfMonthDay = java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault())
+    val currentMonthDay = sdfMonthDay.format(java.util.Date())
+    return try {
+        val trimmed = dob.trim()
+        val parts = if (trimmed.contains("-")) trimmed.split("-") else if (trimmed.contains("/")) trimmed.split("/") else emptyList()
+        if (parts.size == 3) {
+            val (m, d) = if (parts[0].length == 4) {
+                parts[1].padStart(2, '0') to parts[2].padStart(2, '0')
+            } else {
+                parts[1].padStart(2, '0') to parts[0].padStart(2, '0')
+            }
+            "$m-$d" == currentMonthDay
+        } else false
+    } catch (e: Exception) {
+        false
+    }
+}
+
 @Composable
 fun MemberAvatar(
     photoUrl: String,
@@ -588,10 +611,13 @@ fun MemberAvatar(
     size: Int = 44,
     showBlueRing: Boolean = false,
     showPinkCelebrationRing: Boolean = false,
+    dateOfBirth: String = "",
     modifier: Modifier = Modifier
 ) {
+    val isBirthday = showPinkCelebrationRing || (dateOfBirth.isNotBlank() && isBirthdayToday(dateOfBirth))
+
     val borderModifier = when {
-        showPinkCelebrationRing -> Modifier.border(2.dp, BirthdayPink, CircleShape).padding(2.dp)
+        isBirthday -> Modifier.border(2.dp, BirthdayPink, CircleShape).padding(2.dp)
         showBlueRing -> Modifier.border(2.dp, NavySecondary, CircleShape).padding(2.dp)
         else -> Modifier.border(1.dp, CardBorderColor, CircleShape)
     }
@@ -654,10 +680,10 @@ fun MemberAvatar(
         }
 
         // Celebratory Birthday Ribbon / Crown Badge
-        if (showPinkCelebrationRing) {
+        if (isBirthday) {
             Box(
                 modifier = Modifier
-                    .size((size * 0.38f).coerceAtLeast(16f).dp)
+                    .size((size * 0.42f).coerceIn(16f, 26f).dp)
                     .align(Alignment.TopEnd)
                     .background(BirthdayPinkDark, CircleShape)
                     .border(1.dp, Color.White, CircleShape),
@@ -665,7 +691,7 @@ fun MemberAvatar(
             ) {
                 Text(
                     text = "🎂",
-                    fontSize = ((size * 0.22f).coerceAtLeast(9f)).sp,
+                    fontSize = ((size * 0.24f).coerceIn(9f, 15f)).sp,
                     textAlign = TextAlign.Center
                 )
             }

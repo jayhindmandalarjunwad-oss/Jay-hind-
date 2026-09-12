@@ -61,10 +61,10 @@ private val DarkComfortColorScheme =
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  darkTheme: Boolean = false,
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
-  val colors = if (darkTheme) DarkComfortColorScheme else HighContrastColorScheme
-  MaterialTheme(colorScheme = colors, typography = Typography, content = content)
+  // Always enforce vibrant high-contrast light theme with crisp white cards and pure dark black text for 100% clarity
+  MaterialTheme(colorScheme = HighContrastColorScheme, typography = Typography, content = content)
 }
