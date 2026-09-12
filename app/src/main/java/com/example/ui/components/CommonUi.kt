@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,7 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -782,3 +785,194 @@ fun formatTimestampToMarathi(timestamp: Long): String {
         }
     }
 }
+
+/**
+ * Animated Shimmer Effect Modifier
+ * Creates a smooth sweeping light reflection across skeleton placeholder components.
+ * 100% compatible across all Android versions (API 21+).
+ */
+fun Modifier.shimmerEffect(
+    shimmerColors: List<Color> = listOf(
+        Color(0xFFE2E8F0).copy(alpha = 0.6f),
+        Color(0xFFF8FAFC).copy(alpha = 0.95f),
+        Color(0xFFE2E8F0).copy(alpha = 0.6f)
+    )
+): Modifier = composed {
+    val transition = rememberInfiniteTransition(label = "shimmerTransition")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1200f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1300, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerTranslate"
+    )
+
+    background(
+        brush = Brush.linearGradient(
+            colors = shimmerColors,
+            start = Offset(x = translateAnim - 500f, y = translateAnim - 500f),
+            end = Offset(x = translateAnim, y = translateAnim)
+        )
+    )
+}
+
+/**
+ * Skeleton Loader Card for Posts (फेसबुक/इन्स्टाग्राम स्टाईल शिमर सांगाडा)
+ */
+@Composable
+fun PostCardSkeleton(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("post_card_skeleton"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor.copy(alpha = 0.7f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            // Author Row Skeleton
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .shimmerEffect()
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.5f)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .shimmerEffect()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.3f)
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .shimmerEffect()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Post Content Lines Skeleton
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .shimmerEffect()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .shimmerEffect()
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Post Image Box Skeleton
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .shimmerEffect()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Bottom Actions Row Skeleton
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(70.dp)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .shimmerEffect()
+                )
+                Box(
+                    modifier = Modifier
+                        .width(90.dp)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .shimmerEffect()
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Skeleton Loader Card for Member Directory
+ */
+@Composable
+fun MemberCardSkeleton(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("member_card_skeleton"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor.copy(alpha = 0.7f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .shimmerEffect()
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.6f)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .shimmerEffect()
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.4f)
+                        .height(11.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .shimmerEffect()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .shimmerEffect()
+            )
+        }
+    }
+}
+

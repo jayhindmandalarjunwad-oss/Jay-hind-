@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import com.example.data.model.Post
 import com.example.ui.components.*
 import com.example.ui.theme.*
@@ -31,6 +32,15 @@ fun PostsScreen(
     onOpenCreatePost: () -> Unit
 ) {
     val posts by viewModel.posts.collectAsStateWithLifecycle()
+    var isInitialLoading by remember { mutableStateOf(posts.isEmpty()) }
+    LaunchedEffect(posts) {
+        if (posts.isNotEmpty()) {
+            isInitialLoading = false
+        } else {
+            delay(1200)
+            isInitialLoading = false
+        }
+    }
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val activeCommentPost by viewModel.activeCommentPost.collectAsStateWithLifecycle()
     val activePostComments by viewModel.activePostComments.collectAsStateWithLifecycle()
@@ -100,14 +110,20 @@ fun PostsScreen(
                 }
             }
 
-            // Posts List
+            // Posts List with Skeleton Shimmer Loading
             if (posts.isEmpty()) {
-                item {
-                    EmptyStateView(
-                        icon = Icons.Default.DynamicFeed,
-                        title = "कोणतीही पोस्ट उपलब्ध नाही",
-                        subtitle = "मंडळातील पहिली पोस्ट तयार करण्यासाठी वरील पर्यायावर क्लिक करा!"
-                    )
+                if (isInitialLoading) {
+                    items(3) {
+                        PostCardSkeleton()
+                    }
+                } else {
+                    item {
+                        EmptyStateView(
+                            icon = Icons.Default.DynamicFeed,
+                            title = "कोणतीही पोस्ट उपलब्ध नाही",
+                            subtitle = "मंडळातील पहिली पोस्ट तयार करण्यासाठी वरील पर्यायावर क्लिक करा!"
+                        )
+                    }
                 }
             } else {
                 items(posts, key = { it.id }) { post ->

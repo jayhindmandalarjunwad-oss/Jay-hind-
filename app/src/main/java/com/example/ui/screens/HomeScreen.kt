@@ -97,6 +97,15 @@ fun HomeScreen(
         }
 
         // ==========================================
+        // 0.5 सण व उत्सवानुसार डायनॅमिक ग्रीटिंग (FESTIVE SEASONAL BANNER)
+        // ==========================================
+        item(key = "festive_seasonal_banner") {
+            FestiveGreetingBanner(
+                mandalLogoUrl = mandalLogoUrl
+            )
+        }
+
+        // ==========================================
         // 1. मुख्य बॅनर (HERO BANNER)
         // ==========================================
         item {

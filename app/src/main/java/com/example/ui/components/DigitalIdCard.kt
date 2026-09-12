@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import android.graphics.Bitmap
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,8 +23,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -70,77 +74,106 @@ fun DigitalIdCardView(
         )
     }
 
-    Card(
+    var isFlipped by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    val flipRotation by animateFloatAsState(
+        targetValue = if (isFlipped) 180f else 0f,
+        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+        label = "cardFlipRotation"
+    )
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .testTag("digital_id_card_view"),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = androidx.compose.foundation.BorderStroke(2.5.dp, holographicGoldBrush),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // 1. TOP HEADER BANNER (Saffron & Gold)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                SaffronPrimary,
-                                SaffronDark,
-                                GoldenTertiary
-                            )
-                        )
-                    )
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    MandalLogoBadge(logoUrl = mandalLogoUrl, size = 46)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "जय हिंद मंडळ, अर्जुनवाड",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 15.sp
-                            ),
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "कला, क्रीडा व सांस्कृतिक मंडळ (स्था. १९९६)",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium
-                            ),
-                            color = Color.White.copy(alpha = 0.92f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // Formatted Member ID Badge (JHM - 26 - 001)
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.White,
-                        shadowElevation = 2.dp
-                    ) {
-                        Text(
-                            text = memberId,
-                            color = SaffronDark,
-                            fontWeight = FontWeight.Black,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                isFlipped = !isFlipped
             }
+            .graphicsLayer {
+                rotationY = flipRotation
+                cameraDistance = 14f * density
+            }
+            .testTag("digital_id_card_view")
+    ) {
+        if (flipRotation <= 90f) {
+            // ==========================================
+            // ओळखपत्राची पुढील बाजू (FRONT SIDE OF ID CARD)
+            // ==========================================
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(2.5.dp, holographicGoldBrush),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // 1. TOP HEADER BANNER (Saffron & Gold)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        SaffronPrimary,
+                                        SaffronDark,
+                                        GoldenTertiary
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MandalLogoBadge(logoUrl = mandalLogoUrl, size = 46)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "जय हिंद मंडळ, अर्जुनवाड",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp
+                                    ),
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "कला, क्रीडा व सांस्कृतिक मंडळ (स्था. १९९६)",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = Color.White.copy(alpha = 0.92f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            // 3D Holographic Security Stamp (चकाकणारा होलोग्राफिक स्टॅम्प)
+                            HolographicSecuritySeal()
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            // Formatted Member ID Badge (JHM - 26 - 001)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color.White,
+                                shadowElevation = 2.dp
+                            ) {
+                                Text(
+                                    text = memberId,
+                                    color = SaffronDark,
+                                    fontWeight = FontWeight.Black,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
 
             // Sub-header title
             Surface(
@@ -395,30 +428,65 @@ fun DigitalIdCardView(
                 color = SurfaceVariantWarm,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
-                    val regDate = SimpleDateFormat("dd/MM/yyyy", Locale("mr", "IN")).format(Date(user.createdAt))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val regDate = SimpleDateFormat("dd/MM/yyyy", Locale("mr", "IN")).format(Date(user.createdAt))
+                        Text(
+                            text = "नोंदणी: $regDate",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "वैधता: आजीवन (Lifetime)",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = SuccessGreen,
+                            fontSize = 10.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "नोंदणी: $regDate",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = "वैधता: आजीवन (Lifetime)",
+                        text = "🔄 मागची बाजू पाहण्यासाठी टॅप करा (Tap to flip)",
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                        color = SuccessGreen,
-                        fontSize = 10.sp
+                        color = SaffronDark,
+                        fontSize = 9.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
         }
     }
+} else {
+    // ==========================================
+    // ओळखपत्राची मागची बाजू (BACK SIDE OF ID CARD)
+    // ==========================================
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer { rotationY = 180f }
+            .testTag("digital_id_card_back_view"),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(2.5.dp, holographicGoldBrush),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        DigitalIdCardBackView(
+            user = user,
+            mandalInfo = mandalInfo,
+            mandalLogoUrl = mandalLogoUrl
+        )
+    }
+}
+}
 }
 
 /**
@@ -482,6 +550,289 @@ fun OfficialMandalStamp(
         showFallbackSignature = showFallbackSignature,
         modifier = modifier
     )
+}
+
+/**
+ * 3D Holographic Security Stamp (चकाकणारा होलोग्राफिक स्टॅम्प)
+ * Simulates high-security government smart card hologram with rotating iridescent metallic gradient.
+ */
+@Composable
+fun HolographicSecuritySeal(
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "hologramTransition")
+    val angle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "hologramAngle"
+    )
+
+    val holographicBrush = remember(angle) {
+        val rad = Math.toRadians(angle.toDouble())
+        val x = (Math.cos(rad) * 50).toFloat()
+        val y = (Math.sin(rad) * 50).toFloat()
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFFFFD700), // Gold
+                Color(0xFF67E8F9), // Iridescent Cyan
+                Color(0xFFF472B6), // Iridescent Pink
+                Color(0xFFFBBF24), // Amber
+                Color(0xFFA78BFA), // Lavender
+                Color(0xFF34D399), // Emerald
+                Color(0xFFFFD700)  // Gold
+            ),
+            start = Offset(21f - x, 21f - y),
+            end = Offset(21f + x, 21f + y)
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(holographicBrush)
+            .border(1.2.dp, Color(0xFFFFD700), CircleShape)
+            .padding(2.dp)
+            .testTag("holographic_security_seal"),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(0.6.dp, Color.White.copy(alpha = 0.9f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "★ जय हिंद ★",
+                    fontSize = 5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF1E293B),
+                    letterSpacing = 0.2.sp
+                )
+                Text(
+                    text = "अधिकृत",
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF991B1B)
+                )
+                Text(
+                    text = "SECURE",
+                    fontSize = 4.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Back Side of the Digital ID Card (ओळखपत्राची मागची बाजू)
+ * Displayed when the user taps on the card to flip it in 3D.
+ */
+@Composable
+fun DigitalIdCardBackView(
+    user: User,
+    mandalInfo: MandalInfo,
+    mandalLogoUrl: String? = null,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        // 1. TOP HEADER BANNER (With "॥ सत्यमेव जयते ॥" and Mandal Name)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            SaffronPrimary,
+                            SaffronDark,
+                            GoldenTertiary
+                        )
+                    )
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.Black.copy(alpha = 0.35f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldenTertiary.copy(alpha = 0.7f)),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    Text(
+                        text = "॥ सत्यमेव जयते ॥",
+                        color = Color(0xFFFFF0B3),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                    )
+                }
+
+                Text(
+                    text = "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Black,
+                        fontSize = 13.5.sp
+                    ),
+                    color = Color.White
+                )
+                Text(
+                    text = "अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर • स्था. १९९६",
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+        }
+
+        // Subheader
+        Surface(
+            color = Color(0xFFFFF7ED),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "अधिकृत नियमावली व आपत्कालीन संपर्क",
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SaffronDark
+                )
+                Text(
+                    text = "नोंदणीकृत संस्था",
+                    fontSize = 9.5.sp,
+                    color = TextSecondary
+                )
+            }
+        }
+
+        // 2. BODY: Objectives, Rules, Emergency Helplines
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            // Objectives
+            Text(
+                text = "📌 मंडळाची ध्येये व उद्दिष्टे:",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = SaffronDark
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "• गावातील कला, क्रीडा, शिक्षण व सांस्कृतिक वारशाचे संवर्धन करणे.\n• सामाजिक बांधिलकी, रक्तदान चळवळ व आपत्कालीन मदतकार्य.\n• युवकांना विधायक दिशा देणे व गावाचा सर्वांगीण विकास साधणे.",
+                fontSize = 9.5.sp,
+                color = TextPrimary,
+                lineHeight = 13.5.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = DividerColor, thickness = 0.8.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Rules & Helplines Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "⚖️ महत्त्वाचे नियम:",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SaffronDark
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "• हे ओळखपत्र मंडळाच्या सर्व अधिकृत कार्यक्रमांसाठी वैध राहील.\n• ओळखपत्र अहस्तांतरणीय असून गैरवापर कायद्याने गुन्हा आहे.\n• गहाळ झाल्यास तात्काळ ॲडमिनशी संपर्क साधावा.",
+                        fontSize = 9.sp,
+                        color = TextSecondary,
+                        lineHeight = 12.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "🚑 आपत्कालीन मदत:",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BloodRed
+                    )
+                    Text(
+                        text = "रुग्णवाहिका: १०८ • संपर्क: ${mandalInfo.phone.ifBlank { "९८२२xxxxxx" }}",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // President's Signature & Seal
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.widthIn(min = 100.dp)
+                ) {
+                    if (!mandalInfo.presidentSignatureUrl.isNullOrBlank() || !mandalInfo.officialStampUrl.isNullOrBlank()) {
+                        PresidentSignatureSection(
+                            signatureUrl = mandalInfo.presidentSignatureUrl.ifBlank { null },
+                            stampUrl = mandalInfo.officialStampUrl.ifBlank { null }
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                    }
+                    Text(
+                        text = mandalInfo.presidentName.ifBlank { "अध्यक्ष" },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "अधिकृत डिजिटल स्वाक्षरी",
+                        fontSize = 8.sp,
+                        color = TextMuted
+                    )
+                }
+            }
+        }
+
+        // 3. FOOTER
+        Surface(
+            color = SurfaceVariantWarm,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🔄 पुढील बाजू पाहण्यासाठी टॅप करा (Tap to flip)",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                    color = SaffronDark,
+                    fontSize = 10.sp
+                )
+            }
+        }
+    }
 }
 
 /**

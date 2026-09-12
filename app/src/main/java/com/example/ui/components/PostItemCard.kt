@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +48,7 @@ fun PostItemCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val isLiked = currentUser?.let { post.isLikedBy(it.id) } == true
     val canEdit = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
     val canDelete = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
@@ -272,7 +275,10 @@ fun PostItemCard(
                 )
 
                 TextButton(
-                    onClick = onLikeClick,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLikeClick()
+                    },
                     modifier = Modifier.weight(1f).testTag("post_like_button_${post.id}")
                 ) {
                     Icon(
@@ -293,7 +299,10 @@ fun PostItemCard(
                 }
 
                 TextButton(
-                    onClick = onCommentClick,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onCommentClick()
+                    },
                     modifier = Modifier.weight(1f).testTag("post_comment_button_${post.id}")
                 ) {
                     Icon(
@@ -313,6 +322,7 @@ fun PostItemCard(
 
                 TextButton(
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_SUBJECT, "जय हिंद मंडळ अर्जुनवाड")
