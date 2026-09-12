@@ -357,18 +357,20 @@ fun DigitalIdCardView(
                     HorizontalDivider(color = DividerColor, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 3. BOTTOM ROW: QR CODE (Left) & OFFICIAL DIGITAL BLUE STAMP + SIGNATURE (Right)
+                    // 3. BOTTOM ROW: QR CODE (Left), 100dp 3D SECURITY HOLOGRAM (Center), & OFFICIAL STAMP + SIGNATURE (Right)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Left: Verification QR Code
+                        // Left: Verification QR Code (६८dp सुरक्षित स्कॅनेबल बॉक्स)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
                                 .clickable { onQrClick?.invoke() }
-                                .padding(4.dp)
+                                .padding(end = 2.dp)
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -381,51 +383,51 @@ fun DigitalIdCardView(
                                         bitmap = qrBitmap.asImageBitmap(),
                                         contentDescription = "व्हेरिफिकेशन QR कोड",
                                         modifier = Modifier
-                                            .size(76.dp)
-                                            .padding(4.dp)
+                                            .size(68.dp)
+                                            .padding(3.dp)
                                     )
                                 } else {
                                     Box(
-                                        modifier = Modifier.size(76.dp),
+                                        modifier = Modifier.size(68.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.QrCode2,
                                             contentDescription = "QR Code",
                                             tint = TextPrimary,
-                                            modifier = Modifier.size(54.dp)
+                                            modifier = Modifier.size(48.dp)
                                         )
                                     }
                                 }
                             }
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
-                                text = "व्हेरिफिकेशन QR कोड",
-                                fontSize = 9.sp,
+                                text = "व्हेरिफिकेशन QR",
+                                fontSize = 8.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                         }
 
-                        // Middle: 3D Holographic Security Stamp (QR कोड आणि शिक्का यांच्या बरोबर मध्ये - ५४dp)
+                        // Middle: 100dp 3D Holographic Security Stamp (भव्य १००dp - जय हिंद मंडळ व क्रांतीज्योत)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            modifier = Modifier.padding(horizontal = 2.dp)
                         ) {
-                            HolographicSecuritySeal(size = 54.dp)
-                            Spacer(modifier = Modifier.height(3.dp))
+                            HolographicSecuritySeal(size = 100.dp)
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "सुरक्षा होलोग्राम",
+                                text = "अधिकृत सुरक्षा सील",
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFB45309)
                             )
                         }
 
-                        // Right: President's Authorized Signature (अध्यक्षांची स्वाक्षरी)
+                        // Right: President's Authorized Signature & Official Stamp (अध्यक्षांची स्वाक्षरी व शिक्का)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.widthIn(min = 120.dp)
+                            modifier = Modifier.widthIn(min = 105.dp)
                         ) {
                             if (!mandalInfo.presidentSignatureUrl.isNullOrBlank() || !mandalInfo.officialStampUrl.isNullOrBlank()) {
                                 PresidentSignatureSection(
@@ -436,14 +438,16 @@ fun DigitalIdCardView(
                             }
                             Text(
                                 text = mandalInfo.presidentName.ifBlank { "अध्यक्ष" },
-                                fontSize = 10.5.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0F172A)
+                                color = Color(0xFF0F172A),
+                                textAlign = TextAlign.Center
                             )
                             Text(
                                 text = "जय हिंद मंडळ, अर्जुनवाड",
-                                fontSize = 8.sp,
-                                color = TextMuted
+                                fontSize = 7.5.sp,
+                                color = TextMuted,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -580,13 +584,13 @@ fun OfficialMandalStamp(
 }
 
 /**
- * 3D Holographic Security Stamp (चकाकणारा होलोग्राफिक स्टॅम्प)
- * Simulates high-security government smart card hologram with rotating iridescent metallic gradient.
- * Default size is 54dp, placed prominently between QR code and President signature.
+ * 3D Holographic Security Stamp (भव्य १००dp चकाकणारा होलोग्राफिक स्टॅम्प)
+ * Features "जय हिंद मंडळ" round text at top, Flaming Torch (ज्योत/मशाल) with sunburst rays in center,
+ * laurels on sides, and "स्थापना : १९९६" at bottom, layered with a rotating 3D iridescent metallic rainbow reflection.
  */
 @Composable
 fun HolographicSecuritySeal(
-    size: Dp = 54.dp,
+    size: Dp = 100.dp,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "hologramTransition")
@@ -600,65 +604,86 @@ fun HolographicSecuritySeal(
         label = "hologramAngle"
     )
 
-    val holographicBrush = remember(angle) {
+    val holographicBorderBrush = remember(angle) {
         val rad = Math.toRadians(angle.toDouble())
-        val x = (Math.cos(rad) * 60).toFloat()
-        val y = (Math.sin(rad) * 60).toFloat()
+        val x = (Math.cos(rad) * 100).toFloat()
+        val y = (Math.sin(rad) * 100).toFloat()
         Brush.linearGradient(
             colors = listOf(
-                Color(0xFFFFD700), // Gold
-                Color(0xFF67E8F9), // Iridescent Cyan
-                Color(0xFFF472B6), // Iridescent Pink
-                Color(0xFFFBBF24), // Amber
-                Color(0xFFA78BFA), // Lavender
+                Color(0xFFFFD700), // Pure Gold
+                Color(0xFF67E8F9), // Iridescent Sky Blue
+                Color(0xFFF472B6), // Iridescent Magenta Pink
+                Color(0xFFFBBF24), // Amber Sun
+                Color(0xFFA78BFA), // Royal Lavender
                 Color(0xFF34D399), // Emerald
-                Color(0xFFFFD700)  // Gold
+                Color(0xFFFFD700)  // Pure Gold
             ),
-            start = Offset(27f - x, 27f - y),
-            end = Offset(27f + x, 27f + y)
+            start = Offset(50f - x, 50f - y),
+            end = Offset(50f + x, 50f + y)
         )
     }
 
+    val holographicSheenBrush = remember(angle) {
+        val rad = Math.toRadians(angle.toDouble())
+        val x = (Math.cos(rad) * 80).toFloat()
+        val y = (Math.sin(rad) * 80).toFloat()
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0x33FFD700),
+                Color(0x4467E8F9),
+                Color(0x44F472B6),
+                Color(0x33FBBF24),
+                Color(0x4434D399),
+                Color(0x33FFD700)
+            ),
+            start = Offset(50f - x, 50f - y),
+            end = Offset(50f + x, 50f + y)
+        )
+    }
+
+    // Outer 3D Holographic Container
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(holographicBrush)
-            .border(1.5.dp, Color(0xFFFFD700), CircleShape)
-            .padding(2.dp)
+            .background(holographicBorderBrush)
+            .border(2.dp, Color(0xFFFFD700), CircleShape)
+            .padding(2.5.dp)
             .testTag("holographic_security_seal"),
         contentAlignment = Alignment.Center
     ) {
+        // Inner Emblem Container with Pure White Base
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .border(0.8.dp, Color.White.copy(alpha = 0.95f), CircleShape),
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(1.dp, Color(0xFFD97706), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "★ जय हिंद ★",
-                    fontSize = 7.5.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color(0xFF1E293B),
-                    letterSpacing = 0.3.sp
-                )
-                Text(
-                    text = "अधिकृत",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color(0xFF991B1B)
-                )
-                Text(
-                    text = "SECURE",
-                    fontSize = 5.5.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF0F172A)
-                )
-            }
+            // 1. Official Mandal Emblem: "जय हिंद मंडळ" Circular Text + Center Flaming Torch (ज्योत) + 1996
+            Image(
+                painter = painterResource(id = R.drawable.ic_jayhind_logo),
+                contentDescription = "जय हिंद मंडळ सुरक्षा होलोग्राम",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(2.dp)
+            )
+
+            // 2. Animated 3D Iridescent Holographic Foil Sheen Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(holographicSheenBrush)
+            )
+
+            // 3. Concentric Security Fine Borders & Micro-Details
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(0.8.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+            )
         }
     }
 }

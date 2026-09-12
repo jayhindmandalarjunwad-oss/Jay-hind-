@@ -42,6 +42,12 @@ import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
 import com.example.util.MediaUtils
+import com.example.util.IdCardUtils
+import com.example.util.MemberExcelExporter
+import androidx.compose.ui.text.style.TextAlign
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 enum class AdminTab(val title: String) {
@@ -957,6 +963,8 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
     var memberToManage by remember { mutableStateOf<User?>(null) }
     var memberToEditDesignation by remember { mutableStateOf<User?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    var showExcelTableDialog by remember { mutableStateOf(false) }
+    var exportedFileResult by remember { mutableStateOf<Pair<java.io.File, android.net.Uri>?>(null) }
 
     val filteredMembers = remember(members, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -968,6 +976,119 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                 it.designation.contains(searchQuery, ignoreCase = true)
             }
         }
+    }
+
+    // Export Success & Quick Share Dialog
+    if (exportedFileResult != null) {
+        val (file, uri) = exportedFileResult!!
+        AlertDialog(
+            onDismissRequest = { exportedFileResult = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF107C41),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "एक्सेल फाईल तयार झाली!",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF14532D)
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        color = Color(0xFFF0FDF4),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "📄 ${MemberExcelExporter.FILE_NAME}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF15803D)
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "एकूण नोंदणीकृत सभासद: ${members.size} • आकार: ${file.length() / 1024 + 1} KB",
+                                fontSize = 11.sp,
+                                color = Color(0xFF166534)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "ही फाईल मायक्रोसॉफ्ट एक्सेल (MS Excel), गुगल शीट्स (Google Sheets) व फोनमधील 'Downloads' फोल्डरमध्ये कायमस्वरूपी सेव्ह झाली आहे. भविष्यातील सर्व कामांसाठी आपण ही फाईल वापरू शकता.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            MemberExcelExporter.shareCsvFile(context, uri)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("व्हॉट्सॲपवर पाठवा")
+                    }
+                    Button(
+                        onClick = {
+                            MemberExcelExporter.openCsvFile(context, uri)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF107C41))
+                    ) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("उघडा")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { exportedFileResult = null }) {
+                    Text("पूर्ण झाले")
+                }
+            }
+        )
+    }
+
+    // Interactive In-App Spreadsheet View Dialog
+    if (showExcelTableDialog) {
+        MemberExcelTableDialog(
+            members = members,
+            onDismiss = { showExcelTableDialog = false },
+            onDownload = {
+                val result = MemberExcelExporter.saveAndGetUri(context, members)
+                if (result != null) {
+                    exportedFileResult = result
+                    android.widget.Toast.makeText(
+                        context,
+                        "✅ '${MemberExcelExporter.FILE_NAME}' डाऊनलोड झाली!",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            },
+            onShare = {
+                val result = MemberExcelExporter.saveAndGetUri(context, members)
+                if (result != null) {
+                    MemberExcelExporter.shareCsvFile(context, result.second)
+                }
+            }
+        )
     }
 
     // Dialog for Delete & Transfer
@@ -1074,6 +1195,123 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                         color = Color(0xFF4C1D95),
                         fontWeight = FontWeight.Medium
                     )
+                }
+            }
+        }
+
+        // Excel Export & Digital Register Card (तिसरा बदल: सभासद नोंदणी एक्सेल वही)
+        item {
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                border = BorderStroke(1.5.dp, Color(0xFF86EFAC)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth().testTag("excel_export_card")
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF107C41),
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.TableChart,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "📊 सभासद डिजिटल नोंदणी वही (Excel)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF14532D)
+                            )
+                            Text(
+                                text = "सिरीयल नंबर, आयडी, नाव, मोबाईल, जन्मतारीख, रक्तगट व पत्ता",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF166534)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Button 1: Open interactive Spreadsheet View in app
+                        OutlinedButton(
+                            onClick = { showExcelTableDialog = true },
+                            modifier = Modifier.weight(1f).testTag("btn_view_spreadsheet"),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFF15803D)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = Color(0xFF15803D)
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Visibility,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "एक्सेल टेबल पहा",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Button 2: Download Excel CSV file directly
+                        Button(
+                            onClick = {
+                                val result = MemberExcelExporter.saveAndGetUri(context, members)
+                                if (result != null) {
+                                    exportedFileResult = result
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "✅ '${MemberExcelExporter.FILE_NAME}' डाऊनलोड झाली!",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "फाईल सेव्ह करताना अडचण आली.",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f).testTag("btn_download_excel"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF107C41),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "एक्सेल डाऊनलोड",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1357,6 +1595,369 @@ fun AllMembersAdminTab(members: List<User>, viewModel: MandalViewModel) {
                             IconButton(onClick = { memberToManage = member }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BloodRed)
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Interactive In-App Spreadsheet View Dialog (तिसरा बदल: ॲपमध्ये एक्सेल स्प्रेडशीट टेबल दृश्य)
+ * Displays columns: Sr. No., Digital ID, Name, Designation, Mobile, DOB, Blood Group, Address, Reg Date, Status.
+ */
+@Composable
+fun MemberExcelTableDialog(
+    members: List<User>,
+    onDismiss: () -> Unit,
+    onDownload: () -> Unit,
+    onShare: () -> Unit
+) {
+    var filterQuery by remember { mutableStateOf("") }
+    val filteredList = remember(members, filterQuery) {
+        if (filterQuery.isBlank()) members
+        else members.filter {
+            it.fullName.contains(filterQuery, ignoreCase = true) ||
+            it.mobileNumber.contains(filterQuery) ||
+            it.bloodGroup.contains(filterQuery, ignoreCase = true) ||
+            it.address.contains(filterQuery, ignoreCase = true) ||
+            it.designation.contains(filterQuery, ignoreCase = true) ||
+            IdCardUtils.formatMemberId(it).contains(filterQuery, ignoreCase = true)
+        }
+    }
+
+    val horizontalScrollState = rememberScrollState()
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.98f)
+                .fillMaxHeight(0.94f)
+                .padding(4.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
+                Surface(
+                    color = Color(0xFF107C41),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.TableChart,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "📊 सभासद डिजिटल नोंदणी वही (एक्सेल दृश्य)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "एकूण सभासद: ${filteredList.size} / ${members.size} • जय हिंद मंडळ, अर्जुनवाड",
+                                fontSize = 11.sp,
+                                color = Color(0xFFDCFCE7)
+                            )
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
+                }
+
+                // Filter & Fast Actions Bar
+                Surface(
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = filterQuery,
+                            onValueChange = { filterQuery = it },
+                            placeholder = { Text("टेबलमध्ये शोधा...", fontSize = 12.sp) },
+                            leadingIcon = { 
+                                Icon(
+                                    Icons.Default.Search, 
+                                    contentDescription = null, 
+                                    modifier = Modifier.size(16.dp), 
+                                    tint = Color(0xFF107C41)
+                                ) 
+                            },
+                            trailingIcon = {
+                                if (filterQuery.isNotBlank()) {
+                                    IconButton(onClick = { filterQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White
+                            )
+                        )
+
+                        Button(
+                            onClick = onDownload,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF107C41)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("डाऊनलोड", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = onShare,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("शेअर", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Table Layout: Horizontally scrollable
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .horizontalScroll(horizontalScrollState)
+                ) {
+                    val colWidths = listOf(
+                        55.dp,  // 0: Sr. No
+                        120.dp, // 1: Digital ID
+                        160.dp, // 2: Full Name
+                        130.dp, // 3: Designation
+                        120.dp, // 4: Mobile
+                        105.dp, // 5: DOB
+                        80.dp,  // 6: Blood Group
+                        230.dp, // 7: Address
+                        110.dp, // 8: Reg Date
+                        100.dp  // 9: Status
+                    )
+
+                    val headers = listOf(
+                        "अ. क्र.",
+                        "डिजिटल आयडी",
+                        "सदस्याचे नाव",
+                        "पद / भूमिका",
+                        "मोबाईल नंबर",
+                        "जन्मतारीख",
+                        "रक्तगट",
+                        "सदस्याचा पत्ता",
+                        "नोंदणी दिनांक",
+                        "खाते स्थिती"
+                    )
+
+                    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale("mr", "IN")) }
+
+                    LazyColumn(modifier = Modifier.fillMaxHeight()) {
+                        // Header Row
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .background(Color(0xFF0F5132))
+                                    .padding(vertical = 10.dp)
+                            ) {
+                                headers.forEachIndexed { i, headerTitle ->
+                                    Text(
+                                        text = headerTitle,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        textAlign = if (i == 0 || i == 6 || i == 9) TextAlign.Center else TextAlign.Start,
+                                        modifier = Modifier
+                                            .width(colWidths[i])
+                                            .padding(horizontal = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Data Rows
+                        itemsIndexed(filteredList, key = { _, user -> user.id }) { index, user ->
+                            val isEven = index % 2 == 0
+                            val rowBg = if (isEven) Color.White else Color(0xFFF8FAFC)
+                            val regDateStr = remember(user.createdAt) {
+                                try { dateFormat.format(Date(user.createdAt)) } catch (_: Exception) { "-" }
+                            }
+                            val memberId = remember(user.id) { IdCardUtils.formatMemberId(user) }
+
+                            Row(
+                                modifier = Modifier
+                                    .background(rowBg)
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 0. Sr. No
+                                Text(
+                                    text = (index + 1).toString(),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF334155),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.width(colWidths[0]).padding(horizontal = 4.dp)
+                                )
+
+                                // 1. Digital ID
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFFEF3C7),
+                                    modifier = Modifier.width(colWidths[1]).padding(horizontal = 4.dp)
+                                ) {
+                                    Text(
+                                        text = memberId,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFB45309),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+
+                                // 2. Full Name
+                                Text(
+                                    text = user.fullName.ifBlank { "सभासद" },
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.width(colWidths[2]).padding(horizontal = 6.dp)
+                                )
+
+                                // 3. Designation
+                                Text(
+                                    text = if (user.designation.isNotBlank()) user.designation else if (user.isAdmin) "मंडळ पदाधिकारी" else "सभासद",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF1D4ED8),
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.width(colWidths[3]).padding(horizontal = 6.dp)
+                                )
+
+                                // 4. Mobile
+                                Text(
+                                    text = user.mobileNumber,
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF334155),
+                                    modifier = Modifier.width(colWidths[4]).padding(horizontal = 6.dp)
+                                )
+
+                                // 5. DOB
+                                Text(
+                                    text = user.dateOfBirth.ifBlank { "-" },
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF475569),
+                                    modifier = Modifier.width(colWidths[5]).padding(horizontal = 6.dp)
+                                )
+
+                                // 6. Blood Group
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFFEE2E2),
+                                    modifier = Modifier.width(colWidths[6]).padding(horizontal = 4.dp)
+                                ) {
+                                    Text(
+                                        text = user.bloodGroup.ifBlank { "O+" },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFDC2626),
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 2.dp)
+                                    )
+                                }
+
+                                // 7. Address
+                                Text(
+                                    text = user.address.ifBlank { "अर्जुनवाड, ता. शिरोळ" },
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF334155),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.width(colWidths[7]).padding(horizontal = 6.dp)
+                                )
+
+                                // 8. Reg Date
+                                Text(
+                                    text = regDateStr,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF475569),
+                                    modifier = Modifier.width(colWidths[8]).padding(horizontal = 6.dp)
+                                )
+
+                                // 9. Status
+                                val statusText = when (user.status.uppercase()) {
+                                    "APPROVED" -> "सक्रिय"
+                                    "PENDING_APPROVAL" -> "प्रलंबित"
+                                    "BLOCKED" -> "ब्लॉक"
+                                    else -> user.status
+                                }
+                                val statusColor = if (user.status.uppercase() == "APPROVED") Color(0xFF15803D) else Color(0xFFD97706)
+                                Text(
+                                    text = statusText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusColor,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.width(colWidths[9]).padding(horizontal = 4.dp)
+                                )
+                            }
+                            HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.5.dp)
+                        }
+                    }
+                }
+
+                // Dialog Footer
+                Surface(
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "💡 टीप: ही एक्सेल (.csv) फाईल MS Excel, Google Sheets मध्ये थेट उघडता येते.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B),
+                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        )
+                        TextButton(
+                            onClick = onDismiss,
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF475569))
+                        ) {
+                            Text("बंद करा", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
