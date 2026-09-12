@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Divine Radiance Background -->
+    <path
+        android:fillColor="#E65100"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Sacred Gada (हनुमानाची सुवर्ण गदा) -->
+    <path
+        android:fillColor="#FFD700"
+        android:strokeColor="#FFA000"
+        android:strokeWidth="1"
+        android:pathData="M44,18 C38,24 38,36 44,42 C48,46 52,46 56,42 C62,36 62,24 56,18 C52,14 48,14 44,18 Z"/>
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M46,24 A4,4 0 1,0 54,24 A4,4 0 1,0 46,24 Z"/>
+
+    <!-- Gada Handle (गदेची मूठ) -->
+    <path
+        android:fillColor="#FFE082"
+        android:strokeColor="#FFB300"
+        android:strokeWidth="1"
+        android:pathData="M48,42 L48,80 L52,80 L52,42 Z"/>
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M47,80 L53,80 L50,86 Z"/>
+
+    <!-- Sinduri Tilak & Divine Halo (सिंदूर टिळक) -->
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M30,34 Q38,28 42,34 Q38,40 30,34 Z"/>
+    <path
+        android:strokeColor="#FFE082"
+        android:strokeWidth="1.5"
+        android:pathData="M18,48 L26,48 M70,48 L78,48 M48,4 L48,12"/>
+</vector>

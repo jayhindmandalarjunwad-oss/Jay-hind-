@@ -1,0 +1,39 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Green Nature / Knowledge Glow Background -->
+    <path
+        android:fillColor="#1B5E20"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Open Book of Knowledge (ज्ञानपुस्तक) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"
+        android:pathData="M48,54 C40,50 30,50 20,54 L20,74 C30,70 40,70 48,74 Z"/>
+    <path
+        android:fillColor="#ECEFF1"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"
+        android:pathData="M48,54 C56,50 66,50 76,54 L76,74 C66,70 56,70 48,74 Z"/>
+
+    <!-- Flaming Torch / Krantijyot (क्रांतीज्योत / प्रज्ञा दीप) -->
+    <path
+        android:fillColor="#FFD700"
+        android:strokeColor="#FFA000"
+        android:strokeWidth="1"
+        android:pathData="M44,48 L52,48 L50,56 L46,56 Z"/>
+    <path
+        android:fillColor="#FF3D00"
+        android:pathData="M48,18 C40,28 40,40 48,46 C56,40 56,28 48,18 Z"/>
+    <path
+        android:fillColor="#FFEA00"
+        android:pathData="M48,26 C44,32 44,38 48,42 C52,38 52,32 48,26 Z"/>
+</vector>

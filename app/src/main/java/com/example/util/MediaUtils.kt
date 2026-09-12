@@ -1,8 +1,10 @@
 package com.example.util
 
+import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -1126,14 +1128,19 @@ object MediaUtils {
             var fileBytes: ByteArray? = when {
                 docUrlOrBase64.startsWith("data:") -> {
                     val base64Data = docUrlOrBase64.substringAfter("base64,")
-                    Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                    try {
+                        Base64.decode(base64Data.trim(), Base64.DEFAULT)
+                    } catch (_: Exception) {
+                        null
+                    }
                 }
                 docUrlOrBase64.startsWith("http://") || docUrlOrBase64.startsWith("https://") -> {
                     try {
                         val url = URL(docUrlOrBase64)
                         val connection = (url.openConnection() as HttpURLConnection).apply {
-                            connectTimeout = 5000
-                            readTimeout = 7000
+                            connectTimeout = 8000
+                            readTimeout = 12000
+                            instanceFollowRedirects = true
                         }
                         connection.connect()
                         if (connection.responseCode == HttpURLConnection.HTTP_OK) {
@@ -1143,9 +1150,35 @@ object MediaUtils {
                         null
                     }
                 }
-                docUrlOrBase64.startsWith("content://") || docUrlOrBase64.startsWith("file://") -> {
+                docUrlOrBase64.startsWith("content://") -> {
                     try {
                         context.contentResolver.openInputStream(Uri.parse(docUrlOrBase64))?.use { it.readBytes() }
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                docUrlOrBase64.startsWith("file://") -> {
+                    try {
+                        val path = docUrlOrBase64.substringAfter("file://")
+                        val f = File(path)
+                        if (f.exists() && f.length() > 0) f.readBytes() else null
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                docUrlOrBase64.startsWith("/") -> {
+                    // Local filesystem path (e.g. sender internal storage fallback)
+                    try {
+                        val f = File(docUrlOrBase64)
+                        if (f.exists() && f.length() > 0) f.readBytes() else null
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                docUrlOrBase64.contains("base64,") -> {
+                    try {
+                        val b64 = docUrlOrBase64.substringAfter("base64,").trim()
+                        Base64.decode(b64, Base64.DEFAULT)
                     } catch (_: Exception) {
                         null
                     }
@@ -1175,16 +1208,47 @@ object MediaUtils {
             val viewIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(contentUri, mimeType)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                clipData = ClipData.newRawUri(safeFileName, contentUri)
             }
+
+            // Explicitly grant temporary URI read permissions to all apps that can handle this intent
+            try {
+                val resolveInfoList = context.packageManager.queryIntentActivities(viewIntent, PackageManager.MATCH_DEFAULT_ONLY)
+                for (resolveInfo in resolveInfoList) {
+                    val packageName = resolveInfo.activityInfo.packageName
+                    context.grantUriPermission(packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            } catch (_: Exception) {}
 
             withContext(Dispatchers.Main) {
                 try {
-                    val chooser = Intent.createChooser(viewIntent, "PDF दस्तऐवज उघडा ($safeFileName)")
-                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    val chooser = Intent.createChooser(viewIntent, "PDF दस्तऐवज उघडा ($safeFileName)").apply {
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        clipData = ClipData.newRawUri(safeFileName, contentUri)
+                    }
                     context.startActivity(chooser)
                 } catch (e: Exception) {
-                    Toast.makeText(context, "PDF उघडण्यासाठी Google Drive किंवा PDF Viewer आवश्यक आहे", Toast.LENGTH_LONG).show()
+                    // Fallback to share intent (WhatsApp, Google Drive, Gmail, Files)
+                    try {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = mimeType
+                            putExtra(Intent.EXTRA_STREAM, contentUri)
+                            putExtra(Intent.EXTRA_SUBJECT, safeFileName)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            clipData = ClipData.newRawUri(safeFileName, contentUri)
+                        }
+                        val shareChooser = Intent.createChooser(shareIntent, "PDF पाठवा / शेअर करा ($safeFileName)").apply {
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(shareChooser)
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "PDF उघडण्यासाठी Google Drive किंवा PDF Viewer आवश्यक आहे", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         } catch (e: Exception) {

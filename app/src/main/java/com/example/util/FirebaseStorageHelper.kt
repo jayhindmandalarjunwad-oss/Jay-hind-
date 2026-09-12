@@ -472,21 +472,33 @@ object FirebaseStorageHelper {
             Log.d(TAG, "Document uploaded successfully: $docUrl ($sizeLabel, $standardizedDocName)")
             return@withContext Pair(docUrl, sizeLabel)
         } catch (e: Exception) {
-            Log.w(TAG, "Document cloud upload note (${e.message}). Falling back to internal persistent storage.")
+            Log.w(TAG, "Document cloud upload note (${e.message}). Falling back to persistent storage.")
             val docDir = File(context.filesDir, "jayhind_docs").apply { if (!exists()) mkdirs() }
             val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)
             val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val cleanName = fileName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
             val standardizedDocName = if (cleanName.startsWith("JayHind_Doc_")) cleanName else "JayHind_Doc_${cleanSender}_${dateStr}_$cleanName"
             val localDoc = File(docDir, standardizedDocName)
+            var rawBytes: ByteArray? = null
             try {
                 context.contentResolver.openInputStream(uri)?.use { inStream ->
+                    rawBytes = inStream.readBytes()
                     FileOutputStream(localDoc).use { outStream ->
-                        inStream.copyTo(outStream)
+                        outStream.write(rawBytes ?: byteArrayOf())
                     }
                 }
             } catch (_: Exception) {}
             val sizeLabel = formatFileSize(fileSize)
+
+            // If the document is within 800KB, encode as Base64 data URI so all receivers can open it on their devices
+            val bytes = rawBytes
+            if (bytes != null && bytes.isNotEmpty() && bytes.size <= 800 * 1024) {
+                val mime = context.contentResolver.getType(uri) ?: "application/pdf"
+                val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                val dataUri = "data:$mime;base64,$b64"
+                return@withContext Pair(dataUri, sizeLabel)
+            }
+
             return@withContext Pair(localDoc.absolutePath, sizeLabel)
         }
     }

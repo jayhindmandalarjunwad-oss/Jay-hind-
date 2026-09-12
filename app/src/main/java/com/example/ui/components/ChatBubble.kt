@@ -543,10 +543,8 @@ fun ChatBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                if (docUrl.isNotBlank()) {
-                                    scope.launch {
-                                        MediaUtils.openDocumentFile(context, docUrl, docName)
-                                    }
+                                scope.launch {
+                                    MediaUtils.openDocumentFile(context, docUrl, docName)
                                 }
                             }
                     ) {

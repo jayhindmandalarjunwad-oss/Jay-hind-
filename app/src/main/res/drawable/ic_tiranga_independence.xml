@@ -1,0 +1,73 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Circular Patriotic Shield Background -->
+    <path
+        android:fillColor="#0D1B2A"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Radiant Rays of Freedom -->
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="1"
+        android:strokeAlpha="0.6"
+        android:pathData="M48,2 L48,7 M48,89 L48,94 M2,48 L7,48 M89,48 L94,48 M16,16 L20,20 M76,76 L80,80 M80,16 L76,20 M20,76 L16,80"/>
+
+    <!-- Flagpole (ध्वजस्तंभ) -->
+    <path
+        android:fillColor="#CFD8DC"
+        android:strokeColor="#90A4AE"
+        android:strokeWidth="1"
+        android:pathData="M26,20 L29,20 L29,82 L26,82 Z"/>
+    <!-- Golden Finial at Top of Mast -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M27.5,16 A3.5,3.5 0 1,0 27.5,23 A3.5,3.5 0 1,0 27.5,16 Z"/>
+
+    <!-- Waving Tricolor Flag (लहरता राष्ट्रध्वज) -->
+    <!-- 1. Saffron Top Band (केशरी रंग) -->
+    <path
+        android:fillColor="#FF9933"
+        android:pathData="M29,22 C40,19 50,25 61,22 C67,20 73,22 75,23 L75,34 C73,33 67,31 61,33 C50,36 40,30 29,33 Z"/>
+
+    <!-- 2. White Middle Band (श्वेत रंग) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M29,33 C40,30 50,36 61,33 C67,31 73,33 75,34 L75,45 C73,44 67,42 61,44 C50,47 40,41 29,44 Z"/>
+
+    <!-- 3. Green Bottom Band (हिरवा रंग) -->
+    <path
+        android:fillColor="#138808"
+        android:pathData="M29,44 C40,41 50,47 61,44 C67,42 73,44 75,45 L75,56 C73,55 67,53 61,55 C50,58 40,52 29,55 Z"/>
+
+    <!-- Ashoka Chakra (अशोक चक्र) in Center of White Band -->
+    <path
+        android:strokeColor="#000080"
+        android:strokeWidth="1.2"
+        android:fillColor="#00000000"
+        android:pathData="M52,33.5 A5,5 0 1,0 52,43.5 A5,5 0 1,0 52,33.5 Z"/>
+    <path
+        android:fillColor="#000080"
+        android:pathData="M52,37.5 A1,1 0 1,0 52,39.5 A1,1 0 1,0 52,37.5 Z"/>
+    <!-- Spokes (अशोक चक्र आरे) -->
+    <path
+        android:strokeColor="#000080"
+        android:strokeWidth="0.8"
+        android:pathData="M52,34 L52,43 M47.5,38.5 L56.5,38.5 M48.8,35.3 L55.2,41.7 M48.8,41.7 L55.2,35.3"/>
+
+    <!-- Golden Laurels / Proud Leaves below flagpole -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000"
+        android:pathData="M24,76 C35,82 60,82 72,74"/>
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M34,77 L36,73 L39,78 Z M46,79 L49,75 L51,80 Z M60,78 L63,74 L64,79 Z"/>
+</vector>

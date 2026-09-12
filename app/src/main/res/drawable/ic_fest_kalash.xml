@@ -1,0 +1,48 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Traditional Saffron Red Background -->
+    <path
+        android:fillColor="#B71C1C"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Sacred Kalash Pot (मंगल कलश) -->
+    <path
+        android:fillColor="#FFD700"
+        android:strokeColor="#FFA000"
+        android:strokeWidth="1.5"
+        android:pathData="M34,50 C30,68 38,76 48,76 C58,76 66,68 62,50 C58,46 38,46 34,50 Z"/>
+
+    <!-- Coconut (श्रीफळ / नारळ) -->
+    <path
+        android:fillColor="#795548"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1"
+        android:pathData="M42,46 C40,32 48,22 48,22 C48,22 56,32 54,46 Z"/>
+
+    <!-- Mango Leaves (आंब्याची पाने) -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M34,46 C24,40 22,28 22,28 C22,28 32,32 38,44 Z"/>
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M62,46 C72,40 74,28 74,28 C74,28 64,32 58,44 Z"/>
+    <path
+        android:fillColor="#388E3C"
+        android:pathData="M48,44 C44,30 38,24 38,24 C38,24 46,30 48,44 Z"/>
+    <path
+        android:fillColor="#388E3C"
+        android:pathData="M48,44 C52,30 58,24 58,24 C58,24 50,30 48,44 Z"/>
+
+    <!-- Auspicious Swastik on Kalash (स्वास्तिक) -->
+    <path
+        android:strokeColor="#D50000"
+        android:strokeWidth="2"
+        android:pathData="M48,56 L48,68 M42,62 L54,62 M42,56 L48,56 M54,68 L48,68 M42,62 L42,68 M54,62 L54,56"/>
+</vector>

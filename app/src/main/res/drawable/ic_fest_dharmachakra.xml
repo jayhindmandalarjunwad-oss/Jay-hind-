@@ -1,0 +1,39 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Deep Dharma Blue Background -->
+    <path
+        android:fillColor="#0D47A1"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Dharmachakra Outer Rim (धम्मचक्र) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="3.5"
+        android:fillColor="#00000000"
+        android:pathData="M48,24 A24,24 0 1,0 48,72 A24,24 0 1,0 48,24 Z"/>
+    <!-- Dharmachakra Hub -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M48,43 A5,5 0 1,0 48,53 A5,5 0 1,0 48,43 Z"/>
+
+    <!-- 8 Noble Spokes (अष्टांगिक मार्ग आऱ्या) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,24 L48,72 M24,48 L72,48 M31,31 L65,65 M31,65 L65,31"/>
+
+    <!-- Sacred Lotus Petals at Bottom (कमळ पाकळ्या) -->
+    <path
+        android:fillColor="#E91E63"
+        android:pathData="M48,70 C42,75 34,76 30,78 C36,81 44,80 48,76 C52,80 60,81 66,78 C62,76 54,75 48,70 Z"/>
+    <path
+        android:fillColor="#F48FB1"
+        android:pathData="M48,68 C44,72 38,73 34,75 C40,77 46,76 48,73 C50,76 56,77 62,75 C58,73 52,72 48,68 Z"/>
+</vector>

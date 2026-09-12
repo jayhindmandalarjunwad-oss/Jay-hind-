@@ -1,0 +1,70 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Spring New Year Background -->
+    <path
+        android:fillColor="#BF360C"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Radiant Sun Rays of Chaitra Navavarsh -->
+    <path
+        android:strokeColor="#FFE082"
+        android:strokeWidth="1.2"
+        android:strokeAlpha="0.7"
+        android:pathData="M48,2 L48,8 M48,88 L48,94 M2,48 L8,48 M88,48 L94,48 M16,16 L21,21 M75,75 L80,80 M80,16 L75,21 M21,75 L16,80"/>
+
+    <!-- Bamboo Staff (गुढीची बांबू काठी) -->
+    <path
+        android:fillColor="#FFF59D"
+        android:strokeColor="#FBC02D"
+        android:strokeWidth="0.8"
+        android:pathData="M46,28 L50,28 L50,86 L46,86 Z"/>
+
+    <!-- Copper / Brass Kalash Inverted at Top (तांब्याचा कलश) -->
+    <path
+        android:fillColor="#FFD700"
+        android:strokeColor="#FFA000"
+        android:strokeWidth="1"
+        android:pathData="M41,25 C40,16 44,14 48,14 C52,14 56,16 55,25 Z"/>
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M40,25 L56,25 L55,28 L41,28 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M46,18 L50,18 L48,23 Z"/>
+
+    <!-- Fresh Green Neem Leaves & Mango Leaves (कडुलिंबाची पाने) -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M35,27 C38,24 45,26 44,30 C41,31 36,29 35,27 Z M57,27 C54,24 47,26 48,30 C51,31 56,29 57,27 Z M38,32 C41,30 46,31 44,34 C41,35 38,34 38,32 Z M54,32 C51,30 46,31 48,34 C51,35 54,34 54,32 Z"/>
+
+    <!-- Sugar Garland (साखरेच्या गाठींची माळ) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M42,28 Q48,36 54,28"/>
+    <!-- Garland Beads -->
+    <path
+        android:fillColor="#FFFDE7"
+        android:pathData="M44,31 A1.8,1.8 0 1,0 44,34.6 A1.8,1.8 0 1,0 44,31 Z M48,33 A2,2 0 1,0 48,37 A2,2 0 1,0 48,33 Z M52,31 A1.8,1.8 0 1,0 52,34.6 A1.8,1.8 0 1,0 52,31 Z"/>
+
+    <!-- Bright Saffron / Green Silk Fabric (जरीचे रेशमी वस्त्र) -->
+    <path
+        android:fillColor="#FF9800"
+        android:strokeColor="#E65100"
+        android:strokeWidth="1"
+        android:pathData="M42,28 C34,36 30,50 32,68 C38,64 42,66 48,63 C54,66 58,64 64,68 C66,50 62,36 54,28 Z"/>
+    <!-- Golden Border Zari (जरीकाठ) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M32,67 C38,63 42,65 48,62 C54,65 58,63 64,67"/>
+</vector>

@@ -1,0 +1,91 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Divine Solar Halo (सूर्यवंशी प्रभू श्रीराम सूर्य तेज) -->
+    <path
+        android:fillColor="#E65100"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Radiant Sunburst Surya Rays -->
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="1.5"
+        android:pathData="M48,2 L48,8 M48,88 L48,94 M2,48 L8,48 M88,48 L94,48 M15,15 L20,20 M76,76 L81,81 M81,15 L76,20 M20,76 L15,81"/>
+
+    <!-- Inner Divine Aura -->
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M48,16 A32,32 0 1,0 48,80 A32,32 0 1,0 48,16 Z"/>
+
+    <!-- Golden Crown (श्रीराम दिव्य मुकुट) -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M37,30 L48,18 L59,30 L55,36 L41,36 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M45,26 L48,21 L51,26 L48,29 Z"/>
+    <path
+        android:fillColor="#FFF8E1"
+        android:pathData="M40,34 L56,34 L54,37 L42,37 Z"/>
+
+    <!-- Divine Face Outline (श्रीराम मुखमंडल) -->
+    <path
+        android:fillColor="#FFE0B2"
+        android:pathData="M41,37 C41,37 48,36 55,37 C57,46 56,54 53,59 C49,63 47,63 43,59 C40,54 39,46 41,37 Z"/>
+
+    <!-- Long Divine Flowing Hair (केशकलाप) -->
+    <path
+        android:fillColor="#3E2723"
+        android:pathData="M38,36 C34,42 33,52 35,62 C37,56 38,48 40,42 Z M58,36 C62,42 63,52 61,62 C59,56 58,48 56,42 Z"/>
+
+    <!-- Peaceful Divine Eyes & Eyebrows -->
+    <path
+        android:strokeColor="#3E2723"
+        android:strokeWidth="1.2"
+        android:pathData="M43,45 Q45,43 47,45 M49,45 Q51,43 53,45"/>
+
+    <!-- Urdhva Pundra Tilak (श्रीराम उध्वपुंड्र टिळक) -->
+    <path
+        android:fillColor="#FFD600"
+        android:pathData="M46,37 L50,37 L49,44 L47,44 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M47.5,39 L48.5,39 L48.5,45 L47.5,45 Z"/>
+
+    <!-- Divine Bow (कोदंड धनुष्य) in Hands -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000"
+        android:pathData="M23,24 C29,48 29,66 23,84"/>
+    <!-- Bowstring (धनुष्य प्रत्यंचा) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.8"
+        android:pathData="M23,25 L23,83"/>
+
+    <!-- Divine Golden Arrow (अमोघ बाण) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.8"
+        android:pathData="M20,54 L68,54"/>
+    <!-- Arrowhead (बाणाचे पाते) -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M68,51 L75,54 L68,57 Z"/>
+    <!-- Arrow Feathers (पिसे) -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M20,51 L25,54 L20,57 Z"/>
+
+    <!-- Shoulders & Divine Pitambar (सोनेरी पितांबर) -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M35,63 C38,60 48,59 58,63 C63,70 66,80 66,84 L30,84 C30,80 32,70 35,63 Z"/>
+</vector>

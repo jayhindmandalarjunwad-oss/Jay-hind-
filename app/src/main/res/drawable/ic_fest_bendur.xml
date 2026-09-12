@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Rural Traditional Ochre Background -->
+    <path
+        android:fillColor="#BF360C"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Decorated Bull Horns with Bashing (बैलजोडीचे शिंगे व बाशिंग) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="3.5"
+        android:fillColor="#00000000"
+        android:pathData="M34,48 C30,34 22,24 24,18 C28,24 38,36 40,44"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="3.5"
+        android:fillColor="#00000000"
+        android:pathData="M62,48 C66,34 74,24 72,18 C68,24 58,36 56,44"/>
+
+    <!-- Bashing & Jhul (कपाळावरील बाशिंग व मोरकी) -->
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M42,34 L54,34 L48,22 Z"/>
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M45,28 L51,28 L48,24 Z"/>
+
+    <!-- Auspicious Ghungroo Bell (घुंगरू माळ) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M32,66 Q48,76 64,66"/>
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M40,71 A2.5,2.5 0 1,0 40,75 A2.5,2.5 0 1,0 40,71 Z M48,73 A3,3 0 1,0 48,78 A3,3 0 1,0 48,73 Z M56,71 A2.5,2.5 0 1,0 56,75 A2.5,2.5 0 1,0 56,71 Z"/>
+</vector>

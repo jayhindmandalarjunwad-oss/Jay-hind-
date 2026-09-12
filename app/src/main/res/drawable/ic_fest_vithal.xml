@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Divine Varkari Ochre Background -->
+    <path
+        android:fillColor="#BF360C"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Veena (टाळ-मृदंग व वीणा) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M30,76 L66,20"/>
+    <!-- Veena Gourds (तुंबे) -->
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M26,72 A8,8 0 1,0 38,78 A8,8 0 1,0 26,72 Z"/>
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M58,26 A5,5 0 1,0 66,30 A5,5 0 1,0 58,26 Z"/>
+
+    <!-- Varkari Pataka Flag (वारकरी भगवी पताका) -->
+    <path
+        android:fillColor="#FF6F00"
+        android:strokeColor="#FFE082"
+        android:strokeWidth="1"
+        android:pathData="M66,20 L84,30 L66,40 Z"/>
+
+    <!-- Sacred Tulsi Vrindavan / Chandan Tilak (गोपीचंदन टिळक) -->
+    <path
+        android:fillColor="#FFF8E1"
+        android:pathData="M46,40 L50,40 L49,54 L47,54 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M48,56 A2,2 0 1,0 48,60 A2,2 0 1,0 48,56 Z"/>
+</vector>

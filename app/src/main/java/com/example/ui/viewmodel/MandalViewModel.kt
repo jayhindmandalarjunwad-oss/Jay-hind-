@@ -1274,6 +1274,33 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // FESTIVE BANNER TOGGLE & SELECTION MANAGEMENT (सण व विशेष दिन बॅनर नियंत्रण)
+    fun updateFestiveBannerSettings(
+        showFestiveBanner: Boolean,
+        manualFestivalId: String = "",
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                val result = repository.updateFestiveBannerSettings(
+                    showFestiveBanner = showFestiveBanner,
+                    manualFestivalId = manualFestivalId
+                )
+                if (result.isSuccess) {
+                    val statusText = if (showFestiveBanner) "चालू (Visible)" else "बंद (Hidden)"
+                    showSnackbar("सण व विशेष दिन बॅनर सेटिंग्ज यशस्वीरित्या अपडेट: $statusText ✅")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ सेटिंग्ज अपडेट करताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
     // ADMIN ROLE & DESIGNATION MANAGEMENT
     fun changeUserRole(userId: String, newRole: String) {
         viewModelScope.launch {

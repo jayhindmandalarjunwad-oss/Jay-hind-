@@ -1,0 +1,56 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Deep Festival Midnight Background -->
+    <path
+        android:fillColor="#3E2723"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Radiant Sparkles of Light (दिव्यांचे तेज) -->
+    <path
+        android:strokeColor="#FFE082"
+        android:strokeWidth="1"
+        android:strokeAlpha="0.7"
+        android:pathData="M48,2 L48,8 M48,88 L48,94 M2,48 L8,48 M88,48 L94,48 M18,18 L22,22 M74,74 L78,78 M78,18 L74,22 M22,74 L18,78"/>
+
+    <!-- Outer Flame Glow (अग्नी प्रभा) -->
+    <path
+        android:fillColor="#FFA000"
+        android:fillAlpha="0.35"
+        android:pathData="M48,16 C42,26 36,36 36,46 C36,56 42,62 48,62 C54,62 60,56 60,46 C60,36 54,26 48,16 Z"/>
+
+    <!-- Golden Flame (सोनसळी ज्योत) -->
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M48,22 C44,30 40,38 40,47 C40,54 44,59 48,59 C52,59 56,54 56,47 C56,38 52,30 48,22 Z"/>
+    <!-- Inner Core Bright Flame (तेजोमय अंतर्भाग) -->
+    <path
+        android:fillColor="#FFF9C4"
+        android:pathData="M48,30 C46,36 44,42 44,49 C44,54 46,57 48,57 C50,57 52,54 52,49 C52,42 50,36 48,30 Z"/>
+
+    <!-- Traditional Clay/Brass Diya Base (सुंदर पणती) -->
+    <path
+        android:fillColor="#E65100"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"
+        android:pathData="M22,54 C24,68 35,76 48,76 C61,76 72,68 74,54 C66,58 58,56 48,56 C38,56 30,58 22,54 Z"/>
+    <!-- Diya Rim and Carvings (पणतीवरील कोरीव नक्षी) -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,54 L72,54 L70,57 L26,57 Z"/>
+    <path
+        android:strokeColor="#FFE082"
+        android:strokeWidth="1"
+        android:pathData="M32,64 Q48,72 64,64"/>
+
+    <!-- Diya Pedestal (बैठक) -->
+    <path
+        android:fillColor="#BF360C"
+        android:pathData="M40,76 L56,76 L60,82 L36,82 Z"/>
+</vector>

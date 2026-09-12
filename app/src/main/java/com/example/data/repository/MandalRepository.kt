@@ -2282,6 +2282,39 @@ class MandalRepository(context: Context) {
         }
     }
 
+    // FESTIVE BANNER TOGGLE & MANUAL SELECTION (सण व विशेष दिन बॅनर नियंत्रण)
+    suspend fun updateFestiveBannerSettings(
+        showFestiveBanner: Boolean,
+        manualFestivalId: String = ""
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val current = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            val updated = current.copy(
+                showFestiveBanner = showFestiveBanner,
+                manualFestivalId = manualFestivalId.trim(),
+                updatedAt = System.currentTimeMillis()
+            )
+            mandalInfoDao.saveMandalInfo(updated)
+            try {
+                firestore.collection("mandal_info").document("mandal_default")
+                    .set(
+                        mapOf(
+                            "showFestiveBanner" to updated.showFestiveBanner,
+                            "manualFestivalId" to updated.manualFestivalId,
+                            "updatedAt" to updated.updatedAt
+                        ),
+                        SetOptions.merge()
+                    )
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error updating festive banner settings on Firestore", e)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error updating festive banner settings", e)
+            Result.failure(e)
+        }
+    }
+
     // MANDAL LOGO MANAGEMENT
     suspend fun updateMandalLogo(url: String?): Result<Unit> = withContext(Dispatchers.IO) {
         val cleanUrl = url?.trim()?.ifEmpty { null }
@@ -3230,6 +3263,8 @@ fun MandalInfoEntity.toDomain() = MandalInfo(
     liveStreamUrl = liveStreamUrl,
     liveStreamStartedAt = liveStreamStartedAt,
     liveViewerCount = liveViewerCount,
+    showFestiveBanner = showFestiveBanner,
+    manualFestivalId = manualFestivalId,
     updatedAt = updatedAt
 )
 
@@ -3584,6 +3619,8 @@ fun MandalInfoEntity.toMap(): Map<String, Any?> = mapOf(
     "liveStreamUrl" to liveStreamUrl,
     "liveStreamStartedAt" to liveStreamStartedAt,
     "liveViewerCount" to liveViewerCount,
+    "showFestiveBanner" to showFestiveBanner,
+    "manualFestivalId" to manualFestivalId,
     "updatedAt" to updatedAt
 )
 
@@ -3615,6 +3652,8 @@ fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
         liveStreamUrl = getString("liveStreamUrl") ?: "",
         liveStreamStartedAt = getLong("liveStreamStartedAt") ?: 0L,
         liveViewerCount = (getLong("liveViewerCount") ?: 0L).toInt(),
+        showFestiveBanner = getBoolean("showFestiveBanner") ?: true,
+        manualFestivalId = getString("manualFestivalId") ?: "",
         updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()
     )
 }

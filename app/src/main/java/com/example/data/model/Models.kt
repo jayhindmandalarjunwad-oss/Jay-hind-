@@ -188,6 +188,8 @@ data class MandalInfo(
     val liveStreamUrl: String = "https://www.youtube.com/@JayHindMandalArjunwad/live",
     val liveStreamStartedAt: Long = 0L,
     val liveViewerCount: Int = 0,
+    val showFestiveBanner: Boolean = true,
+    val manualFestivalId: String = "",
     val updatedAt: Long = System.currentTimeMillis()
 )
 

@@ -1,0 +1,96 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Divine Golden Aura / Radiant Halo -->
+    <path
+        android:fillColor="#FFE082"
+        android:pathData="M48,6 A42,42 0 1,0 48,90 A42,42 0 1,0 48,6 Z"
+        android:fillAlpha="0.25"/>
+    <path
+        android:strokeColor="#FFB300"
+        android:strokeWidth="1.5"
+        android:pathData="M48,9 A39,39 0 1,0 48,87 A39,39 0 1,0 48,9 Z"/>
+
+    <!-- Radiant Rays of Divinity -->
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="1"
+        android:pathData="M48,2 L48,8 M48,88 L48,94 M2,48 L8,48 M88,48 L94,48 M15,15 L20,20 M76,76 L81,81 M81,15 L76,20 M20,76 L15,81"/>
+
+    <!-- Auspicious Saffron/Red Background Glow -->
+    <path
+        android:fillColor="#E65100"
+        android:pathData="M48,14 A34,34 0 1,0 48,82 A34,34 0 1,0 48,14 Z"/>
+
+    <!-- Golden Crown (सुवर्ण मुकुट) -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M38,28 L48,16 L58,28 L54,34 L42,34 Z"/>
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M44,22 L48,17 L52,22 L48,26 Z"/>
+    <path
+        android:fillColor="#FFE082"
+        android:pathData="M40,32 L56,32 L54,35 L42,35 Z"/>
+
+    <!-- Ganesha Head & Ears (श्री गणेश कान व मस्तक) -->
+    <!-- Left Large Ear -->
+    <path
+        android:fillColor="#FFE082"
+        android:strokeColor="#FFB300"
+        android:strokeWidth="1"
+        android:pathData="M40,36 C32,34 22,38 22,48 C22,58 32,60 38,58 Z"/>
+    <!-- Right Large Ear -->
+    <path
+        android:fillColor="#FFE082"
+        android:strokeColor="#FFB300"
+        android:strokeWidth="1"
+        android:pathData="M56,36 C64,34 74,38 74,48 C74,58 64,60 58,58 Z"/>
+
+    <!-- Face & Forehead (मस्तक) -->
+    <path
+        android:fillColor="#FFF8E1"
+        android:pathData="M38,35 C38,35 48,34 58,35 C60,45 60,54 55,60 C50,65 46,65 41,60 C36,54 36,45 38,35 Z"/>
+
+    <!-- Red / Saffron Tilak (अष्टगंध टिळक व त्रिपुंड्र) -->
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M46,36 L50,36 L49,45 L47,45 Z"/>
+    <path
+        android:fillColor="#FFD600"
+        android:pathData="M45,41 L51,41 L50,43 L46,43 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M48,46 A1.5,1.5 0 1,0 48,49 A1.5,1.5 0 1,0 48,46 Z"/>
+
+    <!-- Peaceful Divine Eyes -->
+    <path
+        android:strokeColor="#3E2723"
+        android:strokeWidth="1.2"
+        android:pathData="M41,45 Q44,43 46,46 M50,46 Q52,43 55,45"/>
+
+    <!-- Auspicious Curved Trunk (सुंदर वळणदार सोंड) -->
+    <path
+        android:fillColor="#FFF8E1"
+        android:strokeColor="#FFB300"
+        android:strokeWidth="1.2"
+        android:pathData="M46,50 C46,55 45,62 44,68 C43,73 45,76 49,76 C53,76 56,73 56,69 C56,66 53,65 51,67 C49,69 50,71 52,71 C51,73 48,73 47,70 C46,67 49,62 50,56 C50.5,53 50,50 50,50 Z"/>
+
+    <!-- Broken Tusk & Full Tusk (एकदंत) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,54 L40,58 L43,56 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54 L56,58 L53,56 Z"/>
+
+    <!-- Divine Golden Modak (मोदक) near trunk -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M56,66 C56,64 61,63 61,66 C61,69 57,71 56,69 Z"/>
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M58,63 L59,62 L60,63 Z"/>
+</vector>

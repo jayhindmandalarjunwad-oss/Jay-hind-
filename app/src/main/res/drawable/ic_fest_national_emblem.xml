@@ -1,0 +1,46 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Royal Deep Navy Background -->
+    <path
+        android:fillColor="#0D1B2A"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Ashoka Stambh Lion Capital / Emblem Pillars (अशोक स्तंभ सिंहमुद्रा रूपरेषा) -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M44,22 C42,16 48,14 48,14 C48,14 54,16 52,22 L54,34 L42,34 Z"/>
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M34,26 C32,20 38,18 38,18 C38,18 42,22 41,28 L43,36 L34,34 Z M62,26 C64,20 58,18 58,18 C58,18 54,22 55,28 L53,36 L62,34 Z"/>
+
+    <!-- Emblem Base Pedestal (अशोक चक्र बैठक) -->
+    <path
+        android:fillColor="#ECEFF1"
+        android:pathData="M28,52 L68,52 L64,60 L32,60 Z"/>
+
+    <!-- Ashoka Chakra (२४ आऱ्यांचे अशोक चक्र) -->
+    <path
+        android:strokeColor="#000080"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M48,46 A10,10 0 1,0 48,66 A10,10 0 1,0 48,46 Z"/>
+    <path
+        android:fillColor="#000080"
+        android:pathData="M48,54 A2,2 0 1,0 48,58 A2,2 0 1,0 48,54 Z"/>
+    <path
+        android:strokeColor="#000080"
+        android:strokeWidth="1"
+        android:pathData="M48,47 L48,65 M39,56 L57,56 M42,50 L54,62 M42,62 L54,50"/>
+
+    <!-- Satyamev Jayate Golden Base -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,68 L72,68 L68,76 L28,76 Z"/>
+</vector>

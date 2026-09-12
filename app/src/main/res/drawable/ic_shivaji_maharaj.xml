@@ -1,0 +1,89 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Royal Saffron Mandala Background -->
+    <path
+        android:fillColor="#B71C1C"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Fluttering Royal Bhagwa Zenda (भगवा ध्वज) in background -->
+    <path
+        android:fillColor="#FF6F00"
+        android:pathData="M18,22 L18,78 L20,78 L20,22 Z"/>
+    <path
+        android:fillColor="#FF6F00"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1"
+        android:pathData="M20,24 C32,21 38,28 50,23 L44,36 C38,40 30,34 20,38 Z M20,38 C32,35 38,42 50,37 L44,50 C38,54 30,48 20,52 Z"/>
+
+    <!-- Royal Jiratope / Maratha Pheta (छत्रपती शिवरायांचा जिरेटोप) -->
+    <path
+        android:fillColor="#E65100"
+        android:pathData="M38,28 C38,20 48,16 58,22 C64,26 62,34 56,36 L40,36 Z"/>
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M40,34 L57,34 L56,37 L39,37 Z"/>
+
+    <!-- Royal Kalgi & Pearl Tassel (जिरेटोपावरील मानाची कलगी व मोत्यांचा तुरा) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"
+        android:pathData="M42,26 Q40,16 35,13 M42,26 Q42,15 39,12"/>
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M35,13 A2,2 0 1,0 35,17 A2,2 0 1,0 35,13 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M43,24 A2.5,2.5 0 1,0 43,29 A2.5,2.5 0 1,0 43,24 Z"/>
+
+    <!-- Shivray Face Outline & Jaw (मुखमंडल) -->
+    <path
+        android:fillColor="#FFE0B2"
+        android:pathData="M40,37 C40,37 48,36 56,37 C58,45 57,53 54,58 C50,62 46,62 42,58 C39,53 38,45 40,37 Z"/>
+
+    <!-- Chandra-kor Tilak (कपाळावर कोरलेली तेजस्वी चंद्रकोर) -->
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M46,40 C47,38 49,38 50,40 C49,39.2 47,39.2 46,40 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M48,42 A1,1 0 1,0 48,44 A1,1 0 1,0 48,42 Z"/>
+
+    <!-- Piercing Visionary Eyes (दूरदृष्टीचे तेजस्वी डोळे) -->
+    <path
+        android:strokeColor="#3E2723"
+        android:strokeWidth="1.4"
+        android:pathData="M42,46 Q44,44 46,46 M50,46 Q52,44 54,46"/>
+
+    <!-- Royal Mustache & Regal Beard (रुबाबदार मिशा व दाढी) -->
+    <path
+        android:fillColor="#212121"
+        android:pathData="M43,53 Q48,51 53,53 Q57,51 55,49 Q51,52 48,52 Q45,52 41,49 Q39,51 43,53 Z"/>
+    <path
+        android:fillColor="#212121"
+        android:pathData="M44,55 C44,61 47,64 48,65 C49,64 52,61 52,55 Z"/>
+
+    <!-- Royal Armor & Angarkha (अंगरखा व कडे) -->
+    <path
+        android:fillColor="#D84315"
+        android:pathData="M34,64 C38,60 48,59 58,64 C64,72 67,82 67,86 L30,86 C30,82 32,72 34,64 Z"/>
+
+    <!-- Royal Pearl Necklace (मोत्यांचा कंठा व पदक) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M39,66 Q48,74 55,66"/>
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M48,72 A3,3 0 1,0 48,78 A3,3 0 1,0 48,72 Z"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M48,74 A1.2,1.2 0 1,0 48,76.4 A1.2,1.2 0 1,0 48,74 Z"/>
+</vector>

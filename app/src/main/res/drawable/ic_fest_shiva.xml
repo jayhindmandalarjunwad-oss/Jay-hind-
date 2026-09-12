@@ -1,0 +1,44 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Cosmic Midnight Blue Background -->
+    <path
+        android:fillColor="#0D47A1"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Trishul (त्रिशूळ) -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2.5"
+        android:pathData="M48,16 L48,80"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M36,28 C36,44 48,46 48,46 C48,46 60,44 60,28"/>
+    <!-- Damru (डमरू) -->
+    <path
+        android:fillColor="#FF8F00"
+        android:strokeColor="#FFE082"
+        android:strokeWidth="1"
+        android:pathData="M42,46 L54,46 L45,54 L51,54 Z M45,54 L51,54 L42,62 L54,62 Z"/>
+
+    <!-- Tripundra & Third Eye (त्रिपुंड्र व त्रिनेत्र) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.2"
+        android:pathData="M24,40 L34,40 M24,44 L34,44 M24,48 L34,48"/>
+    <path
+        android:fillColor="#D50000"
+        android:pathData="M29,43 A1.5,1.5 0 1,0 29,45 A1.5,1.5 0 1,0 29,43 Z"/>
+
+    <!-- Crescent Moon (शंभू चंद्रकोर) -->
+    <path
+        android:fillColor="#FFF9C4"
+        android:pathData="M64,24 C68,26 70,30 68,34 C66,31 64,28 60,27 C61,26 62,25 64,24 Z"/>
+</vector>

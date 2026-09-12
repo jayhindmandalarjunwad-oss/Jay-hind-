@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.util.FestivalRegistry
 import kotlinx.coroutines.launch
 
 enum class AdminTab(val title: String) {
@@ -222,7 +223,7 @@ fun AdminPanelScreen(
             when (selectedTab) {
                 AdminTab.PENDING_APPROVALS -> PendingApprovalsTab(pendingMembers, viewModel)
                 AdminTab.LIVE_STREAM -> LiveStreamAdminTab(mandalInfo, viewModel)
-                AdminTab.MANAGE_BANNERS -> ManageBannersAdminTab(banners, viewModel)
+                AdminTab.MANAGE_BANNERS -> ManageBannersAdminTab(banners, mandalInfo, viewModel)
                 AdminTab.EDIT_ABOUT_US -> EditAboutUsAdminTab(mandalInfo, viewModel)
                 AdminTab.MEMBERS_LIST -> AllMembersAdminTab(allMembers, viewModel)
                 AdminTab.MANAGE_LOGO -> ManageLogoAdminTab(mandalInfo, mandalLogoUrl, viewModel)
@@ -359,9 +360,13 @@ fun PendingApprovalsTab(pendingList: List<User>, viewModel: MandalViewModel) {
     }
 }
 
-// 2. MANAGE GROUP BANNERS (ADD, EDIT, DELETE)
+// 2. MANAGE GROUP BANNERS (ADD, EDIT, DELETE & FESTIVE BANNER PERMISSION)
 @Composable
-fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewModel) {
+fun ManageBannersAdminTab(
+    banners: List<MandalBanner>,
+    mandalInfo: MandalInfo,
+    viewModel: MandalViewModel
+) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingBanner by remember { mutableStateOf<MandalBanner?>(null) }
     var bannerToDelete by remember { mutableStateOf<MandalBanner?>(null) }
@@ -369,6 +374,14 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
     var bannerImageUrl by remember { mutableStateOf("") }
     var bannerTitle by remember { mutableStateOf("") }
     var bannerSubtitle by remember { mutableStateOf("") }
+
+    var festiveBannerEnabled by remember(mandalInfo.showFestiveBanner) {
+        mutableStateOf(mandalInfo.showFestiveBanner)
+    }
+    var selectedManualFestivalId by remember(mandalInfo.manualFestivalId) {
+        mutableStateOf(mandalInfo.manualFestivalId)
+    }
+    var showFestivalPickerDropdown by remember { mutableStateOf(false) }
 
     // Dialog for Add / Edit Banner
     if (showAddDialog || editingBanner != null) {
@@ -566,6 +579,185 @@ fun ManageBannersAdminTab(banners: List<MandalBanner>, viewModel: MandalViewMode
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // ०. सण व विशेष दिन बॅनर नियंत्रण (ADMIN FESTIVE BANNER TOGGLE & SELECTION)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (festiveBannerEnabled) SaffronPrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.5.dp,
+                    if (festiveBannerEnabled) SaffronPrimary else CardBorderColor
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (festiveBannerEnabled) SaffronPrimary else TextMuted,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Celebration,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "सण व विशेष दिन बॅनर (Festive Banner)",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (festiveBannerEnabled) "सक्रिय (दिसणार) • ७०+ सणांचे ऑटो-मॅपिंग" else "लपवलेला (Hidden) • होम स्क्रीनवरून बंद",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (festiveBannerEnabled) SaffronDark else TextMuted
+                                )
+                            }
+                        }
+
+                        // ॲडमिन स्विच (Show / Hide Permission)
+                        Switch(
+                            checked = festiveBannerEnabled,
+                            onCheckedChange = { isChecked ->
+                                festiveBannerEnabled = isChecked
+                                viewModel.updateFestiveBannerSettings(
+                                    showFestiveBanner = isChecked,
+                                    manualFestivalId = selectedManualFestivalId
+                                )
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = SaffronPrimary,
+                                uncheckedThumbColor = Color.LightGray,
+                                uncheckedTrackColor = Color.DarkGray
+                            )
+                        )
+                    }
+
+                    Text(
+                        text = "📌 नियम: ज्या दिवशी कोणताही सण किंवा विशेष दिन नसणार त्या दिवशी हा बॅनर आपोआप लपवला जातो. तसेच ॲडमिन म्हणून तुम्ही वरील स्विचने कधीही हा बॅनर चालू किंवा बंद (Hide/Show) करू शकता.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        lineHeight = 16.sp
+                    )
+
+                    if (festiveBannerEnabled) {
+                        HorizontalDivider(color = CardBorderColor.copy(alpha = 0.5f))
+
+                        // मॅन्युअल सण निवड (Optional Admin Override for testing or special occasions)
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "विशेष दिन किंवा सण निवड (Custom Override):",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(
+                                    onClick = { showFestivalPickerDropdown = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SaffronDark.copy(alpha = 0.6f))
+                                ) {
+                                    val currentFestivalTitle = if (selectedManualFestivalId.isNotBlank()) {
+                                        FestivalRegistry.findById(selectedManualFestivalId)?.title ?: "निवडलेला सण"
+                                    } else {
+                                        "📅 आजच्या तारखेनुसार आपोआप सण दिसेल (Automatic Date-Wise)"
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = currentFestivalTitle,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                            color = if (selectedManualFestivalId.isNotBlank()) SaffronDark else TextPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = SaffronDark)
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = showFestivalPickerDropdown,
+                                    onDismissRequest = { showFestivalPickerDropdown = false },
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.9f)
+                                        .heightIn(max = 350.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "📅 आजच्या तारखेनुसार आपोआप (Automatic Date-Wise)",
+                                                fontWeight = FontWeight.Bold,
+                                                color = SaffronDark
+                                            )
+                                        },
+                                        onClick = {
+                                            selectedManualFestivalId = ""
+                                            showFestivalPickerDropdown = false
+                                            viewModel.updateFestiveBannerSettings(
+                                                showFestiveBanner = true,
+                                                manualFestivalId = ""
+                                            )
+                                        }
+                                    )
+
+                                    HorizontalDivider()
+
+                                    FestivalRegistry.ALL_FESTIVALS.forEach { fest ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(fest.emojiBadge, fontSize = 16.sp)
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Column {
+                                                        Text(fest.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                                        Text(fest.subtitle, style = MaterialTheme.typography.bodySmall, color = TextMuted, fontSize = 11.sp)
+                                                    }
+                                                }
+                                            },
+                                            onClick = {
+                                                selectedManualFestivalId = fest.id
+                                                showFestivalPickerDropdown = false
+                                                viewModel.updateFestiveBannerSettings(
+                                                    showFestiveBanner = true,
+                                                    manualFestivalId = fest.id
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Add Button
         item {
             Button(

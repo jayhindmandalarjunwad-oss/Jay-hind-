@@ -1,0 +1,52 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Clean Golden Cream / Ochre Background -->
+    <path
+        android:fillColor="#37474F"
+        android:pathData="M48,8 A40,40 0 1,0 48,88 A40,40 0 1,0 48,8 Z"/>
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M48,11 A37,37 0 1,0 48,85 A37,37 0 1,0 48,11 Z"/>
+
+    <!-- Round Spectacles of Mahatma Gandhi (गांधीजींचा गोल चष्मा) -->
+    <!-- Left Lens -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000"
+        android:pathData="M34,40 A9,9 0 1,0 34,58 A9,9 0 1,0 34,40 Z"/>
+    <!-- Right Lens -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000"
+        android:pathData="M62,40 A9,9 0 1,0 62,58 A9,9 0 1,0 62,40 Z"/>
+    <!-- Bridge -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2.5"
+        android:pathData="M43,49 L53,49"/>
+    <!-- Temples -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="2"
+        android:pathData="M25,48 L17,45 M71,48 L79,45"/>
+
+    <!-- Charkha / Spindle Motif (सत्य व अहिंसा चरखा) -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.2"
+        android:pathData="M38,70 L58,70 M48,64 L48,76"/>
+
+    <!-- Tri-color Subtle Accents -->
+    <path
+        android:fillColor="#FF9933"
+        android:pathData="M36,24 L60,24 L58,27 L38,27 Z"/>
+    <path
+        android:fillColor="#138808"
+        android:pathData="M38,30 L58,30 L56,33 L40,33 Z"/>
+</vector>

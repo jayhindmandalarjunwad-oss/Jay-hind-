@@ -65,6 +65,14 @@ fun HomeScreen(
     var showIdCardDialog by remember { mutableStateOf(false) }
     var showBirthdayDialog by remember { mutableStateOf(false) }
 
+    val festiveOccasion = remember(mandalInfo.showFestiveBanner, mandalInfo.manualFestivalId) {
+        if (mandalInfo.showFestiveBanner) {
+            detectCurrentFestival(mandalInfo.manualFestivalId)
+        } else {
+            null
+        }
+    }
+
     fun openUrlSafely(url: String) {
         try {
             val validUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) {
@@ -98,49 +106,70 @@ fun HomeScreen(
 
         // ==========================================
         // 1. मुख्य बॅनर कॅरोसेल (FESTIVE GREETING + ADMIN BANNERS CAROUSEL)
-        // सणाचे डिजिटल शुभेच्छा कव्हर १ नंबरची पहिली स्लाईड म्हणून आपोआप सामील होते
+        // सण/विशेष दिन असेल आणि ॲडमिनने चालू ठेवले असेल तरच १ नंबरची स्लाईड दिसेल, अन्यथा पूर्णपणे लपवले जाईल (Hidden)
         // ==========================================
-        item(key = "hero_banner_carousel") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp)
-            ) {
-                if (banners.isNotEmpty()) {
-                    // Group Banners Carousel: Festive Banner is Slide #1, followed by Admin Banners
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp)
-                    ) {
-                        // १. पहिली स्लाईड: सण व उत्सवानुसार डायनॅमिक डिजिटल शुभेच्छा कव्हर
-                        item(key = "carousel_festive_greeting") {
-                            FestiveGreetingBanner(
-                                mandalLogoUrl = mandalLogoUrl,
-                                isCarouselItem = true
-                            )
-                        }
+        if (festiveOccasion != null || banners.isNotEmpty()) {
+            item(key = "hero_banner_carousel") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                ) {
+                    if (banners.isNotEmpty() && festiveOccasion != null) {
+                        // दोन्ही उपलब्ध आहेत: सण बॅनर + ॲडमिन बॅनर्स
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp)
+                        ) {
+                            item(key = "carousel_festive_greeting") {
+                                FestiveGreetingBanner(
+                                    festiveOccasion = festiveOccasion,
+                                    mandalLogoUrl = mandalLogoUrl,
+                                    isCarouselItem = true
+                                )
+                            }
 
-                        // २. त्यानंतरचे स्लाईड्स: ॲडमिनने अपलोड केलेले पोस्टर्स / बॅनर्स
-                        items(banners, key = { it.id }) { banner ->
-                            GroupBannerCard(
-                                banner = banner,
-                                mandalLogoUrl = mandalLogoUrl,
-                                onClick = {
-                                    val urls = banners.map { it.imageUrl }.filter { it.isNotBlank() }
-                                    val idx = urls.indexOf(banner.imageUrl).coerceAtLeast(0)
-                                    viewModel.openFullscreenPhotos(urls, idx)
-                                }
-                            )
+                            items(banners, key = { it.id }) { banner ->
+                                GroupBannerCard(
+                                    banner = banner,
+                                    mandalLogoUrl = mandalLogoUrl,
+                                    onClick = {
+                                        val urls = banners.map { it.imageUrl }.filter { it.isNotBlank() }
+                                        val idx = urls.indexOf(banner.imageUrl).coerceAtLeast(0)
+                                        viewModel.openFullscreenPhotos(urls, idx)
+                                    }
+                                )
+                            }
+                        }
+                    } else if (festiveOccasion != null) {
+                        // फक्त सण बॅनर सक्रिय आहे (ॲडमिन बॅनर्स नाहीत)
+                        FestiveGreetingBanner(
+                            festiveOccasion = festiveOccasion,
+                            mandalLogoUrl = mandalLogoUrl,
+                            isCarouselItem = false,
+                            modifier = Modifier.padding(horizontal = 14.dp)
+                        )
+                    } else {
+                        // फक्त ॲडमिन बॅनर्स आहेत (सण नाही किंवा ॲडमिनने सण बॅनर बंद केला आहे)
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp)
+                        ) {
+                            items(banners, key = { it.id }) { banner ->
+                                GroupBannerCard(
+                                    banner = banner,
+                                    mandalLogoUrl = mandalLogoUrl,
+                                    onClick = {
+                                        val urls = banners.map { it.imageUrl }.filter { it.isNotBlank() }
+                                        val idx = urls.indexOf(banner.imageUrl).coerceAtLeast(0)
+                                        viewModel.openFullscreenPhotos(urls, idx)
+                                    }
+                                )
+                            }
                         }
                     }
-                } else {
-                    // सण व उत्सव बॅनर (Fallback Hero Banner)
-                    FestiveGreetingBanner(
-                        mandalLogoUrl = mandalLogoUrl,
-                        isCarouselItem = false,
-                        modifier = Modifier.padding(horizontal = 14.dp)
-                    )
                 }
             }
         }
