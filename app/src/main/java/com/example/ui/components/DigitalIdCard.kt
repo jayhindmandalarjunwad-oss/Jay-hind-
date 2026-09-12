@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -152,9 +153,6 @@ fun DigitalIdCardView(
                                 )
                             }
 
-                            // 3D Holographic Security Stamp (चकाकणारा होलोग्राफिक स्टॅम्प)
-                            HolographicSecuritySeal()
-
                             Spacer(modifier = Modifier.width(6.dp))
 
                             // Formatted Member ID Badge (JHM - 26 - 001)
@@ -267,14 +265,20 @@ fun DigitalIdCardView(
                         Spacer(modifier = Modifier.width(14.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = user.fullName,
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
-                                ),
-                                color = TextPrimary
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = user.fullName,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    ),
+                                    color = TextPrimary
+                                )
+                                if (user.isAdmin || (user.designation.isNotBlank() && user.designation != "सभासद")) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    GleamingVerifiedBadge(size = 17.dp)
+                                }
+                            }
 
                             val designationText = if (user.designation.isNotBlank()) {
                                 user.designation
@@ -289,13 +293,21 @@ fun DigitalIdCardView(
                                 color = SaffronContainer,
                                 modifier = Modifier.padding(vertical = 3.dp)
                             ) {
-                                Text(
-                                    text = designationText,
-                                    color = SaffronDark,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                                ) {
+                                    if (user.isAdmin || (user.designation.isNotBlank() && user.designation != "सभासद")) {
+                                        GleamingVerifiedBadge(size = 12.dp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        text = designationText,
+                                        color = SaffronDark,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(2.dp))
@@ -395,10 +407,25 @@ fun DigitalIdCardView(
                             )
                         }
 
+                        // Middle: 3D Holographic Security Stamp (QR कोड आणि शिक्का यांच्या बरोबर मध्ये - ५४dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            HolographicSecuritySeal(size = 54.dp)
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "सुरक्षा होलोग्राम",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB45309)
+                            )
+                        }
+
                         // Right: President's Authorized Signature (अध्यक्षांची स्वाक्षरी)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.widthIn(min = 135.dp)
+                            modifier = Modifier.widthIn(min = 120.dp)
                         ) {
                             if (!mandalInfo.presidentSignatureUrl.isNullOrBlank() || !mandalInfo.officialStampUrl.isNullOrBlank()) {
                                 PresidentSignatureSection(
@@ -555,9 +582,11 @@ fun OfficialMandalStamp(
 /**
  * 3D Holographic Security Stamp (चकाकणारा होलोग्राफिक स्टॅम्प)
  * Simulates high-security government smart card hologram with rotating iridescent metallic gradient.
+ * Default size is 54dp, placed prominently between QR code and President signature.
  */
 @Composable
 fun HolographicSecuritySeal(
+    size: Dp = 54.dp,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "hologramTransition")
@@ -565,7 +594,7 @@ fun HolographicSecuritySeal(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4000, easing = LinearEasing),
+            animation = tween(durationMillis = 3500, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "hologramAngle"
@@ -573,8 +602,8 @@ fun HolographicSecuritySeal(
 
     val holographicBrush = remember(angle) {
         val rad = Math.toRadians(angle.toDouble())
-        val x = (Math.cos(rad) * 50).toFloat()
-        val y = (Math.sin(rad) * 50).toFloat()
+        val x = (Math.cos(rad) * 60).toFloat()
+        val y = (Math.sin(rad) * 60).toFloat()
         Brush.linearGradient(
             colors = listOf(
                 Color(0xFFFFD700), // Gold
@@ -585,17 +614,17 @@ fun HolographicSecuritySeal(
                 Color(0xFF34D399), // Emerald
                 Color(0xFFFFD700)  // Gold
             ),
-            start = Offset(21f - x, 21f - y),
-            end = Offset(21f + x, 21f + y)
+            start = Offset(27f - x, 27f - y),
+            end = Offset(27f + x, 27f + y)
         )
     }
 
     Box(
         modifier = modifier
-            .size(38.dp)
+            .size(size)
             .clip(CircleShape)
             .background(holographicBrush)
-            .border(1.2.dp, Color(0xFFFFD700), CircleShape)
+            .border(1.5.dp, Color(0xFFFFD700), CircleShape)
             .padding(2.dp)
             .testTag("holographic_security_seal"),
         contentAlignment = Alignment.Center
@@ -603,7 +632,7 @@ fun HolographicSecuritySeal(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .border(0.6.dp, Color.White.copy(alpha = 0.9f), CircleShape),
+                .border(0.8.dp, Color.White.copy(alpha = 0.95f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -612,24 +641,81 @@ fun HolographicSecuritySeal(
             ) {
                 Text(
                     text = "★ जय हिंद ★",
-                    fontSize = 5.sp,
+                    fontSize = 7.5.sp,
                     fontWeight = FontWeight.Black,
                     color = Color(0xFF1E293B),
-                    letterSpacing = 0.2.sp
+                    letterSpacing = 0.3.sp
                 )
                 Text(
                     text = "अधिकृत",
-                    fontSize = 7.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Black,
                     color = Color(0xFF991B1B)
                 )
                 Text(
                     text = "SECURE",
-                    fontSize = 4.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 5.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF0F172A)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Golden Gleaming Verified Badge (गोल्डन व्हेरिफाईड चमकणारा बॅज)
+ * Displayed next to office bearers / verified members with an animated diagonal light glint.
+ */
+@Composable
+fun GleamingVerifiedBadge(
+    size: Dp = 16.dp,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "gleamTransition")
+    val glintOffset by infiniteTransition.animateFloat(
+        initialValue = -1.2f,
+        targetValue = 2.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3200, delayMillis = 600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "glintOffset"
+    )
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .testTag("gleaming_verified_badge"),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Verified,
+            contentDescription = "पदाधिकारी व्हेरिफाईड",
+            tint = Color(0xFFF59E0B), // Golden Amber
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = this.size.width
+            val height = this.size.height
+            val currentX = glintOffset * width
+
+            val glintBrush = Brush.linearGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color.White.copy(alpha = 0.85f),
+                    Color.Transparent
+                ),
+                start = Offset(currentX - width * 0.4f, 0f),
+                end = Offset(currentX + width * 0.4f, height)
+            )
+
+            drawCircle(
+                brush = glintBrush,
+                radius = width * 0.48f,
+                center = Offset(width / 2f, height / 2f)
+            )
         }
     }
 }
@@ -723,12 +809,22 @@ fun DigitalIdCardBackView(
             }
         }
 
-        // 2. BODY: Objectives, Rules, Emergency Helplines
+        // 2. BODY: Objectives, Rules, Emergency Helplines (Dynamic from Admin Settings)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp)
         ) {
+            val objectivesText = mandalInfo.idCardObjectives.ifBlank {
+                "• गावातील कला, क्रीडा, शिक्षण व सांस्कृतिक वारशाचे संवर्धन करणे.\n• सामाजिक बांधिलकी, रक्तदान चळवळ व आपत्कालीन मदतकार्य.\n• युवकांना विधायक दिशा देणे व गावाचा सर्वांगीण विकास साधणे."
+            }
+            val rulesText = mandalInfo.idCardRules.ifBlank {
+                "• हे ओळखपत्र मंडळाच्या सर्व अधिकृत कार्यक्रमांसाठी वैध राहील.\n• ओळखपत्र अहस्तांतरणीय असून गैरवापर कायद्याने गुन्हा आहे.\n• गहाळ झाल्यास तात्काळ ॲडमिनशी संपर्क साधावा."
+            }
+            val emergencyText = mandalInfo.emergencyContacts.ifBlank {
+                "रुग्णवाहिका: १०८ • संपर्क: ${mandalInfo.phone.ifBlank { "+91 98765 43210" }}"
+            }
+
             // Objectives
             Text(
                 text = "📌 मंडळाची ध्येये व उद्दिष्टे:",
@@ -738,7 +834,7 @@ fun DigitalIdCardBackView(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "• गावातील कला, क्रीडा, शिक्षण व सांस्कृतिक वारशाचे संवर्धन करणे.\n• सामाजिक बांधिलकी, रक्तदान चळवळ व आपत्कालीन मदतकार्य.\n• युवकांना विधायक दिशा देणे व गावाचा सर्वांगीण विकास साधणे.",
+                text = objectivesText,
                 fontSize = 9.5.sp,
                 color = TextPrimary,
                 lineHeight = 13.5.sp
@@ -763,7 +859,7 @@ fun DigitalIdCardBackView(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "• हे ओळखपत्र मंडळाच्या सर्व अधिकृत कार्यक्रमांसाठी वैध राहील.\n• ओळखपत्र अहस्तांतरणीय असून गैरवापर कायद्याने गुन्हा आहे.\n• गहाळ झाल्यास तात्काळ ॲडमिनशी संपर्क साधावा.",
+                        text = rulesText,
                         fontSize = 9.sp,
                         color = TextSecondary,
                         lineHeight = 12.5.sp
@@ -776,7 +872,7 @@ fun DigitalIdCardBackView(
                         color = BloodRed
                     )
                     Text(
-                        text = "रुग्णवाहिका: १०८ • संपर्क: ${mandalInfo.phone.ifBlank { "९८२२xxxxxx" }}",
+                        text = emergencyText,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary

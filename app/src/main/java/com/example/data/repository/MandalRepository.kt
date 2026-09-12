@@ -2246,6 +2246,42 @@ class MandalRepository(context: Context) {
         }
     }
 
+    // ID CARD BACK SETTINGS (नियम, उद्दिष्टे व संपर्क संपादन)
+    suspend fun updateIdCardBackSettings(
+        idCardObjectives: String,
+        idCardRules: String,
+        emergencyContacts: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val current = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            val updated = current.copy(
+                idCardObjectives = idCardObjectives.trim(),
+                idCardRules = idCardRules.trim(),
+                emergencyContacts = emergencyContacts.trim(),
+                updatedAt = System.currentTimeMillis()
+            )
+            mandalInfoDao.saveMandalInfo(updated)
+            try {
+                firestore.collection("mandal_info").document("mandal_default")
+                    .set(
+                        mapOf(
+                            "idCardObjectives" to updated.idCardObjectives,
+                            "idCardRules" to updated.idCardRules,
+                            "emergencyContacts" to updated.emergencyContacts,
+                            "updatedAt" to updated.updatedAt
+                        ),
+                        SetOptions.merge()
+                    )
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error updating id card back settings on Firestore", e)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error updating ID card back settings", e)
+            Result.failure(e)
+        }
+    }
+
     // MANDAL LOGO MANAGEMENT
     suspend fun updateMandalLogo(url: String?): Result<Unit> = withContext(Dispatchers.IO) {
         val cleanUrl = url?.trim()?.ifEmpty { null }
@@ -3183,8 +3219,12 @@ fun MandalInfoEntity.toDomain() = MandalInfo(
     instagramHandle = instagramHandle,
     adminWebLink = adminWebLink,
     logoUrl = logoUrl,
+    officialStampUrl = officialStampUrl,
     presidentSignatureUrl = presidentSignatureUrl,
     presidentName = presidentName,
+    idCardObjectives = idCardObjectives,
+    idCardRules = idCardRules,
+    emergencyContacts = emergencyContacts,
     isLiveStreamActive = isLiveStreamActive,
     liveStreamTitle = liveStreamTitle,
     liveStreamUrl = liveStreamUrl,
@@ -3536,6 +3576,9 @@ fun MandalInfoEntity.toMap(): Map<String, Any?> = mapOf(
     "officialStampUrl" to officialStampUrl,
     "presidentSignatureUrl" to presidentSignatureUrl,
     "presidentName" to presidentName,
+    "idCardObjectives" to idCardObjectives,
+    "idCardRules" to idCardRules,
+    "emergencyContacts" to emergencyContacts,
     "isLiveStreamActive" to isLiveStreamActive,
     "liveStreamTitle" to liveStreamTitle,
     "liveStreamUrl" to liveStreamUrl,
@@ -3564,6 +3607,9 @@ fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
         officialStampUrl = getString("officialStampUrl") ?: "",
         presidentSignatureUrl = getString("presidentSignatureUrl") ?: "",
         presidentName = getString("presidentName") ?: "अध्यक्ष",
+        idCardObjectives = getString("idCardObjectives") ?: SeedData.defaultMandalInfo.idCardObjectives,
+        idCardRules = getString("idCardRules") ?: SeedData.defaultMandalInfo.idCardRules,
+        emergencyContacts = getString("emergencyContacts") ?: SeedData.defaultMandalInfo.emergencyContacts,
         isLiveStreamActive = getBoolean("isLiveStreamActive") ?: false,
         liveStreamTitle = getString("liveStreamTitle") ?: "श्री गणेश महाआरती थेट प्रक्षेपण",
         liveStreamUrl = getString("liveStreamUrl") ?: "",

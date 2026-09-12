@@ -97,30 +97,31 @@ fun HomeScreen(
         }
 
         // ==========================================
-        // 0.5 सण व उत्सवानुसार डायनॅमिक ग्रीटिंग (FESTIVE SEASONAL BANNER)
+        // 1. मुख्य बॅनर कॅरोसेल (FESTIVE GREETING + ADMIN BANNERS CAROUSEL)
+        // सणाचे डिजिटल शुभेच्छा कव्हर १ नंबरची पहिली स्लाईड म्हणून आपोआप सामील होते
         // ==========================================
-        item(key = "festive_seasonal_banner") {
-            FestiveGreetingBanner(
-                mandalLogoUrl = mandalLogoUrl
-            )
-        }
-
-        // ==========================================
-        // 1. मुख्य बॅनर (HERO BANNER)
-        // ==========================================
-        item {
+        item(key = "hero_banner_carousel") {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp)
             ) {
                 if (banners.isNotEmpty()) {
-                    // Group Banners Carousel
+                    // Group Banners Carousel: Festive Banner is Slide #1, followed by Admin Banners
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp)
                     ) {
+                        // १. पहिली स्लाईड: सण व उत्सवानुसार डायनॅमिक डिजिटल शुभेच्छा कव्हर
+                        item(key = "carousel_festive_greeting") {
+                            FestiveGreetingBanner(
+                                mandalLogoUrl = mandalLogoUrl,
+                                isCarouselItem = true
+                            )
+                        }
+
+                        // २. त्यानंतरचे स्लाईड्स: ॲडमिनने अपलोड केलेले पोस्टर्स / बॅनर्स
                         items(banners, key = { it.id }) { banner ->
                             GroupBannerCard(
                                 banner = banner,
@@ -134,28 +135,12 @@ fun HomeScreen(
                         }
                     }
                 } else {
-                    // Default Fallback Banner
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp),
-                        shape = RoundedCornerShape(22.dp),
-                        colors = CardDefaults.cardColors(containerColor = SaffronPrimary),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(175.dp)
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.mandal_hero_banner),
-                                contentDescription = "Mandal Banner",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
+                    // सण व उत्सव बॅनर (Fallback Hero Banner)
+                    FestiveGreetingBanner(
+                        mandalLogoUrl = mandalLogoUrl,
+                        isCarouselItem = false,
+                        modifier = Modifier.padding(horizontal = 14.dp)
+                    )
                 }
             }
         }

@@ -80,6 +80,10 @@ fun MemberCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
+                    if (member.isAnyAdmin || (member.designation.isNotBlank() && member.designation != "सभासद")) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        GleamingVerifiedBadge(size = 14.dp)
+                    }
                 }
 
                 val designationText = if (member.designation.isNotBlank()) {

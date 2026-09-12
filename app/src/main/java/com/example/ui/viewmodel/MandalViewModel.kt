@@ -1246,6 +1246,34 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ID CARD BACK SETTINGS (नियम, उद्दिष्टे व संपर्क संपादन)
+    fun updateIdCardBackSettings(
+        idCardObjectives: String,
+        idCardRules: String,
+        emergencyContacts: String,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            try {
+                val result = repository.updateIdCardBackSettings(
+                    idCardObjectives = idCardObjectives,
+                    idCardRules = idCardRules,
+                    emergencyContacts = emergencyContacts
+                )
+                if (result.isSuccess) {
+                    showSnackbar("ओळखपत्र मागील बाजूची माहिती (नियम व उद्दिष्टे) यशस्वीरित्या जतन झाली! 🪪✅")
+                    onComplete?.invoke(true)
+                } else {
+                    showSnackbar("❌ माहिती जतन करताना त्रुटी आली.")
+                    onComplete?.invoke(false)
+                }
+            } catch (e: Exception) {
+                showSnackbar("❌ त्रुटी: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
     // ADMIN ROLE & DESIGNATION MANAGEMENT
     fun changeUserRole(userId: String, newRole: String) {
         viewModelScope.launch {

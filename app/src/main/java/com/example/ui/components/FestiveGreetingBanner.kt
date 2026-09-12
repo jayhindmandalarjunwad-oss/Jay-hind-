@@ -158,6 +158,7 @@ fun detectCurrentFestival(): FestiveOccasion {
 fun FestiveGreetingBanner(
     mandalLogoUrl: String? = null,
     onBannerClick: (() -> Unit)? = null,
+    isCarouselItem: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val festival = remember { detectCurrentFestival() }
@@ -174,20 +175,32 @@ fun FestiveGreetingBanner(
         label = "shimmerAlpha"
     )
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 4.dp)
-            .shadow(elevation = 6.dp, shape = RoundedCornerShape(18.dp))
+    val cardModifier = if (isCarouselItem) {
+        Modifier
+            .width(340.dp)
+            .height(170.dp)
+            .then(modifier)
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp))
             .clickable(enabled = onBannerClick != null) { onBannerClick?.invoke() }
-            .testTag("festive_seasonal_banner"),
+            .testTag("festive_seasonal_banner")
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .then(modifier)
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp))
+            .clickable(enabled = onBannerClick != null) { onBannerClick?.invoke() }
+            .testTag("festive_seasonal_banner")
+    }
+
+    Card(
+        modifier = cardModifier,
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldenTertiary.copy(alpha = 0.8f))
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldenTertiary.copy(alpha = 0.85f))
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .background(
                     Brush.horizontalGradient(
                         colors = festival.gradientColors
@@ -196,29 +209,29 @@ fun FestiveGreetingBanner(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = if (isCarouselItem) 8.dp else 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 // ==========================================
                 // १. नेहमी बॅनरच्या टॉपला मध्यभागी "॥ सत्यमेव जयते ॥"
                 // ==========================================
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = Color.Black.copy(alpha = 0.35f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldenTertiary.copy(alpha = 0.6f)),
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldenTertiary.copy(alpha = 0.6f))
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = "॥ सत्यमेव जयते ॥",
                             color = Color(0xFFFFF0B3),
-                            fontSize = 12.sp,
+                            fontSize = if (isCarouselItem) 10.sp else 11.5.sp,
                             fontWeight = FontWeight.Black,
-                            letterSpacing = 1.2.sp
+                            letterSpacing = 1.1.sp
                         )
                     }
                 }
@@ -236,9 +249,9 @@ fun FestiveGreetingBanner(
                     Surface(
                         shape = CircleShape,
                         color = Color.White,
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, GoldenTertiary),
-                        shadowElevation = 3.dp,
-                        modifier = Modifier.size(46.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldenTertiary),
+                        shadowElevation = 2.dp,
+                        modifier = Modifier.size(if (isCarouselItem) 38.dp else 44.dp)
                     ) {
                         if (!mandalLogoUrl.isNullOrBlank()) {
                             UniversalAsyncImage(
@@ -247,7 +260,7 @@ fun FestiveGreetingBanner(
                                 contentScale = ContentScale.Fit,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(4.dp)
+                                    .padding(3.dp)
                             )
                         } else {
                             Image(
@@ -256,12 +269,12 @@ fun FestiveGreetingBanner(
                                 contentScale = ContentScale.Fit,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(4.dp)
+                                    .padding(3.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Column(
                         modifier = Modifier.weight(1f),
@@ -270,17 +283,16 @@ fun FestiveGreetingBanner(
                         Text(
                             text = "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड",
                             color = Color.White,
-                            fontSize = 13.5.sp,
+                            fontSize = if (isCarouselItem) 12.sp else 13.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            lineHeight = 17.sp
+                            lineHeight = if (isCarouselItem) 15.sp else 16.5.sp
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "ता. शिरोळ • जि. कोल्हापूर • स्था. १९९६",
                             color = Color(0xFFFEF3C7),
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -289,66 +301,71 @@ fun FestiveGreetingBanner(
                     Surface(
                         shape = CircleShape,
                         color = Color.White.copy(alpha = 0.2f),
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(if (isCarouselItem) 30.dp else 34.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = festival.emojiBadge,
-                                fontSize = 18.sp
+                                fontSize = if (isCarouselItem) 15.sp else 17.sp
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
                 HorizontalDivider(
                     color = Color.White.copy(alpha = 0.35f),
-                    thickness = 0.8.dp,
+                    thickness = 0.7.dp,
                     modifier = Modifier.fillMaxWidth(0.95f)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
 
                 // ==========================================
                 // ३. सण / उत्सवाची अधिकृत शुभेच्छा
                 // ==========================================
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = GoldenTertiary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = GoldenTertiary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = festival.title,
+                            color = Color(0xFFFFE082),
+                            fontSize = if (isCarouselItem) 11.5.sp else 12.5.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = GoldenTertiary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
                     Text(
-                        text = festival.title,
-                        color = Color(0xFFFFE082),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = GoldenTertiary,
-                        modifier = Modifier.size(15.dp)
+                        text = festival.greetingWish,
+                        color = Color.White.copy(alpha = shimmerAlpha),
+                        fontSize = if (isCarouselItem) 10.5.sp else 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        maxLines = if (isCarouselItem) 2 else 3,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 14.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp)
                     )
                 }
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = festival.greetingWish,
-                    color = Color.White.copy(alpha = shimmerAlpha),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 15.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
             }
         }
     }

@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.model.*
+import com.example.data.seed.SeedData
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
@@ -2205,6 +2206,30 @@ fun ManageLogoAdminTab(
         }
     }
 
+    // --- ID CARD BACK SETTINGS STATE (नियम, उद्दिष्टे व आपत्कालीन संपर्क) ---
+    var idCardObjectivesInput by remember(mandalInfo.idCardObjectives) {
+        mutableStateOf(
+            mandalInfo.idCardObjectives.ifBlank {
+                "• गावातील कला, क्रीडा, शिक्षण व सांस्कृतिक वारशाचे संवर्धन करणे.\n• सामाजिक बांधिलकी, रक्तदान चळवळ व आपत्कालीन मदतकार्य.\n• युवकांना विधायक दिशा देणे व गावाचा सर्वांगीण विकास साधणे."
+            }
+        )
+    }
+    var idCardRulesInput by remember(mandalInfo.idCardRules) {
+        mutableStateOf(
+            mandalInfo.idCardRules.ifBlank {
+                "• हे ओळखपत्र मंडळाच्या सर्व अधिकृत कार्यक्रमांसाठी वैध राहील.\n• ओळखपत्र अहस्तांतरणीय असून गैरवापर कायद्याने गुन्हा आहे.\n• गहाळ झाल्यास तात्काळ ॲडमिनशी संपर्क साधावा."
+            }
+        )
+    }
+    var emergencyContactsInput by remember(mandalInfo.emergencyContacts) {
+        mutableStateOf(
+            mandalInfo.emergencyContacts.ifBlank {
+                "रुग्णवाहिका: १०८ • मदत: ${mandalInfo.phone.ifBlank { "+91 98765 43210" }}"
+            }
+        )
+    }
+    var isSavingIdCardBack by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -2558,6 +2583,168 @@ fun ManageLogoAdminTab(
                             text = "जय हिंद मंडळ, अर्जुनवाड",
                             fontSize = 9.sp,
                             color = TextMuted
+                        )
+                    }
+                }
+            }
+        }
+
+        // =========================================================================
+        // SECTION 3.5: ID CARD BACK SETTINGS (ओळखपत्र मागील बाजू संपादन - नियम, उद्दिष्टे व संपर्क)
+        // =========================================================================
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth().testTag("id_card_back_settings_card")
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Badge,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "ओळखपत्र मागील बाजू संपादन (Rules & Objectives)",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "डिजिटल ओळखपत्राच्या मागील बाजूस दिसणारी मंडळाची ध्येये-उद्दिष्टे, नियम व आपत्कालीन संपर्क क्रमांक येथून बदला.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Field 1: ध्येये व उद्दिष्टे
+                Text(
+                    text = "📌 मंडळाची ध्येये व उद्दिष्टे (Objectives):",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = SaffronDark
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = idCardObjectivesInput,
+                    onValueChange = { idCardObjectivesInput = it },
+                    placeholder = { Text("उदा. गावातील कला, क्रीडा, शिक्षण संवर्धन...") },
+                    minLines = 3,
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth().testTag("id_card_objectives_input"),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Field 2: महत्त्वाचे नियम
+                Text(
+                    text = "⚖️ महत्त्वाचे नियम व अटी (Rules):",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = SaffronDark
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = idCardRulesInput,
+                    onValueChange = { idCardRulesInput = it },
+                    placeholder = { Text("उदा. ओळखपत्र अहस्तांतरणीय आहे...") },
+                    minLines = 3,
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth().testTag("id_card_rules_input"),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Field 3: आपत्कालीन संपर्क
+                Text(
+                    text = "🚑 आपत्कालीन संपर्क व हेल्पलाईन (Emergency Contacts):",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = BloodRed
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = emergencyContactsInput,
+                    onValueChange = { emergencyContactsInput = it },
+                    placeholder = { Text("उदा. रुग्णवाहिका: १०८ • संपर्क: ९८२२xxxxxx") },
+                    singleLine = false,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth().testTag("id_card_emergency_contacts_input"),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Action Buttons Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Reset Button
+                    OutlinedButton(
+                        onClick = {
+                            idCardObjectivesInput = SeedData.defaultMandalInfo.idCardObjectives
+                            idCardRulesInput = SeedData.defaultMandalInfo.idCardRules
+                            emergencyContactsInput = SeedData.defaultMandalInfo.emergencyContacts
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).testTag("id_card_reset_button")
+                    ) {
+                        Text(
+                            text = "डीफॉल्ट सेट करा",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    // Save Button
+                    Button(
+                        onClick = {
+                            isSavingIdCardBack = true
+                            viewModel.updateIdCardBackSettings(
+                                idCardObjectives = idCardObjectivesInput,
+                                idCardRules = idCardRulesInput,
+                                emergencyContacts = emergencyContactsInput
+                            ) {
+                                isSavingIdCardBack = false
+                            }
+                        },
+                        enabled = !isSavingIdCardBack,
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1.3f).testTag("id_card_save_button")
+                    ) {
+                        if (isSavingIdCardBack) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        } else {
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(
+                            text = if (isSavingIdCardBack) "जतन होत आहे..." else "माहिती जतन करा",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
                         )
                     }
                 }
