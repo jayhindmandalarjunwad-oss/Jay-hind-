@@ -651,6 +651,51 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun forwardChatMessage(
+        message: ChatMessage,
+        targetReceivers: List<User>,
+        onComplete: (Int) -> Unit = {}
+    ) {
+        val user = currentUser.value
+        if (user?.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण मेसेज पाठवू शकत नाही. ⚠️")
+            onComplete(0)
+            return
+        }
+        if (targetReceivers.isEmpty()) {
+            onComplete(0)
+            return
+        }
+        val safeTargets = targetReceivers.take(5)
+        viewModelScope.launch {
+            var successCount = 0
+            for (target in safeTargets) {
+                try {
+                    val result = repository.sendMessage(
+                        receiverId = target.id,
+                        receiverName = target.fullName,
+                        messageText = message.messageText,
+                        imageUrl = message.imageUrl,
+                        attachmentType = message.attachmentType,
+                        attachmentUrl = message.attachmentUrl,
+                        attachmentName = message.attachmentName,
+                        attachmentExtra = message.attachmentExtra
+                    )
+                    if (result.isSuccess) {
+                        successCount++
+                    }
+                    kotlinx.coroutines.delay(15)
+                } catch (e: Exception) {
+                    android.util.Log.e("MandalViewModel", "Forward error for ${target.fullName}: ${e.message}")
+                }
+            }
+            if (successCount > 0) {
+                showSnackbar("मेसेज $successCount जणांना यशस्वीरीत्या फॉरवर्ड करण्यात आला! 🚀")
+            }
+            onComplete(successCount)
+        }
+    }
+
     // GALLERY ACTIONS
     fun openAlbum(album: Album?) {
         _selectedAlbum.value = album

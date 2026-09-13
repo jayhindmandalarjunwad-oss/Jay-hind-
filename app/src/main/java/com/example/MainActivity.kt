@@ -52,28 +52,36 @@ class MainActivity : ComponentActivity() {
             com.example.util.MandalNotificationService.startService(this)
             com.example.util.MandalSyncJobService.scheduleJob(this)
 
+            // Daily birthday check and notification dispatch
+            viewModel.checkAndDispatchBirthdayNotifications()
+
+            // In virtual/development emulator or devices without active Play Store registration,
+            // FCM topic sync / token registration will fail without a registered account.
+            // Native foreground service & MandalSyncJobService provide real-time updates seamlessly.
             val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
             val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
             if (resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
                 lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     try {
                         val fcm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                        fcm.isAutoInitEnabled = true
-                        fcm.token.addOnSuccessListener { token ->
-                            if (!token.isNullOrBlank()) {
-                                viewModel.updateFcmToken(token)
+                        // Attempt token retrieval only; do not queue hard topic syncs which trigger logcat hard failure exceptions
+                        fcm.token.addOnCompleteListener { task ->
+                            if (task.isSuccessful && !task.result.isNullOrBlank()) {
+                                viewModel.updateFcmToken(task.result)
+                                try {
+                                    fcm.subscribeToTopic("mandal_announcements")
+                                    fcm.subscribeToTopic("mandal_emergency_blood")
+                                    fcm.subscribeToTopic("mandal_events")
+                                    fcm.subscribeToTopic("mandal_posts")
+                                    fcm.subscribeToTopic("mandal_birthdays")
+                                    fcm.subscribeToTopic("mandal_group_chat")
+                                } catch (topicErr: Exception) {
+                                    android.util.Log.d("MainActivity", "Topic subscribe note: ${topicErr.message}")
+                                }
+                            } else {
+                                android.util.Log.d("MainActivity", "FCM token not available on current environment (using native sync)")
                             }
                         }
-                        // Subscribe to broadcast topics for dual redundancy
-                        fcm.subscribeToTopic("mandal_announcements")
-                        fcm.subscribeToTopic("mandal_emergency_blood")
-                        fcm.subscribeToTopic("mandal_events")
-                        fcm.subscribeToTopic("mandal_posts")
-                        fcm.subscribeToTopic("mandal_birthdays")
-                        fcm.subscribeToTopic("mandal_group_chat")
-
-                        // Daily birthday check and notification dispatch
-                        viewModel.checkAndDispatchBirthdayNotifications()
                     } catch (fcmErr: Exception) {
                         android.util.Log.d("MainActivity", "FCM setup note: ${fcmErr.message}")
                     }

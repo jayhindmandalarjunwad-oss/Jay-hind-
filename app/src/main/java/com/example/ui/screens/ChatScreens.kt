@@ -822,6 +822,7 @@ fun ChatDetailScreen(
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var isSavingPhoto by remember { mutableStateOf(false) }
     var playingVideoMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var messageToForward by remember { mutableStateOf<ChatMessage?>(null) }
 
     // Camera Capture States
     var cameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
@@ -1361,7 +1362,8 @@ fun ChatDetailScreen(
                             isAdmin = currentUser?.isAnyAdmin == true,
                             onImageClick = { previewImageUrl = it },
                             onVideoClick = { playingVideoMessage = it },
-                            onDeleteClick = { viewModel.deleteChatMessage(it) }
+                            onDeleteClick = { viewModel.deleteChatMessage(it) },
+                            onForwardClick = { messageToForward = it }
                         )
                     }
                 }
@@ -1962,6 +1964,21 @@ fun ChatDetailScreen(
             senderName = videoMsg.senderName,
             thumbnailUrl = videoMsg.attachmentExtra,
             onDismiss = { playingVideoMessage = null }
+        )
+    }
+
+    // Forward Message Dialog (WhatsApp-style, max 5 recipients)
+    messageToForward?.let { msg ->
+        ForwardMessageDialog(
+            message = msg,
+            currentUser = currentUser,
+            approvedMembers = approvedMembers,
+            groupUser = viewModel.MANDAL_GROUP_USER,
+            onDismiss = { messageToForward = null },
+            onForward = { selectedTargets ->
+                viewModel.forwardChatMessage(msg, selectedTargets)
+                messageToForward = null
+            }
         )
     }
 }

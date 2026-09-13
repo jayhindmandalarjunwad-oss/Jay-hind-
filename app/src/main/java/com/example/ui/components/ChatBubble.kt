@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,6 +52,7 @@ fun ChatBubble(
     onImageClick: (String) -> Unit = {},
     onVideoClick: ((ChatMessage) -> Unit)? = null,
     onDeleteClick: ((ChatMessage) -> Unit)? = null,
+    onForwardClick: ((ChatMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -316,9 +318,7 @@ fun ChatBubble(
                     .combinedClickable(
                         onClick = {},
                         onLongClick = {
-                            if (canDelete || message.messageText.isNotBlank()) {
-                                showOptionsMenu = true
-                            }
+                            showOptionsMenu = true
                         }
                     )
             ) {
@@ -755,7 +755,7 @@ fun ChatBubble(
                             modifier = Modifier.size(13.dp)
                         )
                     }
-                    if (canDelete || message.messageText.isNotBlank()) {
+                    if (canDelete || message.messageText.isNotBlank() || onForwardClick != null) {
                         Spacer(modifier = Modifier.width(2.dp))
                         IconButton(
                             onClick = { showOptionsMenu = true },
@@ -773,11 +773,28 @@ fun ChatBubble(
             }
         }
 
-        // Dropdown Menu for message actions (Delete, Copy)
+        // Dropdown Menu for message actions (Forward, Copy, Delete)
         DropdownMenu(
             expanded = showOptionsMenu,
             onDismissRequest = { showOptionsMenu = false }
         ) {
+            if (onForwardClick != null) {
+                DropdownMenuItem(
+                    text = { Text("फॉरवर्ड करा (Forward)") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    onClick = {
+                        showOptionsMenu = false
+                        onForwardClick.invoke(message)
+                    }
+                )
+            }
             if (message.messageText.isNotBlank()) {
                 DropdownMenuItem(
                     text = { Text("मजकूर कॉपी करा (Copy)") },
