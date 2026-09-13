@@ -45,6 +45,10 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
                 Log.d("MandalApp", "Firebase default app already initialized")
             }
 
+            try {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().isAutoInitEnabled = false
+            } catch (_: Exception) {}
+
             // Schedule native background sync job & daily database backup
             com.example.util.MandalSyncJobService.scheduleJob(this)
             com.example.util.MandalBackupJobService.scheduleDailyBackup(this)
@@ -57,9 +61,9 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
     private fun sanitizeFcmTopicQueue() {
         try {
             getSharedPreferences("com.google.android.gms.appid", android.content.Context.MODE_PRIVATE)
-                .edit().remove("topic_operation_queue").apply()
+                .edit().clear().apply()
             getSharedPreferences("com.google.firebase.messaging", android.content.Context.MODE_PRIVATE)
-                .edit().remove("topic_operation_queue").apply()
+                .edit().clear().apply()
         } catch (_: Exception) {}
     }
 

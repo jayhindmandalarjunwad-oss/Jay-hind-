@@ -7,6 +7,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -26,8 +29,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -117,25 +123,17 @@ fun FullscreenPhotoDialog(
             // Horizontal Pager for smooth left/right swipe
             HorizontalPager(
                 state = pagerState,
+                userScrollEnabled = true,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(vertical = 56.dp)
             ) { page ->
                 val currentUrl = validPhotos.getOrNull(page)
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (currentUrl != null) {
-                        UniversalAsyncImage(
-                            model = currentUrl,
-                            contentDescription = "Full Screen Photo ${page + 1}",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(4.dp)
-                        )
-                    }
+                if (currentUrl != null) {
+                    ZoomablePhotoItem(
+                        imageUrl = currentUrl,
+                        contentDescription = "Full Screen Photo ${page + 1}"
+                    )
                 }
             }
 
@@ -369,7 +367,7 @@ fun FullscreenPhotoDialog(
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 10.dp)
+                            modifier = Modifier.padding(bottom = 6.dp)
                         ) {
                             for (i in validPhotos.indices) {
                                 val isSelected = pagerState.currentPage == i
@@ -383,127 +381,19 @@ fun FullscreenPhotoDialog(
                         }
                     }
 
-                    if (canDownload) {
-                        // Actions: Download & Share
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
-                                    if (activePhotoUrl != null && !isDownloading) {
-                                        coroutineScope.launch {
-                                            isDownloading = true
-                                            MediaUtils.saveImageToGallery(
-                                                context = context,
-                                                imageUrlOrBase64 = activePhotoUrl,
-                                                subFolder = "JayHind_Mandal_Posts"
-                                            )
-                                            isDownloading = false
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
-                                shape = RoundedCornerShape(24.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                            ) {
-                                if (isDownloading) {
-                                    CircularProgressIndicator(
-                                        color = Color.White,
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = Color.White
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "डाऊनलोड",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    val activePhotoUrl = validPhotos.getOrNull(pagerState.currentPage)
-                                    val activeTitle = titles.getOrNull(pagerState.currentPage)
-                                    if (activePhotoUrl != null && !isSharing) {
-                                        coroutineScope.launch {
-                                            isSharing = true
-                                            MediaUtils.shareImage(context, activePhotoUrl, activeTitle)
-                                            isSharing = false
-                                        }
-                                    }
-                                },
-                                border = BorderStroke(1.dp, SaffronPrimary),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                            ) {
-                                if (isSharing) {
-                                    CircularProgressIndicator(
-                                        color = SaffronPrimary,
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Share,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = SaffronPrimary
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "शेअर करा",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // Privacy message for regular members
-                        Surface(
-                            color = Color.White.copy(alpha = 0.08f),
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "🔒 फोटो सुरक्षा: प्रायव्हसीसाठी केवळ ॲडमिन डाऊनलोड/शेअर करू शकतात",
-                                    color = Color.White.copy(alpha = 0.75f),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
+                    // Sleek Hint Badge for Zoom & Pan
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.12f),
+                        border = BorderStroke(0.7.dp, Color.White.copy(alpha = 0.20f))
+                    ) {
+                        Text(
+                            text = "🔍 दोन बोटांनी झूम करा किंवा डबल-टॅप करा",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
@@ -527,4 +417,74 @@ fun FullscreenPhotoDialog(
         isAdmin = isAdmin,
         onDismiss = onDismiss
     )
+}
+
+/**
+ * Zoomable & Pannable Photo with Double Tap to Zoom and Pinch-to-Zoom
+ */
+@Composable
+fun ZoomablePhotoItem(
+    imageUrl: String,
+    contentDescription: String
+) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    // Reset zoom & pan when image changes
+    LaunchedEffect(imageUrl) {
+        scale = 1f
+        offset = Offset.Zero
+    }
+
+    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
+        val newScale = (scale * zoomChange).coerceIn(1f, 5f)
+        scale = newScale
+        if (newScale > 1f) {
+            // Allow panning when zoomed in
+            val maxX = (newScale - 1f) * 400f
+            val maxY = (newScale - 1f) * 600f
+            val newOffsetX = (offset.x + panChange.x).coerceIn(-maxX, maxX)
+            val newOffsetY = (offset.y + panChange.y).coerceIn(-maxY, maxY)
+            offset = Offset(newOffsetX, newOffsetY)
+        } else {
+            offset = Offset.Zero
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(imageUrl) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        if (scale > 1.2f) {
+                            // Reset back to normal 1x
+                            scale = 1f
+                            offset = Offset.Zero
+                        } else {
+                            // Quick zoom in to 2.5x
+                            scale = 2.5f
+                            offset = Offset.Zero
+                        }
+                    }
+                )
+            }
+            .transformable(state = transformableState),
+        contentAlignment = Alignment.Center
+    ) {
+        UniversalAsyncImage(
+            model = imageUrl,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(4.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                }
+        )
+    }
 }

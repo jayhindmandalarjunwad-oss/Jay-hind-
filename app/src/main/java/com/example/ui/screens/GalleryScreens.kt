@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -96,6 +98,33 @@ fun GalleryScreen(
 
     val isPhotoAlbumOpen = selectedTab == GalleryTab.PHOTOS && selectedAlbum != null && selectedAlbum!!.id.isNotEmpty()
     val isVideoAlbumOpen = selectedTab == GalleryTab.VIDEOS && selectedVideoAlbum != null && selectedVideoAlbum!!.id.isNotEmpty()
+
+    // Step-by-Step Back Navigation for Fullscreen Photos, Videos & Albums
+    BackHandler(
+        enabled = (fullscreenViewerState != null && fullscreenViewerState!!.photos.isNotEmpty()) ||
+                  activePlayingVideo != null ||
+                  isPhotoAlbumOpen ||
+                  isVideoAlbumOpen
+    ) {
+        when {
+            // 1. Close photo viewer if active
+            fullscreenViewerState != null && fullscreenViewerState!!.photos.isNotEmpty() -> {
+                viewModel.closeFullscreenPhoto()
+            }
+            // 2. Stop playing video if active
+            activePlayingVideo != null -> {
+                activePlayingVideo = null
+            }
+            // 3. Close open photo album and return to photo albums list
+            isPhotoAlbumOpen -> {
+                viewModel.closeAlbum()
+            }
+            // 4. Close open video album and return to video albums list
+            isVideoAlbumOpen -> {
+                viewModel.closeVideoAlbum()
+            }
+        }
+    }
 
     val context = LocalContext.current
 
@@ -798,99 +827,152 @@ fun AlbumCard(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {}
 ) {
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .testTag("album_card_${album.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .testTag("album_card_${album.id}")
     ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-            ) {
-                UniversalAsyncImage(
-                    model = album.coverImageUrl,
-                    contentDescription = album.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = SaffronPrimary,
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .align(Alignment.TopStart)
-                ) {
-                    Text(
-                        text = album.category,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
+        // Stack deck back layer for 3D photo album aesthetic
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .height(180.dp)
+                .align(Alignment.TopCenter)
+                .graphicsLayer {
+                    translationY = -6f
+                    scaleX = 0.94f
                 }
+                .clip(RoundedCornerShape(18.dp))
+                .background(SaffronPrimary.copy(alpha = 0.25f))
+        )
 
-                if (isAdmin) {
-                    Row(
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(136.dp)
+                ) {
+                    UniversalAsyncImage(
+                        model = album.coverImageUrl,
+                        contentDescription = album.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Subtle bottom gradient inside photo container for high legibility
+                    Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f))
+                                )
+                            )
+                    )
+
+                    // Modern Frosted Glass Category Chip
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color.Black.copy(alpha = 0.60f),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color.White.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .align(Alignment.TopStart)
                     ) {
-                        IconButton(
-                            onClick = onEdit,
-                            modifier = Modifier
-                                .size(30.dp)
-                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "शीर्षक बदला", tint = Color.White, modifier = Modifier.size(14.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(SaffronPrimary)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = album.category,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         }
-                        IconButton(
-                            onClick = onDelete,
+                    }
+
+                    if (isAdmin) {
+                        Row(
                             modifier = Modifier
-                                .size(30.dp)
-                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = Color.White, modifier = Modifier.size(14.dp))
+                            IconButton(
+                                onClick = onEdit,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "शीर्षक बदला", tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                            IconButton(
+                                onClick = onDelete,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
                         }
                     }
                 }
-            }
 
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = album.title,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                     Text(
-                        text = "${album.photoCount} फोटो",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = SaffronPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        text = album.title,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PhotoLibrary,
+                                contentDescription = null,
+                                tint = SaffronPrimary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${album.photoCount} फोटो",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SaffronPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -907,138 +989,175 @@ fun VideoAlbumCard(
 ) {
     val isLiveAlbum = album.id == "album_live_videos" || album.title.contains("LIVE VIDEO", ignoreCase = true)
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .testTag("video_album_card_${album.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(
-            if (isLiveAlbum) 1.5.dp else 1.dp,
-            if (isLiveAlbum) BloodRed else CardBorderColor
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isLiveAlbum) 4.dp else 2.dp)
+            .testTag("video_album_card_${album.id}")
     ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-            ) {
-                UniversalAsyncImage(
-                    model = album.coverImageUrl,
-                    contentDescription = album.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+        // Stack deck back layer for 3D video reel aesthetic
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .height(180.dp)
+                .align(Alignment.TopCenter)
+                .graphicsLayer {
+                    translationY = -6f
+                    scaleX = 0.94f
+                }
+                .clip(RoundedCornerShape(18.dp))
+                .background(BloodRed.copy(alpha = if (isLiveAlbum) 0.35f else 0.22f))
+        )
 
-                // Video Album Play Badge overlay
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+            border = androidx.compose.foundation.BorderStroke(
+                if (isLiveAlbum) 1.5.dp else 1.dp,
+                if (isLiveAlbum) BloodRed else CardBorderColor
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = if (isLiveAlbum) 5.dp else 4.dp)
+        ) {
+            Column {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(BloodRed.copy(alpha = 0.85f))
-                        .align(Alignment.Center),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(136.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Video Album",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                    UniversalAsyncImage(
+                        model = album.coverImageUrl,
+                        contentDescription = album.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
+
+                    // Video Album Play Badge overlay with ripple aesthetic
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(BloodRed.copy(alpha = 0.90f))
+                            .border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                            .align(Alignment.Center),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Video Album",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Frosted category badge
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isLiveAlbum) BloodRed else Color.Black.copy(alpha = 0.60f),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color.White.copy(alpha = 0.35f)),
+                        contentColor = Color.White,
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .align(Alignment.TopStart)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            if (isLiveAlbum) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "🔴 LIVE VIDEO",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(BloodRed)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = album.category,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    if (isAdmin) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            IconButton(
+                                onClick = onEdit,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "शीर्षक व कॅटेगिरी बदला", tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                            IconButton(
+                                onClick = onDelete,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = Color.White, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = BloodRed,
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .align(Alignment.TopStart)
-                ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    Text(
+                        text = album.title,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (isLiveAlbum) BloodRed else TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isLiveAlbum) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.VideoLibrary,
+                                contentDescription = null,
+                                tint = BloodRed,
+                                modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "🔴 LIVE VIDEO",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        } else {
-                            Text(
-                                text = album.category,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                                text = if (isLiveAlbum) "${album.photoCount} थेट प्रक्षेपणे" else "${album.photoCount} व्हिडिओ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = BloodRed,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
                             )
                         }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
-                }
-
-                if (isAdmin) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        IconButton(
-                            onClick = onEdit,
-                            modifier = Modifier
-                                .size(30.dp)
-                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = "शीर्षक व कॅटेगिरी बदला", tint = Color.White, modifier = Modifier.size(14.dp))
-                        }
-                        IconButton(
-                            onClick = onDelete,
-                            modifier = Modifier
-                                .size(30.dp)
-                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = Color.White, modifier = Modifier.size(14.dp))
-                        }
-                    }
-                }
-            }
-
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = album.title,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = if (isLiveAlbum) BloodRed else TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isLiveAlbum) "${album.photoCount} थेट प्रक्षेपणे" else "${album.photoCount} व्हिडिओ",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BloodRed,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
                 }
             }
         }
