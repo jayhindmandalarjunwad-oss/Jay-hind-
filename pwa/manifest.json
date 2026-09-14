@@ -1,0 +1,18 @@
+{
+  "name": "जय हिंद मंडळ अर्जुनवाड",
+  "short_name": "जय हिंद मंडळ",
+  "description": "जय हिंद कला क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड - अधिकृत PWA वेब ॲप",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFBF7",
+  "theme_color": "#FF6F00",
+  "icons": [
+    {
+      "src": "/icons/icon-512.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

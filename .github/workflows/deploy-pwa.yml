@@ -1,0 +1,40 @@
+name: Deploy PWA to Firebase Hosting
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy to Firebase Hosting Live Channel
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        continue-on-error: true
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JAYHINDMANDAL112 }}'
+          projectId: jayhindmandal112
+          channelId: live
+
+      - name: Deploy with Firebase CLI Token (Alternative)
+        if: env.FIREBASE_TOKEN != ''
+        continue-on-error: true
+        run: |
+          npx firebase-tools deploy --only hosting --project jayhindmandal112 --token "$FIREBASE_TOKEN"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
