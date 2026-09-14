@@ -23,6 +23,7 @@
   <!-- QR Code & Barcode Generator for Digital ID Cards -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <!-- Firebase v10 Compat CDN for robust, dependency-free web execution -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -1190,6 +1191,327 @@
       color: #999;
       cursor: pointer;
     }
+
+    /* Post Comments Section */
+    .post-comments-section {
+      border-top: 1px solid var(--border-color);
+      padding: 12px 14px;
+      background: #FAFAFA;
+      border-bottom-left-radius: 16px;
+      border-bottom-right-radius: 16px;
+      display: none;
+    }
+    .post-comments-section.open {
+      display: block;
+    }
+    .comment-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .comment-input-field {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      font-size: 13px;
+      outline: none;
+      background: white;
+    }
+    .comment-input-field:focus {
+      border-color: var(--saffron-primary);
+    }
+    .comment-submit-btn {
+      background: var(--saffron-primary);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .comments-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .comment-item {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .comment-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .comment-bubble {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 6px 10px;
+      font-size: 12px;
+      flex: 1;
+    }
+    .comment-author {
+      font-weight: 700;
+      color: var(--navy-primary);
+      margin-bottom: 2px;
+    }
+    .comment-time {
+      font-size: 10px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    /* Chat Tabs Switcher (Group vs 1-to-1) */
+    .chat-mode-tabs {
+      display: flex;
+      background: white;
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border-color);
+    }
+    .chat-mode-btn {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .chat-mode-btn.active {
+      background: var(--saffron-accent);
+      color: var(--saffron-dark);
+    }
+
+    /* 1-to-1 Members Chat List */
+    .direct-chat-member-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .direct-chat-member-item:hover, .direct-chat-member-item:active {
+      background: #FFF8E1;
+    }
+    .direct-chat-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .direct-chat-meta {
+      flex: 1;
+    }
+    .direct-chat-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .direct-chat-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* Photo Gallery Styles */
+    .gallery-categories {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .album-card {
+      background: white;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .album-card:active {
+      transform: scale(0.98);
+    }
+    .album-cover {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+      background: #eee;
+    }
+    .album-details {
+      padding: 8px 10px;
+    }
+    .album-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .album-badge {
+      font-size: 11px;
+      color: var(--saffron-dark);
+      font-weight: 600;
+    }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .photo-item-card {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      position: relative;
+      cursor: pointer;
+      background: #000;
+      aspect-ratio: 1;
+    }
+    .photo-item-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.2s;
+    }
+    .photo-item-card:hover img {
+      transform: scale(1.05);
+    }
+
+    /* Fullscreen Photo Lightbox */
+    .fullscreen-photo-view {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.94);
+      z-index: 9999;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 16px;
+    }
+    .fullscreen-photo-view.active {
+      display: flex;
+    }
+    .fullscreen-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+    }
+    .fullscreen-img-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 0;
+    }
+    .fullscreen-img-wrap img {
+      max-width: 100%;
+      max-height: 72vh;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .fullscreen-bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+      padding-top: 10px;
+    }
+
+    /* Sub-screen Header with Back Button */
+    .sub-screen-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 6px 0;
+    }
+    .btn-sub-back {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      color: var(--saffron-dark);
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+    }
+
+    /* Event Card */
+    .event-card {
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .event-img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      background: #eee;
+    }
+    .event-content {
+      padding: 12px 14px;
+    }
+    .event-date-chip {
+      display: inline-block;
+      background: #FFF3E0;
+      color: var(--saffron-dark);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+    .event-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--navy-primary);
+      margin-bottom: 4px;
+    }
+    .event-meta {
+      font-size: 12px;
+      color: #666;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
   </style>
 </head>
 <body>
@@ -1401,15 +1723,15 @@
           </div>
         </div>
 
-        <!-- Quick Access 3x2 Grid -->
+        <!-- Quick Access 4x2 Grid -->
         <div class="quick-grid">
           <div class="quick-item" onclick="switchTab('members')">
             <div class="quick-icon"><i class="fa-solid fa-users"></i></div>
             <span class="quick-label">सभासद सूची</span>
           </div>
-          <div class="quick-item" onclick="switchTab('blood')">
-            <div class="quick-icon" style="background:#FFEBEE; color:#D32F2F;"><i class="fa-solid fa-droplet"></i></div>
-            <span class="quick-label">रक्तदाते</span>
+          <div class="quick-item" onclick="switchTab('gallery')">
+            <div class="quick-icon" style="background:#FFF3E0; color:#E65100;"><i class="fa-solid fa-images"></i></div>
+            <span class="quick-label">फोटो गॅलरी</span>
           </div>
           <div class="quick-item" onclick="switchTab('posts')">
             <div class="quick-icon" style="background:#E8EAF6; color:#3F51B5;"><i class="fa-solid fa-newspaper"></i></div>
@@ -1419,13 +1741,21 @@
             <div class="quick-icon" style="background:#E0F2F1; color:#00897B;"><i class="fa-solid fa-comments"></i></div>
             <span class="quick-label">लाईव्ह चॅट</span>
           </div>
-          <div class="quick-item" onclick="switchTab('about')">
-            <div class="quick-icon" style="background:#FFF3E0; color:#EF6C00;"><i class="fa-solid fa-landmark"></i></div>
-            <span class="quick-label">आमच्याबद्दल</span>
+          <div class="quick-item" onclick="switchTab('events')">
+            <div class="quick-icon" style="background:#EDE7F6; color:#5E35B1;"><i class="fa-solid fa-calendar-days"></i></div>
+            <span class="quick-label">कार्यक्रम</span>
+          </div>
+          <div class="quick-item" onclick="switchTab('blood')">
+            <div class="quick-icon" style="background:#FFEBEE; color:#D32F2F;"><i class="fa-solid fa-droplet"></i></div>
+            <span class="quick-label">रक्तदाते</span>
           </div>
           <div class="quick-item" onclick="switchTab('profile')">
             <div class="quick-icon" style="background:#F3E5F5; color:#8E24AA;"><i class="fa-solid fa-id-card"></i></div>
             <span class="quick-label">आयडी कार्ड</span>
+          </div>
+          <div class="quick-item" onclick="switchTab('about')">
+            <div class="quick-icon" style="background:#EFEBE9; color:#4E342E;"><i class="fa-solid fa-landmark"></i></div>
+            <span class="quick-label">आमच्याबद्दल</span>
           </div>
         </div>
 
@@ -1436,6 +1766,17 @@
         <div id="home-announcements-list">
           <div style="text-align: center; padding: 20px; color: #888;">
             <i class="fa-solid fa-spinner fa-spin"></i> घोषणा लोड होत आहेत...
+          </div>
+        </div>
+
+        <!-- Upcoming Events Section -->
+        <div class="section-header" style="margin-top: 16px;">
+          <span class="section-title"><i class="fa-solid fa-calendar-check"></i> आगामी उत्सव व उपक्रम</span>
+          <a href="javascript:void(0)" onclick="switchTab('events')" style="font-size:12px; color:var(--saffron-dark); font-weight:700; text-decoration:none;">सर्व पहा &rarr;</a>
+        </div>
+        <div id="home-events-preview-list">
+          <div style="text-align: center; padding: 14px; color: #888; font-size: 13px;">
+            कार्यक्रम माहिती लोड होत आहे...
           </div>
         </div>
       </div>
@@ -1481,29 +1822,83 @@
         </div>
       </div>
 
-      <!-- ==================== TAB 4: CHAT (लाईव्ह चॅट) ==================== -->
+      <!-- ==================== TAB 4: CHAT (लाईव्ह चॅट & १-to-१) ==================== -->
       <div id="tab-chat" class="tab-view">
-        <div class="chat-container">
-          <div class="chat-header">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <div style="width:34px; height:34px; border-radius:50%; background:white; color:var(--saffron-primary); display:flex; align-items:center; justify-content:center;">
-                <i class="fa-solid fa-users"></i>
+        <!-- Chat Mode Switcher -->
+        <div class="chat-mode-tabs">
+          <button class="chat-mode-btn active" id="btn-chat-mode-group" onclick="switchChatMode('group')">
+            <i class="fa-solid fa-users"></i> मंडळ ग्रुप चॅट
+          </button>
+          <button class="chat-mode-btn" id="btn-chat-mode-direct" onclick="switchChatMode('direct')">
+            <i class="fa-solid fa-user-group"></i> वैयक्तिक चॅट (1-to-1)
+          </button>
+        </div>
+
+        <!-- 1. Group Chat Panel -->
+        <div id="chat-group-panel">
+          <div class="chat-container">
+            <div class="chat-header">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:34px; height:34px; border-radius:50%; background:white; color:var(--saffron-primary); display:flex; align-items:center; justify-content:center;">
+                  <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                  <div style="font-weight:800; font-size:14px;">🚩 जय हिंद मंडळ (सर्व सदस्य)</div>
+                  <div style="font-size:11px; opacity:0.9;">रिअल-टाईम लाईव्ह ग्रुप चॅट</div>
+                </div>
               </div>
-              <div>
-                <div style="font-weight:800; font-size:14px;">🚩 जय हिंद मंडळ (सर्व सदस्य)</div>
-                <div style="font-size:11px; opacity:0.9;">रिअल-टाईम लाईव्ह ग्रुप चॅट</div>
+              <button style="background:none; border:none; color:white; font-size:14px; cursor:pointer;" onclick="listenChatMessages()">
+                <i class="fa-solid fa-rotate-right"></i>
+              </button>
+            </div>
+            <div class="chat-messages" id="chat-messages-box">
+              <div style="text-align:center; padding:20px; color:#888;">मेसेज लोड होत आहेत...</div>
+            </div>
+            <div class="chat-input-bar">
+              <input type="text" id="chat-msg-input" class="chat-input" placeholder="ग्रुपमध्ये मेसेज टाईप करा..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+              <button class="btn-send" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Direct 1-to-1 Chat Panel -->
+        <div id="chat-direct-panel" style="display:none;">
+          <!-- Member Selection List -->
+          <div id="direct-members-list-view">
+            <div class="card" style="padding:10px 14px; margin-bottom:10px;">
+              <input type="text" id="direct-chat-search" class="form-control" placeholder="🔍 ज्यांच्याशी बोलायचे आहे ते नाव शोधा..." oninput="filterDirectChatMembers()">
+            </div>
+            <div id="direct-chat-members-container">
+              <div style="text-align:center; padding:20px; color:#888;">सभासद यादी लोड होत आहे...</div>
+            </div>
+          </div>
+
+          <!-- Active Conversation View -->
+          <div id="direct-chat-active-view" style="display:none;">
+            <div class="chat-container">
+              <div class="chat-header" style="background:linear-gradient(135deg, #1A237E, #283593);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button onclick="closeDirectChatActive()" style="background:none; border:none; color:white; font-size:16px; cursor:pointer; padding:4px 8px;">
+                    <i class="fa-solid fa-arrow-left"></i>
+                  </button>
+                  <img src="./icons/icon-512.jpg" id="direct-partner-avatar" style="width:34px; height:34px; border-radius:50%; object-fit:cover; border:1.5px solid white;">
+                  <div>
+                    <div style="font-weight:800; font-size:14px;" id="direct-partner-name">सभासद</div>
+                    <div style="font-size:11px; opacity:0.9;" id="direct-partner-status">वैयक्तिक चॅट 🔒</div>
+                  </div>
+                </div>
+                <a id="direct-partner-call" href="#" style="color:white; text-decoration:none; font-size:16px; padding:6px 10px;">
+                  <i class="fa-solid fa-phone"></i>
+                </a>
+              </div>
+              <div class="chat-messages" id="direct-messages-box">
+                <div style="text-align:center; padding:20px; color:#888;">मेसेज लोड होत आहेत...</div>
+              </div>
+              <div class="chat-input-bar">
+                <input type="text" id="direct-msg-input" class="chat-input" placeholder="खाजगी मेसेज टाईप करा..." onkeydown="if(event.key==='Enter') sendDirectChatMessage()">
+                <button class="btn-send" style="background:#1A237E;" onclick="sendDirectChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
               </div>
             </div>
-            <button style="background:none; border:none; color:white; font-size:14px; cursor:pointer;" onclick="listenChatMessages()">
-              <i class="fa-solid fa-rotate-right"></i>
-            </button>
-          </div>
-          <div class="chat-messages" id="chat-messages-box">
-            <div style="text-align:center; padding:20px; color:#888;">मेसेज लोड होत आहेत...</div>
-          </div>
-          <div class="chat-input-bar">
-            <input type="text" id="chat-msg-input" class="chat-input" placeholder="मेसेज टाईप करा..." onkeydown="if(event.key==='Enter') sendChatMessage()">
-            <button class="btn-send" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
           </div>
         </div>
       </div>
@@ -1597,6 +1992,22 @@
           </div>
         </div>
 
+        <!-- Download ID Card & Profile Photo Actions -->
+        <button class="btn-main" id="btn-download-id" style="background: linear-gradient(135deg, #1A237E, #283593); margin-bottom: 12px; justify-content: center;" onclick="downloadIdCardAsImage()">
+          <i class="fa-solid fa-download"></i> ओळखपत्र गॅलरीत डाउनलोड करा (Save PNG)
+        </button>
+
+        <div class="card" style="margin-bottom: 14px; text-align: center; padding: 14px;">
+          <h4 style="font-size: 14px; font-weight: 800; color: var(--navy-primary); margin-bottom: 6px;">
+            <i class="fa-solid fa-camera"></i> प्रोफाईल फोटो बदला
+          </h4>
+          <p style="font-size: 12px; color: #666; margin-bottom: 10px;">फोन गॅलरी किंवा कॅमेऱ्यातून थेट स्वतःचा फोटो निवडा.</p>
+          <button class="btn-main" style="background: #E65100; font-size: 13px; padding: 8px 16px; margin: 0 auto; width: auto;" onclick="document.getElementById('profile-photo-file-input').click()">
+            <i class="fa-solid fa-image"></i> गॅलरीतून फोटो निवडा
+          </button>
+          <input type="file" id="profile-photo-file-input" accept="image/*" style="display:none" onchange="handleProfilePhotoUpload(event)">
+        </div>
+
         <!-- Account Controls -->
         <div class="card">
           <h4 style="font-size:14px; font-weight:800; margin-bottom:12px; color:var(--text-primary);">खाते व्यवस्थापन</h4>
@@ -1614,6 +2025,71 @@
           <button class="btn-main" style="background:#D32F2F;" onclick="confirmLogout()">
             <i class="fa-solid fa-right-from-bracket"></i> खात्यातून लॉगआऊट करा (Logout)
           </button>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 8: GALLERY (फोटो गॅलरी) ==================== -->
+      <div id="tab-gallery" class="tab-view">
+        <div class="sub-screen-header">
+          <button class="btn-sub-back" onclick="switchTab('home')"><i class="fa-solid fa-arrow-left"></i></button>
+          <div style="flex:1;">
+            <h3 style="font-size:16px; font-weight:800; color:var(--navy-primary);" id="gallery-header-title">📸 फोटो व व्हिडिओ गॅलरी</h3>
+            <p style="font-size:11px; color:#666;" id="gallery-header-sub">मंडळाचे सर्व उत्सव व आठवणी</p>
+          </div>
+          <button id="btn-gallery-admin-add" style="display:none; background:var(--saffron-primary); color:white; border:none; border-radius:10px; padding:6px 10px; font-size:12px; font-weight:700; cursor:pointer;" onclick="openAdminModal()">
+            <i class="fa-solid fa-plus"></i> फोटो जोडा
+          </button>
+        </div>
+
+        <!-- Categories Filter -->
+        <div class="gallery-categories" id="gallery-category-chips">
+          <div class="filter-chip active" onclick="filterGalleryCategory('ALL', this)">सर्व ॲल्बम्स</div>
+          <div class="filter-chip" onclick="filterGalleryCategory('गणेशोत्सव', this)">गणेशोत्सव</div>
+          <div class="filter-chip" onclick="filterGalleryCategory('शिवजयंती', this)">शिवजयंती</div>
+          <div class="filter-chip" onclick="filterGalleryCategory('रक्तदान शिबीर', this)">रक्तदान शिबीर</div>
+          <div class="filter-chip" onclick="filterGalleryCategory('क्रीडा महोत्सव', this)">क्रीडा स्पर्धा</div>
+        </div>
+
+        <!-- View 1: Albums Grid -->
+        <div id="gallery-albums-view">
+          <div class="gallery-grid" id="gallery-albums-container">
+            <div style="text-align:center; padding:30px; grid-column:span 2; color:#888;">
+              <i class="fa-solid fa-spinner fa-spin"></i> ॲल्बम्स लोड होत आहेत...
+            </div>
+          </div>
+        </div>
+
+        <!-- View 2: Photos Grid in Selected Album -->
+        <div id="gallery-photos-view" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <button class="btn-main" style="width:auto; padding:6px 12px; font-size:12px; background:#607D8B;" onclick="closeAlbumView()">
+              <i class="fa-solid fa-arrow-left"></i> सर्व ॲल्बम्सकडे जा
+            </button>
+            <span id="album-photos-count-badge" style="font-size:12px; font-weight:700; color:var(--saffron-dark);"></span>
+          </div>
+          <div class="photo-grid" id="album-photos-container">
+            <!-- Photos filled dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 9: EVENTS (आगामी व मागील कार्यक्रम) ==================== -->
+      <div id="tab-events" class="tab-view">
+        <div class="sub-screen-header">
+          <button class="btn-sub-back" onclick="switchTab('home')"><i class="fa-solid fa-arrow-left"></i></button>
+          <div style="flex:1;">
+            <h3 style="font-size:16px; font-weight:800; color:var(--navy-primary);">📅 मंडळ उत्सव व कार्यक्रम</h3>
+            <p style="font-size:11px; color:#666;">आगामी व मागील सर्व उपक्रमांची माहिती</p>
+          </div>
+          <button id="btn-events-admin-add" style="display:none; background:var(--saffron-primary); color:white; border:none; border-radius:10px; padding:6px 10px; font-size:12px; font-weight:700; cursor:pointer;" onclick="openAdminModal()">
+            <i class="fa-solid fa-plus"></i> कार्यक्रम ॲड करा
+          </button>
+        </div>
+
+        <div id="events-full-list-container">
+          <div style="text-align:center; padding:30px; color:#888;">
+            <i class="fa-solid fa-spinner fa-spin"></i> कार्यक्रम लोड होत आहेत...
+          </div>
         </div>
       </div>
 
@@ -1659,11 +2135,25 @@
       </div>
       <div class="form-group">
         <label>मजकूर (Content):</label>
-        <textarea id="post-text-input" class="form-control" rows="4" placeholder="येथे पोस्टचा संदेश लिहा..."></textarea>
+        <textarea id="post-text-input" class="form-control" rows="3" placeholder="येथे पोस्टचा संदेश लिहा..."></textarea>
       </div>
       <div class="form-group">
-        <label>फोटो वेब लिंक (Image URL - ऐच्छिक):</label>
-        <input type="url" id="post-img-input" class="form-control" placeholder="उदा. https://images.unsplash.com/...">
+        <label>फोटो निवडा (गॅलरी किंवा कॅमेरा):</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button type="button" class="btn-main" style="background:#455A64; padding:8px 14px; font-size:13px; width:auto;" onclick="document.getElementById('post-file-input').click()">
+            <i class="fa-solid fa-camera"></i> 📁 फोटो निवडा / कॅमेरा
+          </button>
+          <input type="file" id="post-file-input" accept="image/*" style="display:none" onchange="handlePostFile(event)">
+          <span id="post-file-name-label" style="font-size:12px; color:#666;">कोणताही फोटो निवडलेला नाही</span>
+        </div>
+        <div id="post-file-preview-wrap" style="display:none; margin-top:10px; position:relative; width:max-content;">
+          <img id="post-file-preview-img" src="" style="max-height:160px; max-width:100%; border-radius:10px; border:1px solid var(--border-color); object-fit:cover;">
+          <button type="button" onclick="removePostSelectedFile()" style="position:absolute; top:-8px; right:-8px; background:#D32F2F; color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-weight:bold;">&times;</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label style="font-size:12px; color:#777;">किंवा फोटो वेब लिंक टाका (ऐच्छिक):</label>
+        <input type="url" id="post-img-input" class="form-control" placeholder="उदा. https://...">
       </div>
       <button class="btn-main" id="btn-publish-post" onclick="submitCreatePost()">
         <span>पोस्ट प्रसिद्ध करा 🚩</span>
@@ -1686,12 +2176,13 @@
 
   <!-- Modal: Admin Panel -->
   <div class="modal-backdrop" id="modal-admin-panel">
-    <div class="modal-content">
+    <div class="modal-content" style="max-height:85vh; overflow-y:auto;">
       <div class="modal-header">
         <h3><i class="fa-solid fa-shield-halved"></i> ॲडमिन पॅनेल (Admin Controls)</h3>
         <button class="btn-close-modal" onclick="closeModal('modal-admin-panel')"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
+      <!-- Section 1: Pending Approvals -->
       <div style="margin-bottom:16px;">
         <h4 style="font-size:14px; font-weight:800; color:var(--saffron-dark); margin-bottom:8px;">
           ⏳ प्रलंबित सभासद नोंदणी (Pending Approvals)
@@ -1701,6 +2192,7 @@
         </div>
       </div>
 
+      <!-- Section 2: Create Announcement -->
       <div style="margin-bottom:16px; border-top:1px solid var(--border-color); padding-top:12px;">
         <h4 style="font-size:14px; font-weight:800; color:var(--saffron-dark); margin-bottom:8px;">
           📢 नवीन मंडळाची घोषणा पोस्ट करा
@@ -1715,6 +2207,84 @@
           घोषणा प्रसिद्ध करा
         </button>
       </div>
+
+      <!-- Section 3: Add Event -->
+      <div style="margin-bottom:16px; border-top:1px solid var(--border-color); padding-top:12px;">
+        <h4 style="font-size:14px; font-weight:800; color:var(--saffron-dark); margin-bottom:8px;">
+          📅 नवीन उत्सव किंवा कार्यक्रम जोडा
+        </h4>
+        <div class="form-group">
+          <input type="text" id="admin-event-title" class="form-control" placeholder="कार्यक्रमाचे नाव (उदा. महा रक्तदान शिबीर)">
+        </div>
+        <div class="form-group">
+          <input type="date" id="admin-event-date" class="form-control">
+        </div>
+        <div class="form-group">
+          <input type="text" id="admin-event-time" class="form-control" placeholder="वेळ (उदा. सकाळी ९:०० ते दु. २:००)">
+        </div>
+        <div class="form-group">
+          <input type="text" id="admin-event-location" class="form-control" placeholder="स्थान (उदा. ग्रामपंचायत प्रांगण, अर्जुनवाड)">
+        </div>
+        <div class="form-group">
+          <textarea id="admin-event-desc" class="form-control" rows="2" placeholder="कार्यक्रमाचे स्वरूप व सविस्तर माहिती..."></textarea>
+        </div>
+        <div class="form-group">
+          <label style="font-size:12px;">कार्यक्रमाचा फोटो निवडा (गॅलरी):</label>
+          <input type="file" id="admin-event-file" accept="image/*" class="form-control" style="padding:6px;">
+        </div>
+        <button class="btn-main" style="padding:10px; font-size:13px; background:#5E35B1;" onclick="adminCreateEvent()">
+          कार्यक्रम प्रकाशित करा
+        </button>
+      </div>
+
+      <!-- Section 4: Add Photo to Gallery Album -->
+      <div style="margin-bottom:16px; border-top:1px solid var(--border-color); padding-top:12px;">
+        <h4 style="font-size:14px; font-weight:800; color:var(--saffron-dark); margin-bottom:8px;">
+          📸 फोटो गॅलरीमध्ये फोटो जोडा
+        </h4>
+        <div class="form-group">
+          <label style="font-size:12px;">वर्ग / प्रकार (Category):</label>
+          <select id="admin-photo-category" class="form-control">
+            <option value="गणेशोत्सव">गणेशोत्सव</option>
+            <option value="शिवजयंती">शिवजयंती</option>
+            <option value="रक्तदान शिबीर">रक्तदान शिबीर</option>
+            <option value="क्रीडा महोत्सव">क्रीडा स्पर्धा</option>
+            <option value="सामाजिक उपक्रम">सामाजिक उपक्रम</option>
+            <option value="इतर">इतर</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <input type="text" id="admin-photo-album" class="form-control" placeholder="ॲल्बमचे नाव (उदा. गणेशोत्सव २०२४)">
+        </div>
+        <div class="form-group">
+          <input type="text" id="admin-photo-caption" class="form-control" placeholder="फोटोचे वर्णन / कॅप्शन">
+        </div>
+        <div class="form-group">
+          <label style="font-size:12px;">फोटो निवडा (गॅलरी किंवा कॅमेरा):</label>
+          <input type="file" id="admin-photo-file" accept="image/*" class="form-control" style="padding:6px;">
+        </div>
+        <button class="btn-main" style="padding:10px; font-size:13px; background:#E65100;" onclick="adminUploadGalleryPhoto()">
+          फोटो गॅलरीत अपलोड करा
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Fullscreen Photo Lightbox Modal -->
+  <div id="fullscreen-photo-modal" class="fullscreen-photo-view">
+    <div class="fullscreen-top-bar">
+      <span id="fullscreen-photo-title" style="font-size:14px; font-weight:700;">फोटो</span>
+      <button onclick="closeFullscreenPhoto()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+    </div>
+    <div class="fullscreen-img-wrap">
+      <img id="fullscreen-photo-img" src="" alt="Fullscreen Photo">
+    </div>
+    <div class="fullscreen-bottom-bar">
+      <span id="fullscreen-photo-caption" style="font-size:12px; opacity:0.9;"></span>
+      <button id="fullscreen-photo-share" class="btn-main" style="width:auto; padding:6px 14px; font-size:12px; background:#25D366;" onclick="shareActivePhoto()">
+        <i class="fa-brands fa-whatsapp"></i> शेअर करा
+      </button>
     </div>
   </div>
 
@@ -1797,8 +2367,14 @@
       listenPosts();
       listenChatMessages();
       listenNotifications();
+      listenAlbums();
+      listenEvents();
       if (isAdmin) {
         listenPendingMembers();
+        const galleryAdminBtn = document.getElementById('btn-gallery-admin-add');
+        if (galleryAdminBtn) galleryAdminBtn.style.display = 'block';
+        const eventsAdminBtn = document.getElementById('btn-events-admin-add');
+        if (eventsAdminBtn) eventsAdminBtn.style.display = 'block';
       }
       generateDigitalIdCard();
     }
@@ -2096,7 +2672,9 @@
         'chat': { title: 'सभासद मेसेंजर', sub: 'लाईव्ह रिअल-टाईम ग्रुप चॅट' },
         'blood': { title: 'आपत्कालीन रक्तदान', sub: 'रक्तदाते संपर्क यादी' },
         'about': { title: 'मंडळाबद्दल माहिती', sub: 'कार्यकारिणी व संपर्क' },
-        'profile': { title: 'माझे सभासद प्रोफाइल', sub: 'अधिकृत डिजिटल ओळखपत्र' }
+        'profile': { title: 'माझे सभासद प्रोफाइल', sub: 'अधिकृत डिजिटल ओळखपत्र' },
+        'gallery': { title: 'फोटो व व्हिडिओ गॅलरी', sub: 'मंडळाचे सर्व उत्सव व आठवणी' },
+        'events': { title: 'मंडळ उत्सव व कार्यक्रम', sub: 'आगामी व मागील उपक्रम' }
       };
 
       if (titleMap[tabId]) {
@@ -2310,7 +2888,86 @@
         .replace(/'/g, "&#039;");
     }
 
-    // 11. Posts & Likes
+    // ==========================================
+    // 11. IMAGE COMPRESSION & UPLOAD UTILITIES
+    // ==========================================
+    function compressImageFile(file, maxWidth = 900, maxHeight = 900, quality = 0.75) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w > maxWidth || h > maxHeight) {
+              if (w > h) {
+                h = Math.round((h * maxWidth) / w);
+                w = maxWidth;
+              } else {
+                w = Math.round((w * maxHeight) / h);
+                h = maxHeight;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = () => reject(new Error("प्रतिमा लोड होऊ शकली नाही"));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error("फाईल वाचताना त्रुटी आली"));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    let selectedPostFileBase64 = null;
+
+    async function handlePostFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        selectedPostFileBase64 = await compressImageFile(file, 1000, 1000, 0.75);
+        document.getElementById('post-file-preview-img').src = selectedPostFileBase64;
+        document.getElementById('post-file-preview-wrap').style.display = 'block';
+        document.getElementById('post-file-name-label').textContent = file.name;
+      } catch(err) {
+        alert("फोटो निवडताना त्रुटी: " + err.message);
+      }
+    }
+
+    function removePostSelectedFile() {
+      selectedPostFileBase64 = null;
+      document.getElementById('post-file-preview-wrap').style.display = 'none';
+      document.getElementById('post-file-input').value = '';
+      document.getElementById('post-file-name-label').textContent = 'कोणताही फोटो निवडलेला नाही';
+    }
+
+    async function handleProfilePhotoUpload(e) {
+      const file = e.target.files[0];
+      if (!file || !currentUser) return;
+      try {
+        const compressed = await compressImageFile(file, 400, 400, 0.8);
+        currentUser.profilePhotoUrl = compressed;
+        localStorage.setItem("mandal_user", JSON.stringify(currentUser));
+        await db.collection("users").doc(currentUser.id).set({
+          profilePhotoUrl: compressed
+        }, { merge: true });
+        updateCurrentUserUI();
+        generateDigitalIdCard();
+        alert("आपला प्रोफाईल फोटो यशस्वीरित्या बदलला आहे! 🚩");
+      } catch(err) {
+        alert("फोटो बदलताना त्रुटी: " + err.message);
+      }
+    }
+
+    // ==========================================
+    // 12. POSTS, LIKES & COMMENTS FEED
+    // ==========================================
+    const postCommentsListeners = {};
+
     function listenPosts() {
       if (!db) return;
       db.collection("posts").orderBy("timestamp", "desc").limit(20).onSnapshot(snap => {
@@ -2339,11 +2996,12 @@
           }
           const isLiked = currentUser && likedIds.includes(currentUser.id);
           const likesCount = likedIds.length || (p.likesCount || 0);
+          const commentsCount = p.commentsCount || 0;
 
           let mediaHtml = '';
           if (p.imageUrlsJson) {
             const imgUrl = Array.isArray(p.imageUrlsJson) ? p.imageUrlsJson[0] : p.imageUrlsJson;
-            if (imgUrl && typeof imgUrl === 'string' && imgUrl.startsWith('http')) {
+            if (imgUrl && typeof imgUrl === 'string' && (imgUrl.startsWith('http') || imgUrl.startsWith('data:image'))) {
               mediaHtml = `<img src="${imgUrl}" class="post-image" onerror="this.style.display='none'">`;
             }
           }
@@ -2364,10 +3022,27 @@
                   <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                   <span>${likesCount} लाईक्स</span>
                 </button>
+                <button class="post-btn-action" onclick="togglePostComments('${pId}')">
+                  <i class="fa-regular fa-comment"></i>
+                  <span id="comment-count-${pId}">${commentsCount} टिप्पण्या</span>
+                </button>
                 <button class="post-btn-action" onclick="sharePostWhatsApp('${pId}')">
                   <i class="fa-brands fa-whatsapp" style="color:#2E7D32;"></i>
-                  <span>शेअर करा</span>
+                  <span>शेअर</span>
                 </button>
+              </div>
+
+              <!-- Collapsible Comments Section -->
+              <div class="post-comments-section" id="comments-sec-${pId}">
+                <div class="comments-list" id="comments-list-${pId}">
+                  <div style="font-size:11px; color:#888; text-align:center; padding:6px;">टिप्पण्या लोड होत आहेत...</div>
+                </div>
+                <div class="comment-input-row">
+                  <input type="text" class="comment-input-field" id="comment-input-${pId}" placeholder="आपली टिप्पणी लिहा..." onkeydown="if(event.key==='Enter') submitComment('${pId}')">
+                  <button class="comment-submit-btn" onclick="submitComment('${pId}')" title="टिप्पणी पाठवा">
+                    <i class="fa-solid fa-paper-plane"></i>
+                  </button>
+                </div>
               </div>
             </div>
           `;
@@ -2414,11 +3089,12 @@
     async function submitCreatePost() {
       if (!currentUser) return;
       const content = document.getElementById('post-text-input').value.trim();
-      const imageUrl = document.getElementById('post-img-input').value.trim();
+      const imageUrlInput = document.getElementById('post-img-input').value.trim();
+      const finalImageUrl = selectedPostFileBase64 || imageUrlInput || "";
       const btn = document.getElementById('btn-publish-post');
 
-      if (!content && !imageUrl) {
-        alert("कृपया काही मजकूर किंवा फोटो लिंक टाका.");
+      if (!content && !finalImageUrl) {
+        alert("कृपया काही मजकूर किंवा फोटो निवडा.");
         return;
       }
 
@@ -2433,7 +3109,7 @@
           authorName: currentUser.fullName || "सभासद",
           authorProfilePhoto: currentUser.profilePhotoUrl || "",
           content: content,
-          imageUrlsJson: imageUrl || "",
+          imageUrlsJson: finalImageUrl,
           likesCount: 0,
           likedUserIdsJson: "",
           commentsCount: 0,
@@ -2445,6 +3121,7 @@
         closeModal('modal-create-post');
         document.getElementById('post-text-input').value = '';
         document.getElementById('post-img-input').value = '';
+        removePostSelectedFile();
         alert("पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 🚩");
       } catch(e) {
         btn.disabled = false;
@@ -2453,10 +3130,253 @@
       }
     }
 
-    // 12. Real-time Live Group Chat
+    // Post Comments
+    function togglePostComments(postId) {
+      const sec = document.getElementById(`comments-sec-${postId}`);
+      if (!sec) return;
+      const isOpen = sec.classList.toggle('open');
+      if (isOpen) {
+        loadPostComments(postId);
+      }
+    }
+
+    function loadPostComments(postId) {
+      if (!db) return;
+      if (postCommentsListeners[postId]) return;
+
+      postCommentsListeners[postId] = db.collection("comments")
+        .where("postId", "==", postId)
+        .orderBy("timestamp", "asc")
+        .limit(50)
+        .onSnapshot(snap => {
+          const listContainer = document.getElementById(`comments-list-${postId}`);
+          const countSpan = document.getElementById(`comment-count-${postId}`);
+          if (countSpan) countSpan.textContent = `${snap.size} टिप्पण्या`;
+
+          if (!listContainer) return;
+          if (snap.empty) {
+            listContainer.innerHTML = '<div style="font-size:11px; color:#888; text-align:center; padding:6px;">पहिली टिप्पणी (Comment) करा! ✍️</div>';
+            return;
+          }
+
+          let html = '';
+          snap.forEach(doc => {
+            const c = doc.data();
+            const timeStr = c.timestamp ? new Date(c.timestamp).toLocaleDateString('mr-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+            html += `
+              <div class="comment-item">
+                <img src="${c.authorPhotoUrl || './icons/icon-512.jpg'}" class="comment-avatar" onerror="this.src='./icons/icon-512.jpg'">
+                <div class="comment-bubble">
+                  <div class="comment-author">${escapeHtml(c.authorName || 'सभासद')}</div>
+                  <div>${escapeHtml(c.text || '')}</div>
+                  <div class="comment-time">${timeStr}</div>
+                </div>
+              </div>
+            `;
+          });
+          listContainer.innerHTML = html;
+          listContainer.scrollTop = listContainer.scrollHeight;
+        }, err => {
+          console.warn("Comments error:", err);
+        });
+    }
+
+    async function submitComment(postId) {
+      if (!currentUser) return;
+      const input = document.getElementById(`comment-input-${postId}`);
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      const commId = "comm_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+      try {
+        await db.collection("comments").doc(commId).set({
+          id: commId,
+          postId: postId,
+          authorId: currentUser.id,
+          authorName: currentUser.fullName || "सभासद",
+          authorPhotoUrl: currentUser.profilePhotoUrl || "",
+          text: text,
+          timestamp: Date.now()
+        });
+
+        // Update commentsCount on the post
+        const post = window.postsCache[postId];
+        const newCount = (post && post.commentsCount ? post.commentsCount : 0) + 1;
+        if (post) post.commentsCount = newCount;
+        await db.collection("posts").doc(postId).set({
+          commentsCount: newCount
+        }, { merge: true });
+
+      } catch(e) {
+        console.error("Comment submit error:", e);
+        alert("टिप्पणी पाठवताना त्रुटी: " + e.message);
+      }
+    }
+
+    // ==========================================
+    // 13. CHAT: GROUP & 1-TO-1 PRIVATE CHAT
+    // ==========================================
+    let currentChatMode = 'group';
+    let activeDirectPartner = null;
+    let directChatListener = null;
+
+    function getConversationId(userA, userB) {
+      return (userA < userB) ? `conv_${userA}_${userB}` : `conv_${userB}_${userA}`;
+    }
+
+    function switchChatMode(mode) {
+      currentChatMode = mode;
+      const btnGroup = document.getElementById('btn-chat-mode-group');
+      const btnDirect = document.getElementById('btn-chat-mode-direct');
+      const panelGroup = document.getElementById('chat-group-panel');
+      const panelDirect = document.getElementById('chat-direct-panel');
+
+      if (mode === 'group') {
+        btnGroup.classList.add('active');
+        btnDirect.classList.remove('active');
+        panelGroup.style.display = 'block';
+        panelDirect.style.display = 'none';
+      } else {
+        btnDirect.classList.add('active');
+        btnGroup.classList.remove('active');
+        panelDirect.style.display = 'block';
+        panelGroup.style.display = 'none';
+        renderDirectChatMembersList();
+      }
+    }
+
+    function filterDirectChatMembers() {
+      renderDirectChatMembersList();
+    }
+
+    function renderDirectChatMembersList() {
+      const container = document.getElementById('direct-chat-members-container');
+      if (!container) return;
+      const searchVal = (document.getElementById('direct-chat-search')?.value || "").trim().toLowerCase();
+
+      const otherMembers = allMembersList.filter(m => currentUser && m.id !== currentUser.id);
+      const filtered = otherMembers.filter(m => {
+        return !searchVal || 
+          (m.fullName && m.fullName.toLowerCase().includes(searchVal)) ||
+          (m.mobileNumber && m.mobileNumber.includes(searchVal));
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">कोणतेही सभासद सापडले नाहीत.</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(m => {
+        html += `
+          <div class="direct-chat-member-item" onclick="openDirectChatWithUser('${m.id}')">
+            <img src="${m.profilePhotoUrl || './icons/icon-512.jpg'}" class="direct-chat-avatar" onerror="this.src='./icons/icon-512.jpg'">
+            <div class="direct-chat-meta">
+              <div class="direct-chat-name">${escapeHtml(m.fullName || 'सभासद')}</div>
+              <div class="direct-chat-sub">📞 ${m.mobileNumber || ''} • ${m.designation || 'सभासद'}</div>
+            </div>
+            <div style="color:var(--saffron-dark); font-size:14px;"><i class="fa-solid fa-comment-dots"></i></div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function openDirectChatWithUser(partnerId) {
+      const partner = allMembersList.find(m => m.id === partnerId);
+      if (!partner) return;
+      activeDirectPartner = partner;
+
+      document.getElementById('direct-members-list-view').style.display = 'none';
+      document.getElementById('direct-chat-active-view').style.display = 'block';
+
+      document.getElementById('direct-partner-name').textContent = partner.fullName || 'सभासद';
+      document.getElementById('direct-partner-avatar').src = partner.profilePhotoUrl || './icons/icon-512.jpg';
+      document.getElementById('direct-partner-call').href = `tel:${partner.mobileNumber}`;
+
+      listenDirectChatMessages(partner.id);
+    }
+
+    function closeDirectChatActive() {
+      if (directChatListener) {
+        directChatListener();
+        directChatListener = null;
+      }
+      activeDirectPartner = null;
+      document.getElementById('direct-chat-active-view').style.display = 'none';
+      document.getElementById('direct-members-list-view').style.display = 'block';
+    }
+
+    function listenDirectChatMessages(partnerId) {
+      if (!db || !currentUser) return;
+      if (directChatListener) {
+        directChatListener();
+      }
+
+      const convId = getConversationId(currentUser.id, partnerId);
+      directChatListener = db.collection("chat_messages")
+        .where("conversationId", "==", convId)
+        .orderBy("timestamp", "asc")
+        .limit(100)
+        .onSnapshot(snap => {
+          const box = document.getElementById("direct-messages-box");
+          if (!box) return;
+          if (snap.empty) {
+            box.innerHTML = `<div style="text-align:center; padding:20px; color:#888;">${escapeHtml(activeDirectPartner?.fullName || 'सभासद')} यांच्याशी खाजगी चॅट सुरू करा! 💬</div>`;
+            return;
+          }
+
+          let html = '';
+          snap.forEach(doc => {
+            const m = doc.data();
+            const isOutgoing = m.senderId === currentUser.id;
+            const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('mr-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+            html += `
+              <div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
+                <div>${escapeHtml(m.messageText || '')}</div>
+                <div class="msg-time">${timeStr}</div>
+              </div>
+            `;
+          });
+          box.innerHTML = html;
+          box.scrollTop = box.scrollHeight;
+        }, err => {
+          console.warn("Direct chat error:", err);
+        });
+    }
+
+    async function sendDirectChatMessage() {
+      if (!currentUser || !activeDirectPartner) return;
+      const input = document.getElementById('direct-msg-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      const convId = getConversationId(currentUser.id, activeDirectPartner.id);
+      const msgId = "msg_" + Date.now();
+      try {
+        await db.collection("chat_messages").doc(msgId).set({
+          id: msgId,
+          conversationId: convId,
+          senderId: currentUser.id,
+          senderName: currentUser.fullName || "सभासद",
+          senderPhoto: currentUser.profilePhotoUrl || "",
+          receiverId: activeDirectPartner.id,
+          receiverName: activeDirectPartner.fullName || "",
+          messageText: text,
+          timestamp: Date.now(),
+          isRead: false
+        });
+      } catch(e) {
+        console.error("Direct send msg error:", e);
+      }
+    }
+
+    // Group Chat Messages
     function listenChatMessages() {
       if (!db) return;
-      // Fetch latest messages without requiring Firestore composite index
       db.collection("chat_messages")
         .orderBy("timestamp", "desc")
         .limit(60)
@@ -2475,7 +3395,6 @@
               msgs.push({ id: doc.id, ...m });
             }
           });
-          // Sort oldest first for chat flow
           msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
           let html = '';
@@ -2523,7 +3442,9 @@
       }
     }
 
-    // 13. Digital ID Card Generation (with QRCode)
+    // ==========================================
+    // 14. DIGITAL ID CARD & IMAGE DOWNLOAD
+    // ==========================================
     function generateDigitalIdCard() {
       if (!currentUser) return;
       document.getElementById('id-card-name').textContent = currentUser.fullName || 'सभासद';
@@ -2560,7 +3481,260 @@
       }
     }
 
-    // 14. Notifications Modal
+    async function downloadIdCardAsImage() {
+      const card = document.getElementById("id-card-element");
+      const btn = document.getElementById("btn-download-id");
+      if (!card) return;
+      
+      if (typeof html2canvas === 'undefined') {
+        alert("डाउनलोड लायब्ररी लोड होत आहे, कृपया २ सेकंद थांबा...");
+        return;
+      }
+      
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> कार्ड सेव्ह होत आहे...';
+
+      try {
+        const canvas = await html2canvas(card, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: null
+        });
+        const link = document.createElement('a');
+        const memberName = (currentUser && currentUser.fullName) ? currentUser.fullName.replace(/\s+/g, '_') : 'Member';
+        link.download = `JayHind_ID_Card_${memberName}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> डाउनलोड पूर्ण! 🚩';
+        setTimeout(() => { btn.innerHTML = originalText; }, 2500);
+      } catch(e) {
+        console.error("ID Card download error:", e);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        alert("डाउनलोड करताना त्रुटी: " + e.message);
+      }
+    }
+
+    // ==========================================
+    // 15. PHOTO GALLERY & ALBUM LIGHTBOX
+    // ==========================================
+    let allAlbumsList = [];
+    let currentGalleryCategory = 'ALL';
+    let activeAlbumId = null;
+    let activePhotoObject = null;
+
+    function listenAlbums() {
+      if (!db) return;
+      db.collection("albums").onSnapshot(snap => {
+        allAlbumsList = [];
+        snap.forEach(doc => {
+          allAlbumsList.push({ id: doc.id, ...doc.data() });
+        });
+        renderAlbums();
+      });
+    }
+
+    function filterGalleryCategory(category, el) {
+      document.querySelectorAll('#gallery-category-chips .filter-chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      currentGalleryCategory = category;
+      renderAlbums();
+    }
+
+    function renderAlbums() {
+      const container = document.getElementById("gallery-albums-container");
+      if (!container) return;
+
+      let filtered = allAlbumsList.filter(a => {
+        return currentGalleryCategory === 'ALL' || a.category === currentGalleryCategory;
+      });
+
+      if (filtered.length === 0 && allAlbumsList.length === 0) {
+        // Fallback default albums
+        const defaultAlbums = [
+          { id: 'def_ganesh', title: 'गणेशोत्सव सोहळा', category: 'गणेशोत्सव', coverImageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=600&auto=format&fit=crop&q=80', photoCount: 12 },
+          { id: 'def_shivaji', title: 'शिवजयंती उत्सव', category: 'शिवजयंती', coverImageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600&auto=format&fit=crop&q=80', photoCount: 18 },
+          { id: 'def_blood', title: 'महा रक्तदान शिबीर', category: 'रक्तदान शिबीर', coverImageUrl: 'https://images.unsplash.com/photo-1615461066841-6116e61058f4?w=600&auto=format&fit=crop&q=80', photoCount: 8 },
+          { id: 'def_sports', title: 'अर्जुनवाड क्रीडा स्पर्धा', category: 'क्रीडा महोत्सव', coverImageUrl: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=600&auto=format&fit=crop&q=80', photoCount: 15 }
+        ];
+        filtered = defaultAlbums.filter(a => currentGalleryCategory === 'ALL' || a.category === currentGalleryCategory);
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="grid-column:span 2; text-align:center; padding:30px; color:#888;">या प्रवर्गात ॲल्बम उपलब्ध नाहीत.</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(a => {
+        html += `
+          <div class="album-card" onclick="openAlbum('${a.id}', '${escapeHtml(a.title || 'ॲल्बम')}')">
+            <img src="${a.coverImageUrl || 'https://via.placeholder.com/300?text=Album'}" class="album-cover" onerror="this.src='https://via.placeholder.com/300?text=Album'">
+            <div class="album-details">
+              <div class="album-title">${escapeHtml(a.title || 'ॲल्बम')}</div>
+              <div class="album-badge"><i class="fa-solid fa-image"></i> ${a.photoCount || 0} फोटो</div>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function openAlbum(albumId, albumTitle) {
+      activeAlbumId = albumId;
+      document.getElementById('gallery-albums-view').style.display = 'none';
+      document.getElementById('gallery-photos-view').style.display = 'block';
+      document.getElementById('gallery-header-title').textContent = albumTitle || 'फोटो संग्रह';
+      document.getElementById('gallery-header-sub').textContent = 'सर्व छायाचित्रे';
+
+      loadAlbumPhotos(albumId);
+    }
+
+    function closeAlbumView() {
+      activeAlbumId = null;
+      document.getElementById('gallery-photos-view').style.display = 'none';
+      document.getElementById('gallery-albums-view').style.display = 'block';
+      document.getElementById('gallery-header-title').textContent = '📸 फोटो व व्हिडिओ गॅलरी';
+      document.getElementById('gallery-header-sub').textContent = 'मंडळाचे सर्व उत्सव व आठवणी';
+    }
+
+    function loadAlbumPhotos(albumId) {
+      const container = document.getElementById('album-photos-container');
+      container.innerHTML = '<div style="grid-column:span 3; text-align:center; padding:20px; color:#888;"><i class="fa-solid fa-spinner fa-spin"></i> फोटो लोड होत आहेत...</div>';
+
+      db.collection("photos").where("albumId", "==", albumId).onSnapshot(snap => {
+        const badge = document.getElementById('album-photos-count-badge');
+        if (badge) badge.textContent = `${snap.size} फोटो`;
+
+        if (snap.empty) {
+          container.innerHTML = '<div style="grid-column:span 3; text-align:center; padding:30px; color:#888;">या ॲल्बममध्ये अजून फोटो अपलोड केलेले नाहीत. 📷</div>';
+          return;
+        }
+
+        let html = '';
+        snap.forEach(doc => {
+          const p = doc.data();
+          html += `
+            <div class="photo-item-card" onclick="openFullscreenPhoto('${p.imageUrl}', '${escapeHtml(p.caption || '')}', 'जय हिंद मंडळ गॅलरी')">
+              <img src="${p.imageUrl}" alt="${escapeHtml(p.caption || 'Photo')}" loading="lazy">
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+      });
+    }
+
+    function openFullscreenPhoto(imageUrl, caption, title) {
+      activePhotoObject = { imageUrl, caption, title };
+      document.getElementById('fullscreen-photo-img').src = imageUrl;
+      document.getElementById('fullscreen-photo-caption').textContent = caption || '';
+      document.getElementById('fullscreen-photo-title').textContent = title || 'फोटो दृश्य';
+      document.getElementById('fullscreen-photo-modal').classList.add('active');
+    }
+
+    function closeFullscreenPhoto() {
+      document.getElementById('fullscreen-photo-modal').classList.remove('active');
+      activePhotoObject = null;
+    }
+
+    function shareActivePhoto() {
+      if (!activePhotoObject) return;
+      const msg = encodeURIComponent(`🚩 जय हिंद मंडळ, अर्जुनवाड - फोटो गॅलरी\n${activePhotoObject.caption || ''}\nपहा: ${activePhotoObject.imageUrl}`);
+      window.open(`https://wa.me/?text=${msg}`, '_blank');
+    }
+
+    // ==========================================
+    // 16. MANDAL EVENTS (UPCOMING & PAST)
+    // ==========================================
+    let allEventsList = [];
+
+    function listenEvents() {
+      if (!db) return;
+      db.collection("events").orderBy("date", "asc").onSnapshot(snap => {
+        allEventsList = [];
+        snap.forEach(doc => {
+          allEventsList.push({ id: doc.id, ...doc.data() });
+        });
+        renderEvents();
+      });
+    }
+
+    function renderEvents() {
+      const previewContainer = document.getElementById("home-events-preview-list");
+      const fullContainer = document.getElementById("events-full-list-container");
+
+      let events = allEventsList;
+      if (events.length === 0) {
+        events = [
+          {
+            id: 'ev_1',
+            title: 'भव्य गणेशोत्सव सोहळा २०२४-२५',
+            date: '२०२४-०९-०७',
+            time: 'सकाळी ९:०० वा.',
+            location: 'मंडळ प्रांगण, अर्जुनवाड',
+            description: 'पारंपरिक वाद्यांच्या गजरात श्रींची प्रतिष्ठापना व महाआरती.',
+            imageUrl: 'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=600&auto=format&fit=crop&q=80'
+          },
+          {
+            id: 'ev_2',
+            title: 'महा रक्तदान शिबीर व मोफत आरोग्य तपासणी',
+            date: '२०२४-१०-०२',
+            time: 'सकाळी ८:०० ते दु. १:००',
+            location: 'प्राथमिक शाळा, अर्जुनवाड',
+            description: 'सर्व गावकऱ्यांसाठी मोफत आरोग्य तपासणी व रक्तदान शिबीर.',
+            imageUrl: 'https://images.unsplash.com/photo-1615461066841-6116e61058f4?w=600&auto=format&fit=crop&q=80'
+          }
+        ];
+      }
+
+      if (previewContainer) {
+        let previewHtml = '';
+        events.slice(0, 2).forEach(ev => {
+          previewHtml += `
+            <div class="event-card">
+              <div class="event-content">
+                <span class="event-date-chip">📅 ${ev.date || 'लवकरच'} • ${ev.time || ''}</span>
+                <div class="event-title">${escapeHtml(ev.title)}</div>
+                <div class="event-meta">
+                  <span>📍 ${escapeHtml(ev.location || 'अर्जुनवाड')}</span>
+                </div>
+                <div style="font-size:12px; color:#555;">${escapeHtml(ev.description || '')}</div>
+              </div>
+            </div>
+          `;
+        });
+        previewContainer.innerHTML = previewHtml;
+      }
+
+      if (fullContainer) {
+        let fullHtml = '';
+        events.forEach(ev => {
+          fullHtml += `
+            <div class="event-card">
+              ${ev.imageUrl ? `<img src="${ev.imageUrl}" class="event-img" onerror="this.style.display='none'">` : ''}
+              <div class="event-content">
+                <span class="event-date-chip">📅 ${ev.date || 'लवकरच'} • ${ev.time || ''}</span>
+                <div class="event-title">${escapeHtml(ev.title)}</div>
+                <div class="event-meta">
+                  <span>📍 <strong>स्थान:</strong> ${escapeHtml(ev.location || 'अर्जुनवाड')}</span>
+                </div>
+                <div style="font-size:13px; color:#444; line-height:1.5; margin-bottom:10px;">${escapeHtml(ev.description || '')}</div>
+                <a href="https://wa.me/?text=${encodeURIComponent(`🚩 जय हिंद मंडळ कार्यक्रम: ${ev.title}\n📅 तारीख: ${ev.date}\n📍 स्थान: ${ev.location}\n\nसर्व गावकऱ्यांनी उपस्थित राहावे!`)}" target="_blank" class="btn-main" style="width:auto; padding:6px 14px; font-size:12px; background:#2E7D32; text-decoration:none; display:inline-flex;">
+                  <i class="fa-brands fa-whatsapp"></i> मित्रांना सांगा
+                </a>
+              </div>
+            </div>
+          `;
+        });
+        fullContainer.innerHTML = fullHtml;
+      }
+    }
+
+    // ==========================================
+    // 17. NOTIFICATIONS & ADMIN CONTROLS
+    // ==========================================
     function openNotificationsModal() {
       document.getElementById('modal-notifications').classList.add('active');
     }
@@ -2592,7 +3766,6 @@
       });
     }
 
-    // 15. Admin Panel (Approvals & Announcements)
     function openAdminModal() {
       document.getElementById('modal-admin-panel').classList.add('active');
     }
@@ -2668,6 +3841,106 @@
         alert("घोषणा प्रसिद्ध झाली!");
       } catch(e) {
         alert("त्रुटी: " + e.message);
+      }
+    }
+
+    async function adminCreateEvent() {
+      const title = document.getElementById('admin-event-title').value.trim();
+      const date = document.getElementById('admin-event-date').value.trim();
+      const time = document.getElementById('admin-event-time').value.trim();
+      const location = document.getElementById('admin-event-location').value.trim();
+      const desc = document.getElementById('admin-event-desc').value.trim();
+      const fileInput = document.getElementById('admin-event-file');
+
+      if (!title || !date) {
+        alert("कृपया कार्यक्रमाचे नाव आणि तारीख भरा.");
+        return;
+      }
+
+      let imageUrl = "";
+      if (fileInput.files && fileInput.files[0]) {
+        try {
+          imageUrl = await compressImageFile(fileInput.files[0], 900, 600, 0.75);
+        } catch(e) {}
+      }
+
+      try {
+        const id = "ev_" + Date.now();
+        await db.collection("events").doc(id).set({
+          id: id,
+          title: title,
+          date: date,
+          time: time,
+          location: location,
+          description: desc,
+          imageUrl: imageUrl,
+          createdAt: Date.now()
+        });
+
+        alert("नवीन कार्यक्रम यशस्वीरित्या प्रसिद्ध झाला! 📅🚩");
+        closeModal('modal-admin-panel');
+        document.getElementById('admin-event-title').value = '';
+        document.getElementById('admin-event-date').value = '';
+        document.getElementById('admin-event-time').value = '';
+        document.getElementById('admin-event-location').value = '';
+        document.getElementById('admin-event-desc').value = '';
+        document.getElementById('admin-event-file').value = '';
+      } catch(e) {
+        alert("त्रुटी: " + e.message);
+      }
+    }
+
+    async function adminUploadGalleryPhoto() {
+      const category = document.getElementById('admin-photo-category').value;
+      const albumName = document.getElementById('admin-photo-album').value.trim() || category;
+      const caption = document.getElementById('admin-photo-caption').value.trim();
+      const fileInput = document.getElementById('admin-photo-file');
+
+      if (!fileInput.files || !fileInput.files[0]) {
+        alert("कृपया फोटो निवडा.");
+        return;
+      }
+
+      try {
+        const imageUrl = await compressImageFile(fileInput.files[0], 1000, 1000, 0.75);
+        const albumId = "album_" + albumName.toLowerCase().replace(/\s+/g, '_');
+
+        const albumRef = db.collection("albums").doc(albumId);
+        const albumSnap = await albumRef.get();
+        if (!albumSnap.exists) {
+          await albumRef.set({
+            id: albumId,
+            title: albumName,
+            category: category,
+            coverImageUrl: imageUrl,
+            description: `${albumName} छायाचित्रे`,
+            photoCount: 1,
+            albumType: "PHOTO"
+          });
+        } else {
+          const data = albumSnap.data();
+          await albumRef.set({
+            photoCount: (data.photoCount || 0) + 1,
+            coverImageUrl: data.coverImageUrl || imageUrl
+          }, { merge: true });
+        }
+
+        const photoId = "ph_" + Date.now();
+        await db.collection("photos").doc(photoId).set({
+          id: photoId,
+          albumId: albumId,
+          imageUrl: imageUrl,
+          caption: caption,
+          timestamp: Date.now()
+        });
+
+        alert("फोटो गॅलरीत यशस्वीरित्या अपलोड झाला! 📸🚩");
+        closeModal('modal-admin-panel');
+        document.getElementById('admin-photo-album').value = '';
+        document.getElementById('admin-photo-caption').value = '';
+        document.getElementById('admin-photo-file').value = '';
+      } catch(e) {
+        alert("फोटो अपलोड करताना त्रुटी: " + e.message);
       }
     }
 

@@ -1,5 +1,5 @@
 // PWA Service Worker for Jay Hind Mandal
-const CACHE_NAME = 'jayhind-mandal-v5';
+const CACHE_NAME = 'jayhind-mandal-v6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
