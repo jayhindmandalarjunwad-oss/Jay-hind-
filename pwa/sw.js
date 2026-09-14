@@ -1,9 +1,11 @@
 // PWA Service Worker for Jay Hind Mandal
-const CACHE_NAME = 'jayhind-mandal-v7';
+const CACHE_NAME = 'jayhind-mandal-v8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
   './icons/icon-512.jpg'
 ];
 
@@ -32,12 +34,21 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass through firestore / external requests directly
-  if (event.request.url.includes('firestore.googleapis.com') ||
-      event.request.url.includes('firebase') ||
-      event.request.url.includes('google')) {
+  // Only intercept GET requests
+  if (event.request.method !== 'GET') return;
+
+  const url = event.request.url;
+  // Pass through Firebase, Auth, Firestore, Storage, Cloud APIs directly to network
+  if (url.includes('firestore.googleapis.com') ||
+      url.includes('firebasestorage.googleapis.com') ||
+      url.includes('identitytoolkit.googleapis.com') ||
+      url.includes('securetoken.googleapis.com') ||
+      url.includes('firebase') ||
+      url.includes('googleapis.com') ||
+      url.includes('gstatic.com/firebasejs')) {
     return;
   }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       return cachedResponse || fetch(event.request).catch(() => caches.match('./index.html'));
