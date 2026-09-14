@@ -1419,9 +1419,9 @@
             <div class="quick-icon" style="background:#E0F2F1; color:#00897B;"><i class="fa-solid fa-comments"></i></div>
             <span class="quick-label">लाईव्ह चॅट</span>
           </div>
-          <div class="quick-item" onclick="switchTab('receipts')">
-            <div class="quick-icon" style="background:#FFF3E0; color:#EF6C00;"><i class="fa-solid fa-receipt"></i></div>
-            <span class="quick-label">पावत्या</span>
+          <div class="quick-item" onclick="switchTab('about')">
+            <div class="quick-icon" style="background:#FFF3E0; color:#EF6C00;"><i class="fa-solid fa-landmark"></i></div>
+            <span class="quick-label">आमच्याबद्दल</span>
           </div>
           <div class="quick-item" onclick="switchTab('profile')">
             <div class="quick-icon" style="background:#F3E5F5; color:#8E24AA;"><i class="fa-solid fa-id-card"></i></div>
@@ -1526,14 +1526,46 @@
         </div>
       </div>
 
-      <!-- ==================== TAB 6: RECEIPTS (पावत्या) ==================== -->
-      <div id="tab-receipts" class="tab-view">
-        <div class="section-header">
-          <span class="section-title"><i class="fa-solid fa-receipt"></i> डिजिटल देणगी पावत्या</span>
+      <!-- ==================== TAB 6: ABOUT US (मंडळाबद्दल माहिती) ==================== -->
+      <div id="tab-about" class="tab-view">
+        <div class="card" style="padding: 16px; margin-bottom: 12px; text-align: center;">
+          <img src="./icons/icon-512.jpg" style="width: 76px; height: 76px; border-radius: 50%; border: 3px solid var(--saffron-primary); margin-bottom: 8px;">
+          <h2 style="font-size: 17px; font-weight: 800; color: var(--navy-primary);">जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ</h2>
+          <p style="font-size: 13px; color: var(--saffron-dark); font-weight: 700;">अर्जुनवाड • ता. शिरोळ, जि. कोल्हापूर</p>
+          <div style="font-size: 11px; background: var(--saffron-accent); color: var(--saffron-dark); display: inline-block; padding: 4px 12px; border-radius: 20px; font-weight: 700; margin-top: 6px;">
+            अधिकृत डिजिटल सेवा मंच 🚩
+          </div>
         </div>
-        <div id="receipts-container">
-          <div style="text-align: center; padding: 24px; color: #888;">
-            <i class="fa-solid fa-spinner fa-spin"></i> पावत्या तपासत आहे...
+
+        <div class="card" style="padding: 16px; margin-bottom: 12px;">
+          <h3 style="font-size: 15px; font-weight: 800; color: var(--saffron-dark); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-flag"></i> मंडळाची उद्दिष्ट्ये व ध्येय
+          </h3>
+          <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+            जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड हे गावातील सामाजिक, सांस्कृतिक, क्रीडा, आरोग्य व शैक्षणिक प्रगतीसाठी अविरत कार्यरत असणारे अग्रगण्य मंडळ आहे. सर्व सभासदांना एकत्र आणून समाजोपयोगी उपक्रम राबवणे हे आमचे मुख्य ध्येय आहे.
+          </p>
+          <ul style="font-size: 12px; color: var(--text-primary); margin-top: 10px; padding-left: 18px; line-height: 1.7;">
+            <li>गावातील कला, क्रीडा, शिक्षण व सांस्कृतिक वारशाचे संवर्धन करणे.</li>
+            <li>सामाजिक बांधिलकी, रक्तदान चळवळ व आपत्कालीन मदतकार्य.</li>
+            <li>युवकांना विधायक दिशा देणे व गावाचा सर्वांगीण विकास साधणे.</li>
+          </ul>
+        </div>
+
+        <div class="card" style="padding: 16px; margin-bottom: 12px;">
+          <h3 style="font-size: 15px; font-weight: 800; color: var(--saffron-dark); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-location-dot"></i> संपर्क व पत्ता
+          </h3>
+          <p style="font-size: 13px; margin-bottom: 8px;">📍 <strong>पत्ता:</strong> मु. पो. अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर - ४१६१०१</p>
+          <p style="font-size: 13px; margin-bottom: 8px;">✉️ <strong>ईमेल:</strong> <a href="mailto:jayhindmandalarjunwad@gmail.com" style="color:var(--saffron-dark);">jayhindmandalarjunwad@gmail.com</a></p>
+          <p style="font-size: 13px; margin-bottom: 12px;">🚨 <strong>आपत्कालीन मदत:</strong> रुग्णवाहिका १०८ • मंडळ मदत कक्ष</p>
+          
+          <div style="display: flex; gap: 10px; margin-top: 14px;">
+            <a href="https://wa.me/919545791089?text=जय%20हिंद%20मंडळ%20संपर्क" target="_blank" class="btn-main" style="flex:1; text-decoration:none; justify-content:center; background:#2E7D32;">
+              <i class="fa-brands fa-whatsapp"></i> WhatsApp संपर्क
+            </a>
+            <a href="tel:9545791089" class="btn-main" style="flex:1; text-decoration:none; justify-content:center;">
+              <i class="fa-solid fa-phone"></i> थेट कॉल
+            </a>
           </div>
         </div>
       </div>
@@ -1912,7 +1944,7 @@
         
         // Update Firestore last seen & online
         try {
-          db.collection("users").document(user.id).set({
+          db.collection("users").doc(user.id).set({
             isOnline: true,
             lastSeen: Date.now()
           }, { merge: true });
@@ -2007,11 +2039,11 @@
         };
 
         // Write to Firestore
-        await db.collection("users").document(newUserId).set(newUserDoc);
+        await db.collection("users").doc(newUserId).set(newUserDoc);
 
         // Notify Admin
         const notifId = "notif_" + Date.now();
-        await db.collection("notifications").document(notifId).set({
+        await db.collection("notifications").doc(notifId).set({
           id: notifId,
           title: "👤 नवीन सभासद नोंदणी (मंजुरी प्रतीक्षा)",
           message: `${fullName} (📞 ${cleanMobile}) यांनी नोंदणी केली आहे. मंजुरीसाठी ॲडमिन पॅनेल तपासा.`,
@@ -2063,7 +2095,7 @@
         'posts': { title: 'मंडळ सोशल फीड', sub: 'नवीन घडामोडी व उपक्रम' },
         'chat': { title: 'सभासद मेसेंजर', sub: 'लाईव्ह रिअल-टाईम ग्रुप चॅट' },
         'blood': { title: 'आपत्कालीन रक्तदान', sub: 'रक्तदाते संपर्क यादी' },
-        'receipts': { title: 'देणगी व पावत्या', sub: 'डिजिटल पावत्या' },
+        'about': { title: 'मंडळाबद्दल माहिती', sub: 'कार्यकारिणी व संपर्क' },
         'profile': { title: 'माझे सभासद प्रोफाइल', sub: 'अधिकृत डिजिटल ओळखपत्र' }
       };
 
@@ -2111,24 +2143,39 @@
     function listenBirthdayMembers() {
       if (!db) return;
       const today = new Date();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const todayMMDD = `${month}-${day}`;
+      const currentMonth = today.getMonth() + 1;
+      const currentDay = today.getDate();
 
-      db.collection("users").where("status", "==", "APPROVED").onSnapshot(snap => {
+      db.collection("users").onSnapshot(snap => {
         const bdaySection = document.getElementById("birthday-section");
         const bdayList = document.getElementById("birthday-list");
-        if (snap.empty) return;
+        if (!bdaySection || !bdayList) return;
+        if (snap.empty) {
+          bdaySection.style.display = 'none';
+          return;
+        }
 
         const birthdayMembers = [];
         snap.forEach(doc => {
           const u = doc.data();
+          if (u.status && u.status !== "APPROVED") return;
           if (u.dateOfBirth) {
-            const parts = u.dateOfBirth.split('-');
-            if (parts.length === 3) {
-              const uMMDD = `${parts[1]}-${parts[2]}`;
-              if (uMMDD === todayMMDD) {
-                birthdayMembers.push(u);
+            const dobStr = String(u.dateOfBirth).trim();
+            const sep = dobStr.includes('-') ? '-' : (dobStr.includes('/') ? '/' : null);
+            if (sep) {
+              const parts = dobStr.split(sep).map(p => parseInt(p, 10));
+              if (parts.length === 3 && !parts.some(isNaN)) {
+                let m, d;
+                if (parts[0] > 1900) {
+                  m = parts[1];
+                  d = parts[2];
+                } else {
+                  d = parts[0];
+                  m = parts[1];
+                }
+                if (m === currentMonth && d === currentDay) {
+                  birthdayMembers.push(u);
+                }
               }
             }
           }
@@ -2251,11 +2298,24 @@
       container.innerHTML = html;
     }
 
+    window.postsCache = {};
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     // 11. Posts & Likes
     function listenPosts() {
       if (!db) return;
       db.collection("posts").orderBy("timestamp", "desc").limit(20).onSnapshot(snap => {
         const container = document.getElementById("posts-feed-container");
+        if (!container) return;
         if (snap.empty) {
           container.innerHTML = '<div style="text-align:center; padding:30px; color:#888;">कोणतीही नवीन पोस्ट उपलब्ध नाही.</div>';
           return;
@@ -2265,13 +2325,17 @@
         snap.forEach(doc => {
           const p = doc.data();
           const pId = doc.id;
+          window.postsCache[pId] = { id: pId, ...p };
+
           const authorPhoto = p.authorProfilePhoto || './icons/icon-512.jpg';
           const authorName = p.authorName || 'जय हिंद मंडळ';
           const postDate = p.timestamp ? new Date(p.timestamp).toLocaleDateString('mr-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
           
           let likedIds = [];
-          if (typeof p.likedUserIdsJson === 'string') {
-            likedIds = p.likedUserIdsJson.split(',').filter(Boolean);
+          if (typeof p.likedUserIdsJson === 'string' && p.likedUserIdsJson.trim() !== '') {
+            likedIds = p.likedUserIdsJson.split(',').map(s => s.trim()).filter(Boolean);
+          } else if (Array.isArray(p.likedUserIdsJson)) {
+            likedIds = p.likedUserIdsJson;
           }
           const isLiked = currentUser && likedIds.includes(currentUser.id);
           const likesCount = likedIds.length || (p.likesCount || 0);
@@ -2279,7 +2343,7 @@
           let mediaHtml = '';
           if (p.imageUrlsJson) {
             const imgUrl = Array.isArray(p.imageUrlsJson) ? p.imageUrlsJson[0] : p.imageUrlsJson;
-            if (imgUrl) {
+            if (imgUrl && typeof imgUrl === 'string' && imgUrl.startsWith('http')) {
               mediaHtml = `<img src="${imgUrl}" class="post-image" onerror="this.style.display='none'">`;
             }
           }
@@ -2289,18 +2353,18 @@
               <div class="post-header">
                 <img src="${authorPhoto}" class="post-author-avatar" onerror="this.src='./icons/icon-512.jpg'">
                 <div class="post-author-info">
-                  <h4>${authorName}</h4>
+                  <h4>${escapeHtml(authorName)}</h4>
                   <p>${postDate}</p>
                 </div>
               </div>
               ${mediaHtml}
-              ${p.content ? `<div class="post-caption">${p.content}</div>` : ''}
+              ${p.content ? `<div class="post-caption">${escapeHtml(p.content)}</div>` : ''}
               <div class="post-actions">
-                <button class="post-btn-action ${isLiked ? 'liked' : ''}" onclick="toggleLikePost('${pId}', ${JSON.stringify(likedIds).replace(/"/g, '&quot;')})">
+                <button class="post-btn-action ${isLiked ? 'liked' : ''}" onclick="toggleLikePost('${pId}')">
                   <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
                   <span>${likesCount} लाईक्स</span>
                 </button>
-                <button class="post-btn-action" onclick="sharePostWhatsApp('${authorName}', '${(p.content||'').replace(/'/g, "\\'")}')">
+                <button class="post-btn-action" onclick="sharePostWhatsApp('${pId}')">
                   <i class="fa-brands fa-whatsapp" style="color:#2E7D32;"></i>
                   <span>शेअर करा</span>
                 </button>
@@ -2312,28 +2376,34 @@
       });
     }
 
-    async function toggleLikePost(postId, currentLikedIds) {
+    async function toggleLikePost(postId) {
       if (!currentUser) return;
-      let updatedList = [...currentLikedIds];
-      const idx = updatedList.indexOf(currentUser.id);
-      if (idx !== -1) {
-        updatedList.splice(idx, 1);
-      } else {
-        updatedList.push(currentUser.id);
+      const post = window.postsCache[postId];
+      let likedIds = [];
+      if (post && typeof post.likedUserIdsJson === 'string' && post.likedUserIdsJson.trim() !== '') {
+        likedIds = post.likedUserIdsJson.split(',').map(s => s.trim()).filter(Boolean);
       }
-      const updatedJson = updatedList.join(',');
+      const idx = likedIds.indexOf(currentUser.id);
+      if (idx !== -1) {
+        likedIds.splice(idx, 1);
+      } else {
+        likedIds.push(currentUser.id);
+      }
+      const updatedJson = likedIds.join(',');
       try {
-        await db.collection("posts").document(postId).set({
+        await db.collection("posts").doc(postId).set({
           likedUserIdsJson: updatedJson,
-          likesCount: updatedList.length
+          likesCount: likedIds.length
         }, { merge: true });
       } catch(e) {
         console.error("Like error:", e);
       }
     }
 
-    function sharePostWhatsApp(author, text) {
-      const shareMsg = encodeURIComponent(`🚩 जय हिंद मंडळ अर्जुनवाड - अधिकृत पोस्ट\n👤 ${author}\n\n${text}\n\nॲप लिंक: ${window.location.href}`);
+    function sharePostWhatsApp(postId) {
+      const p = window.postsCache[postId];
+      if (!p) return;
+      const shareMsg = encodeURIComponent(`🚩 जय हिंद मंडळ अर्जुनवाड - अधिकृत पोस्ट\n👤 ${p.authorName || 'जय हिंद मंडळ'}\n\n${p.content || ''}\n\nॲप लिंक: ${window.location.href}`);
       window.open(`https://wa.me/?text=${shareMsg}`, '_blank');
     }
 
@@ -2357,7 +2427,7 @@
 
       try {
         const newPostId = "post_" + Date.now();
-        await db.collection("posts").document(newPostId).set({
+        await db.collection("posts").doc(newPostId).set({
           id: newPostId,
           authorId: currentUser.id,
           authorName: currentUser.fullName || "सभासद",
@@ -2386,31 +2456,44 @@
     // 12. Real-time Live Group Chat
     function listenChatMessages() {
       if (!db) return;
+      // Fetch latest messages without requiring Firestore composite index
       db.collection("chat_messages")
-        .where("conversationId", "==", "conv_mandal_group")
-        .orderBy("timestamp", "asc")
-        .limit(50)
+        .orderBy("timestamp", "desc")
+        .limit(60)
         .onSnapshot(snap => {
           const chatBox = document.getElementById("chat-messages-box");
+          if (!chatBox) return;
           if (snap.empty) {
             chatBox.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">ग्रुपमध्ये पहिला संदेश पाठवा! 🚩</div>';
             return;
           }
-          let html = '';
+
+          const msgs = [];
           snap.forEach(doc => {
             const m = doc.data();
+            if (!m.conversationId || m.conversationId === "conv_mandal_group") {
+              msgs.push({ id: doc.id, ...m });
+            }
+          });
+          // Sort oldest first for chat flow
+          msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+          let html = '';
+          msgs.forEach(m => {
             const isOutgoing = currentUser && m.senderId === currentUser.id;
             const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('mr-IN', { hour: '2-digit', minute: '2-digit' }) : '';
             html += `
               <div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
-                ${!isOutgoing ? `<div class="msg-author">${m.senderName || 'सभासद'}</div>` : ''}
-                <div>${m.messageText || ''}</div>
+                ${!isOutgoing ? `<div class="msg-author">${escapeHtml(m.senderName || 'सभासद')}</div>` : ''}
+                <div>${escapeHtml(m.messageText || '')}</div>
                 <div class="msg-time">${timeStr}</div>
               </div>
             `;
           });
           chatBox.innerHTML = html;
           chatBox.scrollTop = chatBox.scrollHeight;
+        }, err => {
+          console.warn("Chat listener error:", err);
         });
     }
 
@@ -2423,7 +2506,7 @@
       input.value = '';
       const msgId = "msg_" + Date.now();
       try {
-        await db.collection("chat_messages").document(msgId).set({
+        await db.collection("chat_messages").doc(msgId).set({
           id: msgId,
           conversationId: "conv_mandal_group",
           senderId: currentUser.id,
@@ -2455,17 +2538,25 @@
 
       // Generate Verification QR Code
       const qrContainer = document.getElementById("qrcode-canvas");
-      if (qrContainer && window.QRCode) {
+      if (qrContainer) {
         qrContainer.innerHTML = '';
-        const qrPayload = `https://jayhindmandal.web.app/verify?id=${currentUser.id}&name=${encodeURIComponent(currentUser.fullName)}&mobile=${currentUser.mobileNumber}`;
-        new QRCode(qrContainer, {
-          text: qrPayload,
-          width: 70,
-          height: 70,
-          colorDark: "#1A237E",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M
-        });
+        const qrPayload = `https://jayhindmandalarjunwad.github.io/Jay-hind-mandal/?verifyId=${currentUser.id}&name=${encodeURIComponent(currentUser.fullName)}&mobile=${currentUser.mobileNumber}`;
+        const drawQR = () => {
+          if (typeof QRCode !== 'undefined') {
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+              text: qrPayload,
+              width: 70,
+              height: 70,
+              colorDark: "#1A237E",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } else {
+            setTimeout(drawQR, 300);
+          }
+        };
+        drawQR();
       }
     }
 
@@ -2537,7 +2628,7 @@
     async function approveMember(userId) {
       if (confirm("या सभासदाची नोंदणी मंजूर करायची आहे का?")) {
         try {
-          await db.collection("users").document(userId).set({ status: "APPROVED" }, { merge: true });
+          await db.collection("users").doc(userId).set({ status: "APPROVED" }, { merge: true });
           alert("नोंदणी यशस्वीरित्या मंजूर केली!");
         } catch(e) {
           alert("मंजूर करताना एरर: " + e.message);
@@ -2548,7 +2639,7 @@
     async function rejectMember(userId) {
       if (confirm("या सभासदाची नोंदणी नाकारायची आहे का?")) {
         try {
-          await db.collection("users").document(userId).set({ status: "REJECTED" }, { merge: true });
+          await db.collection("users").doc(userId).set({ status: "REJECTED" }, { merge: true });
           alert("नोंदणी नाकारण्यात आली.");
         } catch(e) {
           alert("एरर: " + e.message);
@@ -2565,7 +2656,7 @@
       }
       try {
         const id = "ann_" + Date.now();
-        await db.collection("announcements").document(id).set({
+        await db.collection("announcements").doc(id).set({
           id: id,
           title: title,
           description: desc,
@@ -2589,7 +2680,7 @@
         return;
       }
       try {
-        await db.collection("users").document(currentUser.id).set({ password: newPass }, { merge: true });
+        await db.collection("users").doc(currentUser.id).set({ password: newPass }, { merge: true });
         currentUser.password = newPass;
         localStorage.setItem("mandal_user", JSON.stringify(currentUser));
         document.getElementById('change-pass-input').value = '';
@@ -2603,7 +2694,7 @@
       if (confirm("आपण जय हिंद मंडळाच्या खात्यातून लॉगआऊट करू इच्छिता का?")) {
         if (currentUser) {
           try {
-            db.collection("users").document(currentUser.id).set({ isOnline: false, lastSeen: Date.now() }, { merge: true });
+            db.collection("users").doc(currentUser.id).set({ isOnline: false, lastSeen: Date.now() }, { merge: true });
           } catch(e) {}
         }
         localStorage.removeItem("mandal_user");
@@ -2614,8 +2705,16 @@
     }
 
     function closeModal(modalId) {
-      document.getElementById(modalId).classList.remove('active');
+      const el = document.getElementById(modalId);
+      if (el) el.classList.remove('active');
     }
+
+    // Dismiss modals on backdrop click
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.classList && e.target.classList.contains('modal-backdrop')) {
+        e.target.classList.remove('active');
+      }
+    });
 
     // Register Service Worker
     if ('serviceWorker' in navigator) {

@@ -1,5 +1,5 @@
 // PWA Service Worker for Jay Hind Mandal
-const CACHE_NAME = 'jayhind-mandal-v2';
+const CACHE_NAME = 'jayhind-mandal-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -40,7 +40,7 @@ self.addEventListener('fetch', (event) => {
   }
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request).catch(() => caches.match('/index.html'));
+      return cachedResponse || fetch(event.request).catch(() => caches.match('./index.html'));
     })
   );
 });
