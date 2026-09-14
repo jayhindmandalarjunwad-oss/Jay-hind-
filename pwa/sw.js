@@ -1,10 +1,10 @@
 // PWA Service Worker for Jay Hind Mandal
-const CACHE_NAME = 'jayhind-mandal-v1';
+const CACHE_NAME = 'jayhind-mandal-v2';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icons/icon-512.jpg'
+  './',
+  './index.html',
+  './manifest.json',
+  './icons/icon-512.jpg'
 ];
 
 self.addEventListener('install', (event) => {

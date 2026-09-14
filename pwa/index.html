@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>जय हिंद मंडळ अर्जुनवाड - अधिकृत PWA</title>
+  <title>जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड</title>
   
   <!-- PWA & iOS Safari Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,11 +14,15 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/jpeg" href="./icons/icon-512.jpg">
 
-  <!-- Google Fonts: Poppins & Mukta for Marathi -->
+  <!-- Google Fonts: Mukta (Marathi) & Poppins -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- QR Code & Barcode Generator for Digital ID Cards -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
   <!-- Firebase v10 Compat CDN for robust, dependency-free web execution -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -29,13 +33,15 @@
     :root {
       --saffron-primary: #FF6F00;
       --saffron-dark: #E65100;
-      --saffron-light: #FFE082;
-      --navy-secondary: #1A237E;
+      --saffron-light: #FF9800;
+      --saffron-accent: #FFF3E0;
+      --navy-primary: #1A237E;
+      --navy-secondary: #283593;
       --surface-warm: #FFFBF7;
       --card-bg: #FFFFFF;
       --text-primary: #1C1B1F;
       --text-secondary: #5F6368;
-      --border-color: #E0D6CC;
+      --border-color: #E8DDD4;
       --blood-red: #D32F2F;
       --success-green: #2E7D32;
       --safe-top: env(safe-area-inset-top, 0px);
@@ -58,7 +64,284 @@
       flex-direction: column;
       overflow-x: hidden;
       padding-top: var(--safe-top);
-      padding-bottom: calc(70px + var(--safe-bottom));
+      padding-bottom: calc(72px + var(--safe-bottom));
+    }
+
+    /* Auth State Container - When user is NOT logged in */
+    #auth-screen-container {
+      display: none;
+      min-height: 100vh;
+      background: var(--surface-warm);
+      padding-bottom: 30px;
+    }
+
+    .auth-hero-banner {
+      background: linear-gradient(135deg, #FF6F00 0%, #FFA000 100%);
+      color: white;
+      padding: 36px 20px 48px;
+      text-align: center;
+      border-bottom-left-radius: 28px;
+      border-bottom-right-radius: 28px;
+      box-shadow: 0 4px 20px rgba(255, 111, 0, 0.25);
+    }
+
+    .auth-logo-badge {
+      width: 86px;
+      height: 86px;
+      border-radius: 50%;
+      border: 3px solid #FFF;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      object-fit: cover;
+      margin-bottom: 12px;
+      background: white;
+    }
+
+    .auth-hero-banner h1 {
+      font-size: 19px;
+      font-weight: 800;
+      line-height: 1.3;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .auth-hero-banner p {
+      font-size: 13px;
+      opacity: 0.95;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* Auth Tab Switcher */
+    .auth-card-wrapper {
+      max-width: 480px;
+      margin: -24px auto 0;
+      padding: 0 16px;
+    }
+
+    .auth-switcher-card {
+      background: white;
+      border-radius: 16px;
+      padding: 6px;
+      display: flex;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      border: 1px solid var(--border-color);
+      margin-bottom: 20px;
+    }
+
+    .auth-tab-btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+      color: var(--text-secondary);
+    }
+
+    .auth-tab-btn.active {
+      background: var(--saffron-primary);
+      color: white;
+      box-shadow: 0 2px 8px rgba(255, 111, 0, 0.3);
+    }
+
+    .auth-form-card {
+      background: white;
+      border-radius: 20px;
+      padding: 24px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .input-with-prefix {
+      display: flex;
+      align-items: center;
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      background: #FAFAFA;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .input-with-prefix:focus-within {
+      border-color: var(--saffron-primary);
+      background: #FFFFFF;
+      box-shadow: 0 0 0 3px rgba(255,111,0,0.1);
+    }
+
+    .input-prefix {
+      padding: 10px 14px;
+      background: #F0EDE8;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      font-size: 14px;
+      background: #FAFAFA;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .input-with-prefix .form-control {
+      border: none;
+      background: transparent;
+    }
+
+    .form-control:focus {
+      border-color: var(--saffron-primary);
+      background: #FFFFFF;
+      box-shadow: 0 0 0 3px rgba(255,111,0,0.1);
+    }
+
+    .password-wrap {
+      position: relative;
+    }
+
+    .password-wrap input {
+      padding-right: 44px;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .blood-group-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .blood-pill {
+      flex: 1 0 20%;
+      padding: 8px 4px;
+      text-align: center;
+      border: 1.5px solid var(--border-color);
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      background: #FFF;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .blood-pill.selected {
+      background: var(--blood-red);
+      color: white;
+      border-color: var(--blood-red);
+      box-shadow: 0 2px 6px rgba(211,47,47,0.3);
+    }
+
+    .avatar-picker-row {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 6px 0;
+    }
+
+    .avatar-item {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      object-fit: cover;
+      transition: transform 0.2s;
+    }
+
+    .avatar-item.selected {
+      border-color: var(--saffron-primary);
+      transform: scale(1.1);
+      box-shadow: 0 0 0 2px rgba(255,111,0,0.3);
+    }
+
+    .btn-main {
+      width: 100%;
+      background: linear-gradient(135deg, #FF6F00, #E65100);
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 8px;
+      box-shadow: 0 4px 12px rgba(255, 111, 0, 0.35);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-main:active {
+      transform: scale(0.98);
+    }
+
+    .error-alert {
+      background: #FFEBEE;
+      color: #C62828;
+      border: 1px solid #FFCDD2;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 12px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .success-alert {
+      background: #E8F5E9;
+      color: #2E7D32;
+      border: 1px solid #C8E6C9;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 12px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Logged In App Interface */
+    #app-container {
+      display: none;
+      flex-direction: column;
+      flex: 1;
     }
 
     /* Top App Bar */
@@ -66,42 +349,70 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      background: linear-gradient(135deg, #FF6F00, #E65100);
+      background: linear-gradient(135deg, #FF6F00 0%, #E65100 100%);
       color: white;
-      padding: 10px 16px;
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.15);
     }
+
     .app-brand {
       display: flex;
       align-items: center;
       gap: 10px;
     }
+
     .app-brand img {
-      width: 38px;
-      height: 38px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       border: 2px solid white;
       object-fit: cover;
+      background: white;
     }
+
     .app-title h1 {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 800;
       line-height: 1.2;
     }
+
     .app-title p {
       font-size: 11px;
       opacity: 0.9;
+      font-weight: 500;
     }
+
     .user-actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
     }
+
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.22);
+      padding: 4px 10px 4px 6px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .user-badge img {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid white;
+    }
+
     .btn-icon {
-      background: rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.22);
       border: none;
       color: white;
       width: 36px;
@@ -111,10 +422,28 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      font-size: 16px;
+      font-size: 15px;
+      position: relative;
     }
 
-    /* iOS Install Prompt Banner */
+    .badge-count {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      background: var(--blood-red);
+      color: white;
+      font-size: 10px;
+      font-weight: 800;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #FF6F00;
+    }
+
+    /* iOS Safari Install Prompt */
     .ios-prompt-banner {
       background: #FFF3E0;
       border-bottom: 1px solid #FFE0B2;
@@ -126,9 +455,11 @@
       color: #E65100;
       font-weight: 600;
     }
+
     .ios-prompt-banner span i {
       margin: 0 4px;
     }
+
     .btn-close-banner {
       background: none;
       border: none;
@@ -146,16 +477,17 @@
       padding: 12px;
     }
 
-    /* Views */
     .tab-view {
       display: none;
       animation: fadeIn 0.25s ease-in-out;
     }
+
     .tab-view.active {
       display: block;
     }
+
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
+      from { opacity: 0; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
@@ -169,6 +501,85 @@
       margin-bottom: 14px;
     }
 
+    /* Festive Banner */
+    .festive-banner {
+      background: linear-gradient(135deg, #FF6F00, #D84315);
+      color: white;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(255, 111, 0, 0.25);
+    }
+
+    .festive-banner i {
+      font-size: 28px;
+      color: #FFE082;
+    }
+
+    .festive-banner h3 {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .festive-banner p {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    /* Birthday Banner */
+    .birthday-card {
+      background: linear-gradient(135deg, #FFF8E1, #FFECB3);
+      border: 1.5px solid #FFE082;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .birthday-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #E65100;
+      font-weight: 800;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .birthday-members-list {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .birthday-member-pill {
+      background: white;
+      border-radius: 30px;
+      padding: 6px 12px 6px 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #FFE082;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+      white-space: nowrap;
+    }
+
+    .birthday-member-pill img {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .birthday-member-pill span {
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
     /* Section Header */
     .section-header {
       display: flex;
@@ -176,16 +587,510 @@
       justify-content: space-between;
       margin-bottom: 10px;
     }
+
     .section-title {
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 800;
       color: var(--saffron-dark);
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    /* Bottom Navigation */
+    /* Announcements */
+    .announcement-card {
+      background: #FFF8E1;
+      border-left: 4px solid var(--saffron-primary);
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+
+    .announcement-header {
+      font-weight: 800;
+      font-size: 14px;
+      color: var(--saffron-dark);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .announcement-time {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .announcement-body {
+      font-size: 13px;
+      margin-top: 6px;
+      line-height: 1.45;
+      color: #333;
+    }
+
+    /* Quick Grid */
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .quick-item {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 12px 6px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .quick-item:active {
+      transform: scale(0.96);
+      background: #FFF8E1;
+    }
+
+    .quick-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: var(--saffron-accent);
+      color: var(--saffron-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .quick-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* Posts Feed */
+    .post-card {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 14px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .post-header {
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .post-author-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #eee;
+      object-fit: cover;
+      border: 1px solid #e0e0e0;
+    }
+
+    .post-author-info h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .post-author-info p {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .post-image {
+      width: 100%;
+      max-height: 380px;
+      object-fit: cover;
+      background: #f0f0f0;
+      display: block;
+    }
+
+    .post-caption {
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #262626;
+      white-space: pre-line;
+    }
+
+    .post-actions {
+      padding: 10px 14px;
+      border-top: 1px solid #f2f2f2;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .post-btn-action {
+      background: none;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+
+    .post-btn-action.liked {
+      color: var(--blood-red);
+    }
+
+    .post-btn-action:active {
+      background: #f5f5f5;
+    }
+
+    /* Create Post Trigger */
+    .create-post-trigger {
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border-color);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    }
+
+    .create-post-trigger img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .create-post-fake-input {
+      flex: 1;
+      background: #F7F5F2;
+      padding: 10px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      color: #777;
+    }
+
+    /* Chat Messenger */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 160px);
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .chat-header {
+      background: linear-gradient(135deg, #FF6F00, #E65100);
+      color: white;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 14px;
+      overflow-y: auto;
+      background: #F8F6F2;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message-bubble {
+      max-width: 80%;
+      padding: 8px 12px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.4;
+      position: relative;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .message-bubble.incoming {
+      align-self: flex-start;
+      background: white;
+      border-bottom-left-radius: 2px;
+      border: 1px solid #E6E0D8;
+    }
+
+    .message-bubble.outgoing {
+      align-self: flex-end;
+      background: #FFE082;
+      border-bottom-right-radius: 2px;
+      border: 1px solid #FFD54F;
+    }
+
+    .msg-author {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--saffron-dark);
+      margin-bottom: 2px;
+    }
+
+    .msg-time {
+      font-size: 10px;
+      color: #888;
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    .chat-input-bar {
+      display: flex;
+      padding: 10px;
+      background: white;
+      border-top: 1px solid var(--border-color);
+      gap: 8px;
+    }
+
+    .chat-input {
+      flex: 1;
+      border: 1.5px solid var(--border-color);
+      border-radius: 20px;
+      padding: 10px 16px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .btn-send {
+      background: var(--saffron-primary);
+      color: white;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+
+    /* Members Directory */
+    .filter-chips-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+
+    .filter-chip {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      background: white;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-chip.active {
+      background: var(--saffron-primary);
+      color: white;
+      border-color: var(--saffron-primary);
+    }
+
+    .member-card {
+      background: white;
+      border-radius: 14px;
+      border: 1px solid var(--border-color);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+
+    .member-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #FFE082;
+      background: #eee;
+    }
+
+    .member-info {
+      flex: 1;
+    }
+
+    .member-name {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .member-designation {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .member-blood-badge {
+      display: inline-block;
+      background: var(--blood-red);
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      margin-top: 3px;
+    }
+
+    .member-actions-btn {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-contact {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .btn-call {
+      background: #E8F5E9;
+      color: #2E7D32;
+    }
+
+    .btn-whatsapp {
+      background: #E0F2F1;
+      color: #00897B;
+    }
+
+    .btn-id-view {
+      background: #FFF3E0;
+      color: #E65100;
+    }
+
+    /* Digital ID Card Screen */
+    .id-card-wrapper {
+      background: linear-gradient(135deg, #FF6F00 0%, #D84315 100%);
+      border-radius: 20px;
+      padding: 16px;
+      color: white;
+      box-shadow: 0 6px 24px rgba(230, 81, 0, 0.35);
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .id-card-wrapper::after {
+      content: "जय हिंद";
+      position: absolute;
+      right: -10px;
+      bottom: -15px;
+      font-size: 80px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.06);
+      pointer-events: none;
+    }
+
+    .id-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.25);
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+    }
+
+    .id-card-top h3 {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .id-card-top span {
+      background: rgba(255,255,255,0.25);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+
+    .id-card-body {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .id-photo {
+      width: 80px;
+      height: 90px;
+      border-radius: 12px;
+      object-fit: cover;
+      border: 2px solid white;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .id-info h2 {
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .id-info p {
+      font-size: 12px;
+      opacity: 0.95;
+      margin-top: 2px;
+    }
+
+    .id-card-qr-box {
+      background: white;
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #333;
+    }
+
+    #qrcode-canvas img, #qrcode-canvas canvas {
+      width: 70px !important;
+      height: 70px !important;
+    }
+
+    /* Bottom Navigation Bar */
     nav.bottom-nav {
       position: fixed;
       bottom: 0;
@@ -197,10 +1102,11 @@
       display: flex;
       justify-content: space-around;
       align-items: center;
-      height: 60px;
+      height: 64px;
       padding-bottom: var(--safe-bottom);
       box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
     }
+
     .nav-item {
       flex: 1;
       display: flex;
@@ -210,298 +1116,23 @@
       color: var(--text-secondary);
       text-decoration: none;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       border: none;
       background: none;
       cursor: pointer;
       gap: 3px;
       transition: all 0.2s;
     }
+
     .nav-item i {
       font-size: 18px;
     }
+
     .nav-item.active {
       color: var(--saffron-primary);
     }
 
-    /* Feeds & Announcements */
-    .announcement-card {
-      background: #FFF8E1;
-      border-left: 4px solid var(--saffron-primary);
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-    }
-    .announcement-header {
-      font-weight: 700;
-      font-size: 14px;
-      color: var(--saffron-dark);
-      display: flex;
-      justify-content: space-between;
-    }
-    .announcement-time {
-      font-size: 11px;
-      color: var(--text-secondary);
-    }
-    .announcement-body {
-      font-size: 13px;
-      margin-top: 4px;
-      line-height: 1.4;
-    }
-
-    .post-card {
-      background: white;
-      border-radius: 14px;
-      border: 1px solid var(--border-color);
-      margin-bottom: 14px;
-      overflow: hidden;
-    }
-    .post-header {
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .post-author-avatar {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      background: #eee;
-      object-fit: cover;
-    }
-    .post-author-info h4 {
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .post-author-info p {
-      font-size: 11px;
-      color: var(--text-secondary);
-    }
-    .post-image {
-      width: 100%;
-      max-height: 340px;
-      object-fit: cover;
-      background: #f0f0f0;
-    }
-    .post-caption {
-      padding: 10px 14px;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-    .post-actions {
-      padding: 8px 14px;
-      border-top: 1px solid #f2f2f2;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-    .post-actions button {
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-    }
-
-    /* Chat UI */
-    .chat-container {
-      display: flex;
-      flex-direction: column;
-      height: calc(100vh - 180px);
-      background: #FAF7F2;
-      border-radius: 16px;
-      border: 1px solid var(--border-color);
-      overflow: hidden;
-    }
-    .chat-header {
-      background: white;
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border-color);
-    }
-    .chat-messages {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .chat-bubble {
-      max-width: 80%;
-      padding: 8px 12px;
-      border-radius: 12px;
-      font-size: 13px;
-      line-height: 1.35;
-      position: relative;
-      word-break: break-word;
-    }
-    .chat-bubble.sent {
-      align-self: flex-end;
-      background: #FFE082;
-      color: #332000;
-      border-bottom-right-radius: 2px;
-    }
-    .chat-bubble.received {
-      align-self: flex-start;
-      background: white;
-      border: 1px solid #E0D6CC;
-      border-bottom-left-radius: 2px;
-    }
-    .chat-sender-name {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--saffron-dark);
-      margin-bottom: 2px;
-    }
-    .chat-time {
-      font-size: 10px;
-      color: #777;
-      text-align: right;
-      margin-top: 3px;
-    }
-    .chat-input-bar {
-      background: white;
-      padding: 8px 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      border-top: 1px solid var(--border-color);
-    }
-    .chat-input {
-      flex: 1;
-      border: 1px solid var(--border-color);
-      border-radius: 20px;
-      padding: 8px 14px;
-      font-size: 13px;
-      outline: none;
-    }
-    .chat-input:focus {
-      border-color: var(--saffron-primary);
-    }
-    .btn-send {
-      background: var(--saffron-primary);
-      border: none;
-      color: white;
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    /* Donor Card */
-    .donor-card {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      border-radius: 12px;
-      background: white;
-      border: 1px solid var(--border-color);
-      margin-bottom: 8px;
-    }
-    .donor-badge {
-      background: #FFEBEE;
-      color: var(--blood-red);
-      font-weight: 800;
-      font-size: 15px;
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1.5px solid var(--blood-red);
-    }
-    .donor-info {
-      flex: 1;
-      margin-left: 12px;
-    }
-    .donor-info h4 {
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .donor-info p {
-      font-size: 11px;
-      color: var(--text-secondary);
-    }
-    .btn-call {
-      background: #E8F5E9;
-      color: var(--success-green);
-      border: 1px solid var(--success-green);
-      padding: 6px 12px;
-      border-radius: 20px;
-      text-decoration: none;
-      font-size: 12px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    /* Digital ID Card */
-    .id-card {
-      background: linear-gradient(135deg, #1A237E, #283593);
-      color: white;
-      border-radius: 20px;
-      padding: 18px;
-      box-shadow: 0 8px 24px rgba(26,35,126,0.25);
-      position: relative;
-      overflow: hidden;
-      margin-bottom: 16px;
-    }
-    .id-card::after {
-      content: '';
-      position: absolute;
-      top: -30px;
-      right: -30px;
-      width: 120px;
-      height: 120px;
-      background: rgba(255,111,0,0.15);
-      border-radius: 50%;
-    }
-    .id-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(255,255,255,0.2);
-      padding-bottom: 10px;
-      margin-bottom: 12px;
-    }
-    .id-body {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-    }
-    .id-photo {
-      width: 70px;
-      height: 70px;
-      border-radius: 12px;
-      border: 2px solid #FFD54F;
-      object-fit: cover;
-      background: rgba(255,255,255,0.1);
-    }
-    .id-details h3 {
-      font-size: 16px;
-      font-weight: 800;
-      color: #FFD54F;
-    }
-    .id-details p {
-      font-size: 12px;
-      opacity: 0.9;
-    }
-
-    /* Modals & Login */
+    /* Modals */
     .modal-backdrop {
       position: fixed;
       top: 0;
@@ -509,238 +1140,556 @@
       right: 0;
       bottom: 0;
       background: rgba(0,0,0,0.5);
-      z-index: 200;
+      z-index: 1000;
       display: none;
       align-items: center;
       justify-content: center;
       padding: 16px;
     }
+
     .modal-backdrop.active {
       display: flex;
     }
+
     .modal-content {
       background: white;
-      width: 100%;
-      max-width: 420px;
       border-radius: 20px;
-      padding: 22px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      animation: modalPop 0.2s ease-out;
     }
-    .form-group {
-      margin-bottom: 12px;
+
+    @keyframes modalPop {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
     }
-    .form-group label {
-      display: block;
-      font-size: 12px;
-      font-weight: 700;
-      margin-bottom: 4px;
-      color: var(--text-secondary);
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
     }
-    .form-control {
-      width: 100%;
-      padding: 10px 14px;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      font-size: 14px;
-      outline: none;
+
+    .modal-header h3 {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--saffron-dark);
     }
-    .form-control:focus {
-      border-color: var(--saffron-primary);
-    }
-    .btn-primary {
-      width: 100%;
-      background: var(--saffron-primary);
-      color: white;
+
+    .btn-close-modal {
+      background: none;
       border: none;
-      padding: 12px;
-      border-radius: 12px;
-      font-size: 15px;
-      font-weight: 700;
+      font-size: 18px;
+      color: #999;
       cursor: pointer;
-      margin-top: 8px;
     }
   </style>
 </head>
 <body>
 
-  <!-- Top App Header -->
-  <header class="app-bar">
-    <div class="app-brand">
-      <img src="/icons/icon-512.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/40?text=JHM'">
-      <div class="app-title">
-        <h1>जय हिंद मंडळ अर्जुनवाड</h1>
-        <p>अधिकृत PWA वेब ॲप</p>
+  <!-- ========================================== -->
+  <!-- 1. AUTH SCREEN (LOGIN & MEMBER REGISTRATION) -->
+  <!-- ========================================== -->
+  <div id="auth-screen-container">
+    <!-- Header Hero Banner -->
+    <div class="auth-hero-banner">
+      <img src="./icons/icon-512.jpg" alt="Logo" class="auth-logo-badge" onerror="this.src='https://via.placeholder.com/86?text=JHM'">
+      <h1>जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ</h1>
+      <p>अर्जुनवाड, ता. शिरोळ (जि. कोल्हापूर) • अधिकृत ॲप</p>
+    </div>
+
+    <!-- Switcher & Card Wrapper -->
+    <div class="auth-card-wrapper">
+      <div class="auth-switcher-card">
+        <button class="auth-tab-btn active" id="btn-tab-login" onclick="setAuthMode('login')">
+          <i class="fa-solid fa-lock"></i> सभासद लॉगिन
+        </button>
+        <button class="auth-tab-btn" id="btn-tab-register" onclick="setAuthMode('register')">
+          <i class="fa-solid fa-user-plus"></i> नवीन नोंदणी
+        </button>
+      </div>
+
+      <!-- A. LOGIN FORM -->
+      <div id="login-form-view" class="auth-form-card">
+        <div class="form-group">
+          <label>१० अंकी मोबाईल नंबर:</label>
+          <div class="input-with-prefix">
+            <span class="input-prefix">🇮🇳 +91</span>
+            <input type="tel" id="login-mobile" class="form-control" placeholder="उदा. 9545791089" maxlength="10">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>पासवर्ड:</label>
+          <div class="password-wrap">
+            <input type="password" id="login-password" class="form-control" placeholder="आपला पासवर्ड टाका">
+            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('login-password', this)">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button class="btn-main" id="btn-submit-login" onclick="submitLogin()">
+          <span>लॉगिन करा</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+
+        <div id="login-error-box" class="error-alert">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="login-error-text">त्रुटी</span>
+        </div>
+
+        <div style="margin-top: 18px; text-align: center; font-size: 13px; color: var(--text-secondary);">
+          नवीन सभासद आहात? <a href="javascript:void(0)" style="color: var(--saffron-dark); font-weight: 700; text-decoration: none;" onclick="setAuthMode('register')">येथे नवीन नोंदणी करा</a>
+        </div>
+      </div>
+
+      <!-- B. REGISTER FORM -->
+      <div id="register-form-view" class="auth-form-card" style="display: none;">
+        <div class="form-group">
+          <label>संपूर्ण नाव (Full Name): *</label>
+          <input type="text" id="reg-fullname" class="form-control" placeholder="उदा. राहुल आनंदा पाटील">
+        </div>
+
+        <div class="form-group">
+          <label>१० अंकी मोबाईल नंबर: *</label>
+          <div class="input-with-prefix">
+            <span class="input-prefix">🇮🇳 +91</span>
+            <input type="tel" id="reg-mobile" class="form-control" placeholder="उदा. 98XXXXXXXX" maxlength="10">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>पासवर्ड (किमान ४ अक्षरी): *</label>
+          <div class="password-wrap">
+            <input type="password" id="reg-password" class="form-control" placeholder="नवीन पासवर्ड तयार करा">
+            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('reg-password', this)">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>रक्तगट निवडा (Blood Group): *</label>
+          <div class="blood-group-pills" id="reg-blood-pills">
+            <div class="blood-pill selected" onclick="selectBloodGroup('O+', this)">O+</div>
+            <div class="blood-pill" onclick="selectBloodGroup('A+', this)">A+</div>
+            <div class="blood-pill" onclick="selectBloodGroup('B+', this)">B+</div>
+            <div class="blood-pill" onclick="selectBloodGroup('AB+', this)">AB+</div>
+            <div class="blood-pill" onclick="selectBloodGroup('O-', this)">O-</div>
+            <div class="blood-pill" onclick="selectBloodGroup('A-', this)">A-</div>
+            <div class="blood-pill" onclick="selectBloodGroup('B-', this)">B-</div>
+            <div class="blood-pill" onclick="selectBloodGroup('AB-', this)">AB-</div>
+          </div>
+          <input type="hidden" id="reg-blood-group" value="O+">
+        </div>
+
+        <div class="form-group">
+          <label>लिंग (Gender):</label>
+          <select id="reg-gender" class="form-control">
+            <option value="पुरुष">पुरुष (Male)</option>
+            <option value="स्त्री">स्त्री (Female)</option>
+            <option value="इतर">इतर (Other)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>जन्मतारीख (Date of Birth):</label>
+          <input type="date" id="reg-dob" class="form-control" value="2000-01-01">
+        </div>
+
+        <div class="form-group">
+          <label>पत्ता (Address): *</label>
+          <input type="text" id="reg-address" class="form-control" value="अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर">
+        </div>
+
+        <div class="form-group">
+          <label>प्रोफाइल फोटो निवडा:</label>
+          <div class="avatar-picker-row" id="avatar-picker">
+            <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80" class="avatar-item selected" onclick="selectAvatar(this)">
+            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80" class="avatar-item" onclick="selectAvatar(this)">
+            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80" class="avatar-item" onclick="selectAvatar(this)">
+            <img src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=300&auto=format&fit=crop&q=80" class="avatar-item" onclick="selectAvatar(this)">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80" class="avatar-item" onclick="selectAvatar(this)">
+          </div>
+          <input type="hidden" id="reg-photo-url" value="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80">
+        </div>
+
+        <button class="btn-main" id="btn-submit-register" onclick="submitRegister()">
+          <span>नोंदणी अर्ज सादर करा</span>
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+
+        <div id="reg-error-box" class="error-alert">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="reg-error-text">त्रुटी</span>
+        </div>
+
+        <div id="reg-success-box" class="success-alert">
+          <i class="fa-solid fa-circle-check"></i>
+          <span id="reg-success-text">नोंदणी यशस्वी!</span>
+        </div>
       </div>
     </div>
-    <div class="user-actions">
-      <span id="user-badge" style="font-size: 12px; font-weight: bold; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px;">अतिथी</span>
-      <button class="btn-icon" id="btn-login-toggle" onclick="toggleAuthModal()"><i class="fa-solid fa-user"></i></button>
-    </div>
-  </header>
-
-  <!-- iOS Safari Install Prompt -->
-  <div class="ios-prompt-banner" id="ios-banner">
-    <span><i class="fa-brands fa-apple"></i> आयफोनवर वापरण्यासाठी खालील <i class="fa-solid fa-arrow-up-from-bracket"></i> (Share) दाबून <b>"Add to Home Screen"</b> करा!</span>
-    <button class="btn-close-banner" onclick="document.getElementById('ios-banner').style.display='none'"><i class="fa-solid fa-xmark"></i></button>
   </div>
 
-  <!-- Main Views Container -->
-  <main class="container">
 
-    <!-- 1. FEED / HOME TAB -->
-    <div id="tab-home" class="tab-view active">
-      <div class="section-header">
-        <span class="section-title"><i class="fa-solid fa-bullhorn"></i> मंडळाच्या घोषणा व सूचना</span>
-      </div>
-      <div id="announcements-list">
-        <div class="announcement-card">
-          <div class="announcement-header">
-            <span>🚩 जय हिंद मंडळ अधिकृत ॲप</span>
-            <span class="announcement-time">आता सुरू</span>
-          </div>
-          <div class="announcement-body">
-            सर्व सभासदांचे मनःपूर्वक स्वागत! हे PWA वेब ॲप आयफोन आणि सर्व डिव्हाइसेसवर थेट सुरू झाले आहे.
-          </div>
+  <!-- ========================================== -->
+  <!-- 2. MAIN LOGGED IN APP INTERFACE            -->
+  <!-- ========================================== -->
+  <div id="app-container">
+
+    <!-- Top App Bar -->
+    <header class="app-bar">
+      <div class="app-brand">
+        <img src="./icons/icon-512.jpg" alt="Logo" onerror="this.src='https://via.placeholder.com/40?text=JHM'">
+        <div class="app-title">
+          <h1 id="topbar-title">जय हिंद मंडळ अर्जुनवाड</h1>
+          <p id="topbar-subtitle">कला, क्रीडा व सांस्कृतिक मंडळ</p>
         </div>
       </div>
-
-      <div class="section-header" style="margin-top: 18px;">
-        <span class="section-title"><i class="fa-solid fa-newspaper"></i> सभासद फीड व पोस्ट्स</span>
-      </div>
-      <div id="posts-list">
-        <div style="text-align: center; padding: 24px; color: #777;">
-          <i class="fa-solid fa-spinner fa-spin"></i> पोस्ट्स लोड होत आहेत...
+      <div class="user-actions">
+        <div class="user-badge" onclick="switchTab('profile')">
+          <img src="./icons/icon-512.jpg" id="topbar-user-photo" alt="Avatar">
+          <span id="topbar-user-name">सभासद</span>
         </div>
+        <button class="btn-icon" onclick="openNotificationsModal()" title="सूचना">
+          <i class="fa-solid fa-bell"></i>
+          <span class="badge-count" id="notif-badge" style="display:none;">0</span>
+        </button>
+        <button class="btn-icon" id="admin-header-btn" style="display:none;" onclick="openAdminModal()" title="ॲडमिन पॅनेल">
+          <i class="fa-solid fa-shield-halved"></i>
+        </button>
       </div>
+    </header>
+
+    <!-- iOS Safari Install Prompt -->
+    <div class="ios-prompt-banner" id="ios-banner">
+      <span><i class="fa-brands fa-apple"></i> आयफोनवर ॲपप्रमाणे वापरण्यासाठी खालील <i class="fa-solid fa-arrow-up-from-bracket"></i> दाबून <b>"Add to Home Screen"</b> करा!</span>
+      <button class="btn-close-banner" onclick="document.getElementById('ios-banner').style.display='none'"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
-    <!-- 2. CHAT TAB -->
-    <div id="tab-chat" class="tab-view">
-      <div class="chat-container">
-        <div class="chat-header">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <div style="width:34px; height:34px; border-radius:50%; background:var(--saffron-primary); color:white; display:flex; align-items:center; justify-content:center;">
-              <i class="fa-solid fa-users"></i>
+    <!-- Main Container -->
+    <main class="container">
+
+      <!-- ==================== TAB 1: HOME (मुख्य) ==================== -->
+      <div id="tab-home" class="tab-view active">
+        <!-- Festive Banner -->
+        <div class="festive-banner" id="festive-banner-box">
+          <i class="fa-solid fa-om"></i>
+          <div>
+            <h3 id="festive-title">🚩 जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ</h3>
+            <p id="festive-desc">अर्जुनवाड • सर्व उपक्रम व सभासद संवाद एकाच ठिकाणी</p>
+          </div>
+        </div>
+
+        <!-- Today's Birthday Card -->
+        <div class="birthday-card" id="birthday-section" style="display:none;">
+          <div class="birthday-header">
+            <span><i class="fa-solid fa-cake-candles"></i> 🎂 आजचे वाढदिवस</span>
+            <span style="font-size: 11px;">मंडळातर्फे मनःपूर्वक शुभेच्छा!</span>
+          </div>
+          <div class="birthday-members-list" id="birthday-list">
+            <!-- Filled via JS -->
+          </div>
+        </div>
+
+        <!-- Quick Access 3x2 Grid -->
+        <div class="quick-grid">
+          <div class="quick-item" onclick="switchTab('members')">
+            <div class="quick-icon"><i class="fa-solid fa-users"></i></div>
+            <span class="quick-label">सभासद सूची</span>
+          </div>
+          <div class="quick-item" onclick="switchTab('blood')">
+            <div class="quick-icon" style="background:#FFEBEE; color:#D32F2F;"><i class="fa-solid fa-droplet"></i></div>
+            <span class="quick-label">रक्तदाते</span>
+          </div>
+          <div class="quick-item" onclick="switchTab('posts')">
+            <div class="quick-icon" style="background:#E8EAF6; color:#3F51B5;"><i class="fa-solid fa-newspaper"></i></div>
+            <span class="quick-label">सोशल फीड</span>
+          </div>
+          <div class="quick-item" onclick="switchTab('chat')">
+            <div class="quick-icon" style="background:#E0F2F1; color:#00897B;"><i class="fa-solid fa-comments"></i></div>
+            <span class="quick-label">लाईव्ह चॅट</span>
+          </div>
+          <div class="quick-item" onclick="switchTab('receipts')">
+            <div class="quick-icon" style="background:#FFF3E0; color:#EF6C00;"><i class="fa-solid fa-receipt"></i></div>
+            <span class="quick-label">पावत्या</span>
+          </div>
+          <div class="quick-item" onclick="switchTab('profile')">
+            <div class="quick-icon" style="background:#F3E5F5; color:#8E24AA;"><i class="fa-solid fa-id-card"></i></div>
+            <span class="quick-label">आयडी कार्ड</span>
+          </div>
+        </div>
+
+        <!-- Announcements Section -->
+        <div class="section-header">
+          <span class="section-title"><i class="fa-solid fa-bullhorn"></i> मंडळाच्या अधिकृत घोषणा</span>
+        </div>
+        <div id="home-announcements-list">
+          <div style="text-align: center; padding: 20px; color: #888;">
+            <i class="fa-solid fa-spinner fa-spin"></i> घोषणा लोड होत आहेत...
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 2: MEMBERS (सभासद) ==================== -->
+      <div id="tab-members" class="tab-view">
+        <div class="card" style="padding: 10px 14px; margin-bottom: 10px;">
+          <input type="text" id="member-search-input" class="form-control" placeholder="🔍 सभासदाचे नाव किंवा नंबर शोधा..." oninput="filterMembers()">
+        </div>
+
+        <!-- Blood Group Filter Chips -->
+        <div class="filter-chips-row" id="blood-filter-chips">
+          <div class="filter-chip active" onclick="setMemberFilter('ALL', this)">सर्व सभासद</div>
+          <div class="filter-chip" onclick="setMemberFilter('O+', this)">O+</div>
+          <div class="filter-chip" onclick="setMemberFilter('A+', this)">A+</div>
+          <div class="filter-chip" onclick="setMemberFilter('B+', this)">B+</div>
+          <div class="filter-chip" onclick="setMemberFilter('AB+', this)">AB+</div>
+          <div class="filter-chip" onclick="setMemberFilter('O-', this)">O-</div>
+          <div class="filter-chip" onclick="setMemberFilter('A-', this)">A-</div>
+          <div class="filter-chip" onclick="setMemberFilter('B-', this)">B-</div>
+          <div class="filter-chip" onclick="setMemberFilter('AB-', this)">AB-</div>
+        </div>
+
+        <div id="members-list-container">
+          <div style="text-align: center; padding: 30px; color: #888;">
+            <i class="fa-solid fa-spinner fa-spin"></i> सभासद यादी लोड होत आहे...
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 3: POSTS (सोशल फीड) ==================== -->
+      <div id="tab-posts" class="tab-view">
+        <div class="create-post-trigger" onclick="openCreatePostModal()">
+          <img src="./icons/icon-512.jpg" id="create-post-avatar" alt="User">
+          <div class="create-post-fake-input">मंडळासाठी नवीन पोस्ट किंवा फोटो शेअर करा...</div>
+          <i class="fa-regular fa-image" style="color:var(--saffron-primary); font-size:20px;"></i>
+        </div>
+
+        <div id="posts-feed-container">
+          <div style="text-align: center; padding: 30px; color: #888;">
+            <i class="fa-solid fa-spinner fa-spin"></i> सोशल फीड लोड होत आहे...
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 4: CHAT (लाईव्ह चॅट) ==================== -->
+      <div id="tab-chat" class="tab-view">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div style="width:34px; height:34px; border-radius:50%; background:white; color:var(--saffron-primary); display:flex; align-items:center; justify-content:center;">
+                <i class="fa-solid fa-users"></i>
+              </div>
+              <div>
+                <div style="font-weight:800; font-size:14px;">🚩 जय हिंद मंडळ (सर्व सदस्य)</div>
+                <div style="font-size:11px; opacity:0.9;">रिअल-टाईम लाईव्ह ग्रुप चॅट</div>
+              </div>
             </div>
+            <button style="background:none; border:none; color:white; font-size:14px; cursor:pointer;" onclick="listenChatMessages()">
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+          </div>
+          <div class="chat-messages" id="chat-messages-box">
+            <div style="text-align:center; padding:20px; color:#888;">मेसेज लोड होत आहेत...</div>
+          </div>
+          <div class="chat-input-bar">
+            <input type="text" id="chat-msg-input" class="chat-input" placeholder="मेसेज टाईप करा..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="btn-send" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 5: BLOOD DONORS (रक्तदान) ==================== -->
+      <div id="tab-blood" class="tab-view">
+        <div class="card" style="background:#FFEBEE; border-color:#FFCDD2; margin-bottom:12px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid fa-droplet" style="color:var(--blood-red); font-size:24px;"></i>
             <div>
-              <div style="font-weight:700; font-size:14px;">🚩 जय हिंद मंडळ (सर्व सदस्य)</div>
-              <div style="font-size:11px; color:#666;">लाईव्ह रिअल-टाईम ग्रुप चॅट</div>
+              <h4 style="color:#C62828; font-weight:800; font-size:14px;">आपत्कालीन रक्तदान मदत</h4>
+              <p style="font-size:12px; color:#555;">गरज भासल्यास मंडळातील रक्तदात्यांना थेट कॉल करा.</p>
             </div>
           </div>
-          <button style="background:none; border:none; color:var(--saffron-dark); font-weight:700; font-size:12px;" onclick="loadMessages()">
-            <i class="fa-solid fa-rotate-right"></i>
+        </div>
+        <div id="blood-donors-container">
+          <div style="text-align: center; padding: 20px; color: #888;">
+            <i class="fa-solid fa-spinner fa-spin"></i> रक्तदाते यादी लोड होत आहे...
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 6: RECEIPTS (पावत्या) ==================== -->
+      <div id="tab-receipts" class="tab-view">
+        <div class="section-header">
+          <span class="section-title"><i class="fa-solid fa-receipt"></i> डिजिटल देणगी पावत्या</span>
+        </div>
+        <div id="receipts-container">
+          <div style="text-align: center; padding: 24px; color: #888;">
+            <i class="fa-solid fa-spinner fa-spin"></i> पावत्या तपासत आहे...
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 7: PROFILE & ID CARD (ओळखपत्र) ==================== -->
+      <div id="tab-profile" class="tab-view">
+        <!-- Digital ID Card -->
+        <div class="id-card-wrapper" id="id-card-element">
+          <div class="id-card-top">
+            <h3>🚩 जय हिंद मंडळ अर्जुनवाड</h3>
+            <span id="id-card-badge">अधिकृत सभासद</span>
+          </div>
+          <div class="id-card-body">
+            <img src="./icons/icon-512.jpg" id="id-card-photo" class="id-photo" alt="Photo">
+            <div class="id-info">
+              <h2 id="id-card-name">सभासद</h2>
+              <p id="id-card-role" style="font-weight:700; color:#FFE082;">पद: सभासद</p>
+              <p id="id-card-id">ID: JHM-MEMBER</p>
+              <p id="id-card-phone">📞 -</p>
+              <p id="id-card-blood" style="display:inline-block; background:var(--blood-red); padding:1px 6px; border-radius:4px; font-weight:800; font-size:11px; margin-top:3px;">रक्तगट: -</p>
+            </div>
+          </div>
+          <div class="id-card-qr-box">
+            <div>
+              <div style="font-weight:800; font-size:12px; color:var(--saffron-dark);">सभासद पडताळणी QR कोड</div>
+              <div style="font-size:10px; color:#666;">कॅमेऱ्याने स्कॅन करून सत्यता तपासा</div>
+            </div>
+            <div id="qrcode-canvas"></div>
+          </div>
+        </div>
+
+        <!-- Account Controls -->
+        <div class="card">
+          <h4 style="font-size:14px; font-weight:800; margin-bottom:12px; color:var(--text-primary);">खाते व्यवस्थापन</h4>
+          
+          <div class="form-group">
+            <label>पासवर्ड बदला:</label>
+            <input type="password" id="change-pass-input" class="form-control" placeholder="नवीन पासवर्ड टाका">
+          </div>
+          <button class="btn-main" style="background:#546E7A; padding:10px; font-size:14px;" onclick="updatePassword()">
+            <i class="fa-solid fa-key"></i> पासवर्ड अपडेट करा
+          </button>
+
+          <hr style="border:none; border-top:1px solid var(--border-color); margin:16px 0;">
+
+          <button class="btn-main" style="background:#D32F2F;" onclick="confirmLogout()">
+            <i class="fa-solid fa-right-from-bracket"></i> खात्यातून लॉगआऊट करा (Logout)
           </button>
         </div>
-        <div class="chat-messages" id="chat-box">
-          <div style="text-align:center; padding:20px; color:#888; font-size:12px;">
-            मेसेज लोड होत आहेत...
-          </div>
-        </div>
-        <div class="chat-input-bar">
-          <input type="text" id="chat-input" class="chat-input" placeholder="मेसेज टाईप करा..." onkeydown="if(event.key==='Enter') sendChatMessage()">
-          <button class="btn-send" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
-        </div>
+      </div>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" onclick="switchTab('home')">
+        <i class="fa-solid fa-house"></i>
+        <span>मुख्य</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('members')">
+        <i class="fa-solid fa-users"></i>
+        <span>सभासद</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('posts')">
+        <i class="fa-solid fa-newspaper"></i>
+        <span>फीड</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('chat')">
+        <i class="fa-solid fa-comments"></i>
+        <span>चॅट</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('profile')">
+        <i class="fa-solid fa-id-card"></i>
+        <span>आयडी</span>
+      </button>
+    </nav>
+
+  </div>
+
+
+  <!-- ========================================== -->
+  <!-- 3. MODALS (CREATE POST, NOTIFS, ADMIN)     -->
+  <!-- ========================================== -->
+
+  <!-- Modal: Create Post -->
+  <div class="modal-backdrop" id="modal-create-post">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-pen-to-square"></i> नवीन पोस्ट तयार करा</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-create-post')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="form-group">
+        <label>मजकूर (Content):</label>
+        <textarea id="post-text-input" class="form-control" rows="4" placeholder="येथे पोस्टचा संदेश लिहा..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>फोटो वेब लिंक (Image URL - ऐच्छिक):</label>
+        <input type="url" id="post-img-input" class="form-control" placeholder="उदा. https://images.unsplash.com/...">
+      </div>
+      <button class="btn-main" id="btn-publish-post" onclick="submitCreatePost()">
+        <span>पोस्ट प्रसिद्ध करा 🚩</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: Notifications -->
+  <div class="modal-backdrop" id="modal-notifications">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-bell"></i> सूचना व नोटिफिकेशन्स</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-notifications')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="notifications-list-box" style="display:flex; flex-direction:column; gap:10px;">
+        <div style="text-align:center; padding:20px; color:#888;">कोणतीही नवीन सूचना नाही.</div>
       </div>
     </div>
+  </div>
 
-    <!-- 3. RECEIPTS TAB -->
-    <div id="tab-receipts" class="tab-view">
-      <div class="section-header">
-        <span class="section-title"><i class="fa-solid fa-receipt"></i> डिजिटल पावत्या व देणगी</span>
+  <!-- Modal: Admin Panel -->
+  <div class="modal-backdrop" id="modal-admin-panel">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-shield-halved"></i> ॲडमिन पॅनेल (Admin Controls)</h3>
+        <button class="btn-close-modal" onclick="closeModal('modal-admin-panel')"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div id="receipts-list">
-        <div class="card" style="text-align: center; padding: 20px;">
-          <p style="color:#666; font-size:13px;">आपल्या नावावर असलेल्या देणगी पावत्या येथे दिसतील.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4. BLOOD DONORS TAB -->
-    <div id="tab-blood" class="tab-view">
-      <div class="section-header">
-        <span class="section-title"><i class="fa-solid fa-droplet" style="color:var(--blood-red);"></i> आपत्कालीन रक्तदाते यादी</span>
-      </div>
-      <p style="font-size:12px; color:#666; margin-bottom:12px;">गरज भासल्यास मंडळातील रक्तदात्यांना थेट कॉल करा:</p>
-      <div id="donors-list">
-        <div style="text-align: center; padding: 20px; color:#777;">
-          <i class="fa-solid fa-spinner fa-spin"></i> रक्तदात्यांची यादी लोड होत आहे...
-        </div>
-      </div>
-    </div>
-
-    <!-- 5. PROFILE / ID CARD TAB -->
-    <div id="tab-profile" class="tab-view">
-      <div class="id-card" id="digital-id-card">
-        <div class="id-header">
-          <div style="font-weight:700; font-size:13px; letter-spacing:0.5px;">जय हिंद मंडळ अर्जुनवाड</div>
-          <div style="font-size:11px; background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:10px;">अधिकृत सभासद</div>
-        </div>
-        <div class="id-body">
-          <img src="/icons/icon-512.jpg" class="id-photo" id="profile-photo" alt="Photo">
-          <div class="id-details">
-            <h3 id="profile-name">सभासद</h3>
-            <p id="profile-designation">सभासद</p>
-            <p id="profile-phone">-</p>
-            <p style="margin-top:4px;"><span style="background:var(--blood-red); color:white; padding:2px 6px; border-radius:4px; font-weight:bold; font-size:11px;" id="profile-blood">रक्तगट: -</span></p>
-          </div>
+      
+      <div style="margin-bottom:16px;">
+        <h4 style="font-size:14px; font-weight:800; color:var(--saffron-dark); margin-bottom:8px;">
+          ⏳ प्रलंबित सभासद नोंदणी (Pending Approvals)
+        </h4>
+        <div id="admin-pending-members-list">
+          <div style="text-align:center; padding:12px; color:#888; font-size:12px;">कोणतीही नोंदणी प्रलंबित नाही.</div>
         </div>
       </div>
 
-      <div class="card">
-        <div style="font-weight:700; font-size:14px; margin-bottom:10px;">खाते माहिती</div>
-        <button class="btn-primary" style="background:#455A64;" onclick="logoutUser()">
-          <i class="fa-solid fa-right-from-bracket"></i> लॉगआऊट (Logout)
+      <div style="margin-bottom:16px; border-top:1px solid var(--border-color); padding-top:12px;">
+        <h4 style="font-size:14px; font-weight:800; color:var(--saffron-dark); margin-bottom:8px;">
+          📢 नवीन मंडळाची घोषणा पोस्ट करा
+        </h4>
+        <div class="form-group">
+          <input type="text" id="admin-announcement-title" class="form-control" placeholder="घोषणा शीर्षक">
+        </div>
+        <div class="form-group">
+          <textarea id="admin-announcement-desc" class="form-control" rows="2" placeholder="घोषणा सविस्तर माहिती..."></textarea>
+        </div>
+        <button class="btn-main" style="padding:10px; font-size:13px;" onclick="adminCreateAnnouncement()">
+          घोषणा प्रसिद्ध करा
         </button>
       </div>
     </div>
-
-  </main>
-
-  <!-- Login Modal -->
-  <div class="modal-backdrop" id="auth-modal">
-    <div class="modal-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-        <h3 style="color:var(--saffron-dark); font-size:17px; font-weight:800;">सभासद लॉगिन</h3>
-        <button style="background:none; border:none; font-size:18px; color:#999; cursor:pointer;" onclick="toggleAuthModal()"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <div class="form-group">
-        <label>मोबाईल नंबर (१० अंकी):</label>
-        <input type="tel" id="login-mobile" class="form-control" placeholder="उदा. 98XXXXXXXX" maxlength="10">
-      </div>
-      <div class="form-group">
-        <label>पासवर्ड:</label>
-        <input type="password" id="login-password" class="form-control" placeholder="आपला पासवर्ड टाका">
-      </div>
-      <button class="btn-primary" onclick="loginUser()">लॉगिन करा</button>
-      <div id="login-error" style="color:red; font-size:12px; margin-top:8px; display:none;"></div>
-    </div>
   </div>
 
-  <!-- Bottom Navigation Bar -->
-  <nav class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('home')">
-      <i class="fa-solid fa-house"></i>
-      <span>मुख्य</span>
-    </button>
-    <button class="nav-item" onclick="switchTab('chat')">
-      <i class="fa-solid fa-comments"></i>
-      <span>चॅट</span>
-    </button>
-    <button class="nav-item" onclick="switchTab('receipts')">
-      <i class="fa-solid fa-receipt"></i>
-      <span>पावत्या</span>
-    </button>
-    <button class="nav-item" onclick="switchTab('blood')">
-      <i class="fa-solid fa-droplet"></i>
-      <span>रक्तदान</span>
-    </button>
-    <button class="nav-item" onclick="switchTab('profile')">
-      <i class="fa-solid fa-id-card"></i>
-      <span>आयडी</span>
-    </button>
-  </nav>
 
-  <!-- Script: Firebase & PWA Logic -->
+  <!-- ========================================== -->
+  <!-- 4. JAVASCRIPT: FIREBASE & CORE CONTROLLER  -->
+  <!-- ========================================== -->
   <script>
     // 1. Firebase Configuration (Matches JayhindMandal112 Exactly)
     const firebaseConfig = {
@@ -748,7 +1697,8 @@
       apiKey: "AIzaSyCYuMSSTmTmN9J-9EV0yoUHFBGPWiM7_PU",
       authDomain: "jayhindmandal112.firebaseapp.com",
       storageBucket: "jayhindmandal112.firebasestorage.app",
-      messagingSenderId: "839410753027"
+      messagingSenderId: "839410753027",
+      appId: "1:839410753027:web:c85117498c8c50c5ef935c"
     };
 
     let db;
@@ -760,25 +1710,339 @@
       console.error("Firebase init error", e);
     }
 
-    // 2. State & Session
-    let currentUser = JSON.parse(localStorage.getItem("mandal_user") || "null");
+    // 2. State & Session Management
+    let currentUser = null;
+    let allMembersList = [];
+    let currentFilterBlood = 'ALL';
 
-    function updateUserInfoUI() {
-      if (currentUser) {
-        document.getElementById("user-badge").textContent = currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'सभासद';
-        document.getElementById("profile-name").textContent = currentUser.fullName || 'सभासद';
-        document.getElementById("profile-designation").textContent = currentUser.designation || 'सभासद';
-        document.getElementById("profile-phone").textContent = "मोबाईल: " + (currentUser.mobileNumber || '-');
-        document.getElementById("profile-blood").textContent = "रक्तगट: " + (currentUser.bloodGroup || 'माहित नाही');
-        if (currentUser.profilePhotoUrl) {
-          document.getElementById("profile-photo").src = currentUser.profilePhotoUrl;
+    // On Initial Load
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem("mandal_user");
+      if (saved) {
+        try {
+          currentUser = JSON.parse(saved);
+        } catch(e) {
+          currentUser = null;
         }
+      }
+
+      if (currentUser && currentUser.id) {
+        showAppInterface();
       } else {
-        document.getElementById("user-badge").textContent = 'अतिथी';
+        showAuthScreen();
+      }
+    });
+
+    // 3. UI Display Mode (Auth vs App)
+    function showAuthScreen() {
+      document.getElementById('auth-screen-container').style.display = 'block';
+      document.getElementById('app-container').style.display = 'none';
+      setAuthMode('login');
+    }
+
+    function showAppInterface() {
+      document.getElementById('auth-screen-container').style.display = 'none';
+      document.getElementById('app-container').style.display = 'flex';
+      
+      // Update Topbar and Profile UI
+      updateCurrentUserUI();
+
+      // Check if Admin
+      const isAdmin = currentUser.isAdmin === true || 
+                      currentUser.role === 'ADMIN' || 
+                      currentUser.role === 'SUPER_ADMIN' || 
+                      currentUser.mobileNumber === '9545791089';
+      
+      const adminBtn = document.getElementById('admin-header-btn');
+      if (adminBtn) {
+        adminBtn.style.display = isAdmin ? 'flex' : 'none';
+      }
+
+      // Initialize real-time listeners
+      listenAnnouncements();
+      listenBirthdayMembers();
+      listenMembers();
+      listenPosts();
+      listenChatMessages();
+      listenNotifications();
+      if (isAdmin) {
+        listenPendingMembers();
+      }
+      generateDigitalIdCard();
+    }
+
+    function updateCurrentUserUI() {
+      if (!currentUser) return;
+      const firstName = currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'सभासद';
+      document.getElementById('topbar-user-name').textContent = firstName;
+      if (currentUser.profilePhotoUrl) {
+        document.getElementById('topbar-user-photo').src = currentUser.profilePhotoUrl;
+        const createAvatar = document.getElementById('create-post-avatar');
+        if (createAvatar) createAvatar.src = currentUser.profilePhotoUrl;
       }
     }
 
-    // 3. Tab Switching
+    // 4. Auth Tabs (Login vs Register)
+    function setAuthMode(mode) {
+      const btnLogin = document.getElementById('btn-tab-login');
+      const btnReg = document.getElementById('btn-tab-register');
+      const viewLogin = document.getElementById('login-form-view');
+      const viewReg = document.getElementById('register-form-view');
+      const errBox = document.getElementById('login-error-box');
+      const regErrBox = document.getElementById('reg-error-box');
+      if (errBox) errBox.style.display = 'none';
+      if (regErrBox) regErrBox.style.display = 'none';
+
+      if (mode === 'login') {
+        btnLogin.classList.add('active');
+        btnReg.classList.remove('active');
+        viewLogin.style.display = 'block';
+        viewReg.style.display = 'none';
+      } else {
+        btnReg.classList.add('active');
+        btnLogin.classList.remove('active');
+        viewReg.style.display = 'block';
+        viewLogin.style.display = 'none';
+      }
+    }
+
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+      } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
+      }
+    }
+
+    function selectBloodGroup(group, el) {
+      document.querySelectorAll('#reg-blood-pills .blood-pill').forEach(p => p.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('reg-blood-group').value = group;
+    }
+
+    function selectAvatar(el) {
+      document.querySelectorAll('#avatar-picker .avatar-item').forEach(img => img.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('reg-photo-url').value = el.src;
+    }
+
+    // 5. Submit Login (Matches MandalRepository Exactly)
+    async function submitLogin() {
+      const mobileRaw = document.getElementById('login-mobile').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+      const errBox = document.getElementById('login-error-box');
+      const errText = document.getElementById('login-error-text');
+      const btn = document.getElementById('btn-submit-login');
+
+      errBox.style.display = 'none';
+
+      if (!mobileRaw || !password) {
+        errText.textContent = "कृपया मोबाईल नंबर आणि पासवर्ड टाका.";
+        errBox.style.display = 'flex';
+        return;
+      }
+
+      const mobileDigits = mobileRaw.replace(/\D/g, '');
+      const cleanMobile = mobileDigits.length >= 10 ? mobileDigits.slice(-10) : mobileDigits;
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> लॉगिन होत आहे...';
+
+      try {
+        let snap = await db.collection("users").where("mobileNumber", "==", cleanMobile).get();
+        if (snap.empty && mobileRaw !== cleanMobile) {
+          snap = await db.collection("users").where("mobileNumber", "==", mobileRaw).get();
+        }
+
+        if (snap.empty) {
+          errText.textContent = "हा मोबाईल नंबर नोंदणीकृत नाही. कृपया प्रथम नोंदणी करा.";
+          errBox.style.display = 'flex';
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          return;
+        }
+
+        let user = null;
+        snap.forEach(doc => {
+          const d = doc.data();
+          if (d.password === password) {
+            user = { id: doc.id, ...d };
+          }
+        });
+
+        if (!user) {
+          errText.textContent = "पासवर्ड चुकीचा आहे. कृपया पुन्हा तपासा.";
+          errBox.style.display = 'flex';
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          return;
+        }
+
+        // Account Status Checks (PENDING_APPROVAL, BLOCKED, REJECTED)
+        if (user.status === "PENDING_APPROVAL") {
+          errText.textContent = "आपले खाते मंजुरीच्या प्रतीक्षेत आहे (Pending Approval). मंडळाच्या ॲडमिनने मंजुरी दिल्यावर आपण लॉगिन करू शकाल.";
+          errBox.style.display = 'flex';
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          return;
+        }
+
+        if (user.status === "REJECTED") {
+          errText.textContent = "आपले खाते नामंजूर करण्यात आले आहे. कृपया मंडळाशी संपर्क साधा.";
+          errBox.style.display = 'flex';
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          return;
+        }
+
+        if (user.status === "BLOCKED") {
+          errText.textContent = "आपले खाते ब्लॉक करण्यात आले आहे. मंडळाशी संपर्क साधा.";
+          errBox.style.display = 'flex';
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          return;
+        }
+
+        // Login Success!
+        currentUser = user;
+        localStorage.setItem("mandal_user", JSON.stringify(user));
+        
+        // Update Firestore last seen & online
+        try {
+          db.collection("users").document(user.id).set({
+            isOnline: true,
+            lastSeen: Date.now()
+          }, { merge: true });
+        } catch(e) {}
+
+        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> स्वागत आहे!';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          showAppInterface();
+        }, 500);
+
+      } catch(err) {
+        console.error("Login exception:", err);
+        errText.textContent = "सर्व्हर एरर: " + (err.message || "संपर्क अयशस्वी.");
+        errBox.style.display = 'flex';
+        btn.disabled = false;
+        btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+      }
+    }
+
+    // 6. Submit Registration (Matches MandalRepository registerMember)
+    async function submitRegister() {
+      const fullName = document.getElementById('reg-fullname').value.trim();
+      const mobileRaw = document.getElementById('reg-mobile').value.trim();
+      const password = document.getElementById('reg-password').value.trim();
+      const bloodGroup = document.getElementById('reg-blood-group').value;
+      const gender = document.getElementById('reg-gender').value;
+      const dob = document.getElementById('reg-dob').value;
+      const address = document.getElementById('reg-address').value.trim();
+      const photoUrl = document.getElementById('reg-photo-url').value;
+
+      const errBox = document.getElementById('reg-error-box');
+      const errText = document.getElementById('reg-error-text');
+      const successBox = document.getElementById('reg-success-box');
+      const successText = document.getElementById('reg-success-text');
+      const btn = document.getElementById('btn-submit-register');
+
+      errBox.style.display = 'none';
+      successBox.style.display = 'none';
+
+      if (!fullName || !mobileRaw || !password || !address) {
+        errText.textContent = "कृपया सर्व आवश्यक माहिती भरा.";
+        errBox.style.display = 'flex';
+        return;
+      }
+
+      const mobileDigits = mobileRaw.replace(/\D/g, '');
+      const cleanMobile = mobileDigits.length >= 10 ? mobileDigits.slice(-10) : mobileDigits;
+
+      if (cleanMobile.length < 10) {
+        errText.textContent = "कृपया वैध १० अंकी मोबाईल नंबर टाका.";
+        errBox.style.display = 'flex';
+        return;
+      }
+
+      if (password.length < 4) {
+        errText.textContent = "पासवर्ड किमान ४ अक्षरांचा असावा.";
+        errBox.style.display = 'flex';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> नोंदणी तपासत आहे...';
+
+      try {
+        // Check if mobile already exists
+        const checkSnap = await db.collection("users").where("mobileNumber", "==", cleanMobile).get();
+        if (!checkSnap.empty) {
+          errText.textContent = "हा मोबाईल नंबर आधीच नोंदणीकृत आहे. कृपया लॉगिन करा.";
+          errBox.style.display = 'flex';
+          btn.disabled = false;
+          btn.innerHTML = '<span>नोंदणी अर्ज सादर करा</span> <i class="fa-solid fa-paper-plane"></i>';
+          return;
+        }
+
+        const newUserId = "user_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+        const newUserDoc = {
+          id: newUserId,
+          fullName: fullName,
+          mobileNumber: cleanMobile,
+          password: password,
+          profilePhotoUrl: photoUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80",
+          gender: gender,
+          bloodGroup: bloodGroup,
+          dateOfBirth: dob,
+          address: address,
+          role: "MEMBER",
+          designation: "सभासद",
+          status: "PENDING_APPROVAL", // Sent for admin approval!
+          createdAt: Date.now()
+        };
+
+        // Write to Firestore
+        await db.collection("users").document(newUserId).set(newUserDoc);
+
+        // Notify Admin
+        const notifId = "notif_" + Date.now();
+        await db.collection("notifications").document(notifId).set({
+          id: notifId,
+          title: "👤 नवीन सभासद नोंदणी (मंजुरी प्रतीक्षा)",
+          message: `${fullName} (📞 ${cleanMobile}) यांनी नोंदणी केली आहे. मंजुरीसाठी ॲडमिन पॅनेल तपासा.`,
+          type: "ADMIN",
+          targetUserId: "ADMIN",
+          targetRoute: "ADMIN_PENDING",
+          targetId: newUserId,
+          timestamp: Date.now()
+        });
+
+        successText.textContent = "नोंदणी यशस्वी झाली! आपले खाते 'Pending Approval' मध्ये आहे. मंडळाच्या ॲडमिन मंजुरीनंतर आपण लॉगिन करू शकाल. 🚩";
+        successBox.style.display = 'flex';
+        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> अर्ज सादर झाला!';
+
+        setTimeout(() => {
+          setAuthMode('login');
+          document.getElementById('login-mobile').value = cleanMobile;
+          btn.disabled = false;
+          btn.innerHTML = '<span>नोंदणी अर्ज सादर करा</span> <i class="fa-solid fa-paper-plane"></i>';
+        }, 2500);
+
+      } catch(err) {
+        console.error("Register error:", err);
+        errText.textContent = "नोंदणी त्रुटी: " + (err.message || "सर्व्हरशी संपर्क होऊ शकला नाही.");
+        errBox.style.display = 'flex';
+        btn.disabled = false;
+        btn.innerHTML = '<span>नोंदणी अर्ज सादर करा</span> <i class="fa-solid fa-paper-plane"></i>';
+      }
+    }
+
+    // 7. Navigation Tabs Switcher
     function switchTab(tabId) {
       document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -786,94 +2050,54 @@
       const targetView = document.getElementById('tab-' + tabId);
       if (targetView) targetView.classList.add('active');
 
-      const tabs = ['home', 'chat', 'receipts', 'blood', 'profile'];
+      const tabs = ['home', 'members', 'posts', 'chat', 'profile'];
       const index = tabs.indexOf(tabId);
       if (index !== -1) {
         document.querySelectorAll('.nav-item')[index].classList.add('active');
       }
 
-      if (tabId === 'chat') {
-        loadMessages();
-      } else if (tabId === 'blood') {
-        loadDonors();
-      } else if (tabId === 'receipts') {
-        loadReceipts();
+      // Dynamic Header Subtitle
+      const titleMap = {
+        'home': { title: 'जय हिंद मंडळ अर्जुनवाड', sub: 'कला, क्रीडा व सांस्कृतिक मंडळ' },
+        'members': { title: 'सभासद सूची व रक्तगट', sub: 'अर्जुनवाड • ता. शिरोळ' },
+        'posts': { title: 'मंडळ सोशल फीड', sub: 'नवीन घडामोडी व उपक्रम' },
+        'chat': { title: 'सभासद मेसेंजर', sub: 'लाईव्ह रिअल-टाईम ग्रुप चॅट' },
+        'blood': { title: 'आपत्कालीन रक्तदान', sub: 'रक्तदाते संपर्क यादी' },
+        'receipts': { title: 'देणगी व पावत्या', sub: 'डिजिटल पावत्या' },
+        'profile': { title: 'माझे सभासद प्रोफाइल', sub: 'अधिकृत डिजिटल ओळखपत्र' }
+      };
+
+      if (titleMap[tabId]) {
+        document.getElementById('topbar-title').textContent = titleMap[tabId].title;
+        document.getElementById('topbar-subtitle').textContent = titleMap[tabId].sub;
+      }
+
+      if (tabId === 'profile') {
+        generateDigitalIdCard();
+      } else if (tabId === 'chat') {
+        const chatBox = document.getElementById('chat-messages-box');
+        if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
       }
     }
 
-    function toggleAuthModal() {
-      const modal = document.getElementById("auth-modal");
-      modal.classList.toggle("active");
-    }
-
-    async function loginUser() {
-      const mobile = document.getElementById("login-mobile").value.trim();
-      const pass = document.getElementById("login-password").value.trim();
-      const errDiv = document.getElementById("login-error");
-      errDiv.style.display = "none";
-
-      if (!mobile || !pass) {
-        errDiv.textContent = "कृपया मोबाईल नंबर आणि पासवर्ड टाका.";
-        errDiv.style.display = "block";
-        return;
-      }
-
-      try {
-        const snap = await db.collection("users").where("mobileNumber", "==", mobile).get();
-        if (snap.empty) {
-          errDiv.textContent = "हा मोबाईल नंबर नोंदणीकृत नाही.";
-          errDiv.style.display = "block";
-          return;
-        }
-        let userDoc = null;
-        snap.forEach(doc => {
-          const d = doc.data();
-          if (d.password === pass) {
-            userDoc = { id: doc.id, ...d };
-          }
-        });
-
-        if (!userDoc) {
-          errDiv.textContent = "पासवर्ड चुकीचा आहे.";
-          errDiv.style.display = "block";
-          return;
-        }
-
-        currentUser = userDoc;
-        localStorage.setItem("mandal_user", JSON.stringify(currentUser));
-        updateUserInfoUI();
-        toggleAuthModal();
-        alert("स्वागत आहे, " + currentUser.fullName + "! 🎉");
-      } catch (err) {
-        errDiv.textContent = "लॉगिन एरर: " + err.message;
-        errDiv.style.display = "block";
-      }
-    }
-
-    function logoutUser() {
-      if (confirm("आपण खात्यातून लॉगआऊट करू इच्छिता का?")) {
-        localStorage.removeItem("mandal_user");
-        currentUser = null;
-        updateUserInfoUI();
-        alert("लॉगआऊट यशस्वी!");
-        switchTab('home');
-      }
-    }
-
-    // 4. Real-time Announcements & Posts
+    // 8. Real-time Announcements
     function listenAnnouncements() {
       if (!db) return;
-      db.collection("announcements").orderBy("timestamp", "desc").limit(5).onSnapshot(snapshot => {
-        const container = document.getElementById("announcements-list");
-        if (snapshot.empty) return;
+      db.collection("announcements").orderBy("timestamp", "desc").limit(6).onSnapshot(snap => {
+        const container = document.getElementById("home-announcements-list");
+        if (snap.empty) {
+          container.innerHTML = '<div style="text-align:center; padding:16px; color:#888;">कोणतीही नवीन घोषणा नाही.</div>';
+          return;
+        }
         let html = '';
-        snapshot.forEach(doc => {
+        snap.forEach(doc => {
           const a = doc.data();
+          const dateStr = a.date || (a.timestamp ? new Date(a.timestamp).toLocaleDateString('mr-IN') : '');
           html += `
             <div class="announcement-card">
               <div class="announcement-header">
                 <span>📢 ${a.title || 'महत्त्वाची सूचना'}</span>
-                <span class="announcement-time">${a.date || ''}</span>
+                <span class="announcement-time">${dateStr}</span>
               </div>
               <div class="announcement-body">${a.description || ''}</div>
             </div>
@@ -883,31 +2107,203 @@
       });
     }
 
+    // 9. Today's Birthday Checker
+    function listenBirthdayMembers() {
+      if (!db) return;
+      const today = new Date();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayMMDD = `${month}-${day}`;
+
+      db.collection("users").where("status", "==", "APPROVED").onSnapshot(snap => {
+        const bdaySection = document.getElementById("birthday-section");
+        const bdayList = document.getElementById("birthday-list");
+        if (snap.empty) return;
+
+        const birthdayMembers = [];
+        snap.forEach(doc => {
+          const u = doc.data();
+          if (u.dateOfBirth) {
+            const parts = u.dateOfBirth.split('-');
+            if (parts.length === 3) {
+              const uMMDD = `${parts[1]}-${parts[2]}`;
+              if (uMMDD === todayMMDD) {
+                birthdayMembers.push(u);
+              }
+            }
+          }
+        });
+
+        if (birthdayMembers.length > 0) {
+          bdaySection.style.display = 'block';
+          let html = '';
+          birthdayMembers.forEach(m => {
+            const waText = encodeURIComponent(`जय हिंद मंडळातर्फे ${m.fullName} यांना वाढदिवसाच्या हार्दिक शुभेच्छा! 🎂💐🚩`);
+            html += `
+              <div class="birthday-member-pill">
+                <img src="${m.profilePhotoUrl || './icons/icon-512.jpg'}" onerror="this.src='./icons/icon-512.jpg'">
+                <span>${m.fullName}</span>
+                <a href="https://wa.me/91${m.mobileNumber}?text=${waText}" target="_blank" style="color:#2E7D32; margin-left:4px;" title="WhatsApp शुभेच्छा">
+                  <i class="fa-brands fa-whatsapp"></i>
+                </a>
+              </div>
+            `;
+          });
+          bdayList.innerHTML = html;
+        } else {
+          bdaySection.style.display = 'none';
+        }
+      });
+    }
+
+    // 10. Members Directory & Blood Donors
+    function listenMembers() {
+      if (!db) return;
+      db.collection("users").onSnapshot(snap => {
+        allMembersList = [];
+        snap.forEach(doc => {
+          const u = doc.data();
+          if (u.status === "APPROVED" || !u.status) {
+            allMembersList.push({ id: doc.id, ...u });
+          }
+        });
+        renderMembersList();
+        renderBloodDonors();
+      });
+    }
+
+    function setMemberFilter(bloodGroup, el) {
+      document.querySelectorAll('#blood-filter-chips .filter-chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      currentFilterBlood = bloodGroup;
+      renderMembersList();
+    }
+
+    function filterMembers() {
+      renderMembersList();
+    }
+
+    function renderMembersList() {
+      const container = document.getElementById("members-list-container");
+      const searchVal = (document.getElementById("member-search-input").value || "").trim().toLowerCase();
+
+      let filtered = allMembersList.filter(m => {
+        const matchesBlood = currentFilterBlood === 'ALL' || m.bloodGroup === currentFilterBlood;
+        const matchesSearch = !searchVal || 
+                              (m.fullName && m.fullName.toLowerCase().includes(searchVal)) ||
+                              (m.mobileNumber && m.mobileNumber.includes(searchVal)) ||
+                              (m.designation && m.designation.toLowerCase().includes(searchVal));
+        return matchesBlood && matchesSearch;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:30px; color:#888;">कोणतेही सभासद सापडले नाहीत.</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(m => {
+        const roleStr = m.designation || (m.isAdmin ? 'कार्यकारिणी' : 'सभासद');
+        html += `
+          <div class="member-card">
+            <img src="${m.profilePhotoUrl || './icons/icon-512.jpg'}" class="member-avatar" onerror="this.src='./icons/icon-512.jpg'">
+            <div class="member-info">
+              <div class="member-name">${m.fullName || 'सभासद'}</div>
+              <div class="member-designation">${roleStr}</div>
+              <span class="member-blood-badge">रक्तगट: ${m.bloodGroup || 'N/A'}</span>
+            </div>
+            <div class="member-actions-btn">
+              <a href="tel:${m.mobileNumber}" class="btn-contact btn-call" title="कॉल करा"><i class="fa-solid fa-phone"></i></a>
+              <a href="https://wa.me/91${m.mobileNumber}" target="_blank" class="btn-contact btn-whatsapp" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function renderBloodDonors() {
+      const container = document.getElementById("blood-donors-container");
+      const donors = allMembersList.filter(m => m.bloodGroup && m.bloodGroup.trim() !== '');
+
+      if (donors.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">रक्तदाते माहिती उपलब्ध नाही.</div>';
+        return;
+      }
+
+      let html = '';
+      donors.forEach(m => {
+        html += `
+          <div class="member-card">
+            <img src="${m.profilePhotoUrl || './icons/icon-512.jpg'}" class="member-avatar" onerror="this.src='./icons/icon-512.jpg'">
+            <div class="member-info">
+              <div class="member-name">${m.fullName}</div>
+              <div class="member-designation">📞 ${m.mobileNumber}</div>
+              <span class="member-blood-badge">${m.bloodGroup}</span>
+            </div>
+            <div class="member-actions-btn">
+              <a href="tel:${m.mobileNumber}" class="btn-contact btn-call"><i class="fa-solid fa-phone"></i></a>
+              <a href="https://wa.me/91${m.mobileNumber}?text=${encodeURIComponent('जय हिंद मंडळ अर्जुनवाड - तातडीने रक्ताची गरज आहे!')}" target="_blank" class="btn-contact btn-whatsapp"><i class="fa-brands fa-whatsapp"></i></a>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    // 11. Posts & Likes
     function listenPosts() {
       if (!db) return;
-      db.collection("posts").orderBy("timestamp", "desc").limit(15).onSnapshot(snapshot => {
-        const container = document.getElementById("posts-list");
-        if (snapshot.empty) {
-          container.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">कोणतीही पोस्ट उपलब्ध नाही.</div>';
+      db.collection("posts").orderBy("timestamp", "desc").limit(20).onSnapshot(snap => {
+        const container = document.getElementById("posts-feed-container");
+        if (snap.empty) {
+          container.innerHTML = '<div style="text-align:center; padding:30px; color:#888;">कोणतीही नवीन पोस्ट उपलब्ध नाही.</div>';
           return;
         }
+
         let html = '';
-        snapshot.forEach(doc => {
+        snap.forEach(doc => {
           const p = doc.data();
+          const pId = doc.id;
+          const authorPhoto = p.authorProfilePhoto || './icons/icon-512.jpg';
+          const authorName = p.authorName || 'जय हिंद मंडळ';
+          const postDate = p.timestamp ? new Date(p.timestamp).toLocaleDateString('mr-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+          
+          let likedIds = [];
+          if (typeof p.likedUserIdsJson === 'string') {
+            likedIds = p.likedUserIdsJson.split(',').filter(Boolean);
+          }
+          const isLiked = currentUser && likedIds.includes(currentUser.id);
+          const likesCount = likedIds.length || (p.likesCount || 0);
+
+          let mediaHtml = '';
+          if (p.imageUrlsJson) {
+            const imgUrl = Array.isArray(p.imageUrlsJson) ? p.imageUrlsJson[0] : p.imageUrlsJson;
+            if (imgUrl) {
+              mediaHtml = `<img src="${imgUrl}" class="post-image" onerror="this.style.display='none'">`;
+            }
+          }
+
           html += `
             <div class="post-card">
               <div class="post-header">
-                <img src="${p.authorProfilePhoto || '/icons/icon-512.jpg'}" class="post-author-avatar" onerror="this.src='/icons/icon-512.jpg'">
+                <img src="${authorPhoto}" class="post-author-avatar" onerror="this.src='./icons/icon-512.jpg'">
                 <div class="post-author-info">
-                  <h4>${p.authorName || 'सभासद'}</h4>
-                  <p>${p.date || 'जय हिंद मंडळ'}</p>
+                  <h4>${authorName}</h4>
+                  <p>${postDate}</p>
                 </div>
               </div>
-              ${p.imageUrl ? `<img src="${p.imageUrl}" class="post-image" loading="lazy">` : ''}
-              <div class="post-caption">${p.content || ''}</div>
+              ${mediaHtml}
+              ${p.content ? `<div class="post-caption">${p.content}</div>` : ''}
               <div class="post-actions">
-                <button><i class="fa-regular fa-heart"></i> ${p.likesCount || 0} लाईक्स</button>
-                <button><i class="fa-regular fa-comment"></i> ${p.commentsCount || 0} टिप्पण्या</button>
+                <button class="post-btn-action ${isLiked ? 'liked' : ''}" onclick="toggleLikePost('${pId}', ${JSON.stringify(likedIds).replace(/"/g, '&quot;')})">
+                  <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+                  <span>${likesCount} लाईक्स</span>
+                </button>
+                <button class="post-btn-action" onclick="sharePostWhatsApp('${authorName}', '${(p.content||'').replace(/'/g, "\\'")}')">
+                  <i class="fa-brands fa-whatsapp" style="color:#2E7D32;"></i>
+                  <span>शेअर करा</span>
+                </button>
               </div>
             </div>
           `;
@@ -916,147 +2312,319 @@
       });
     }
 
-    // 5. Real-time Chat Sync with Android App
-    function loadMessages() {
+    async function toggleLikePost(postId, currentLikedIds) {
+      if (!currentUser) return;
+      let updatedList = [...currentLikedIds];
+      const idx = updatedList.indexOf(currentUser.id);
+      if (idx !== -1) {
+        updatedList.splice(idx, 1);
+      } else {
+        updatedList.push(currentUser.id);
+      }
+      const updatedJson = updatedList.join(',');
+      try {
+        await db.collection("posts").document(postId).set({
+          likedUserIdsJson: updatedJson,
+          likesCount: updatedList.length
+        }, { merge: true });
+      } catch(e) {
+        console.error("Like error:", e);
+      }
+    }
+
+    function sharePostWhatsApp(author, text) {
+      const shareMsg = encodeURIComponent(`🚩 जय हिंद मंडळ अर्जुनवाड - अधिकृत पोस्ट\n👤 ${author}\n\n${text}\n\nॲप लिंक: ${window.location.href}`);
+      window.open(`https://wa.me/?text=${shareMsg}`, '_blank');
+    }
+
+    function openCreatePostModal() {
+      document.getElementById('modal-create-post').classList.add('active');
+    }
+
+    async function submitCreatePost() {
+      if (!currentUser) return;
+      const content = document.getElementById('post-text-input').value.trim();
+      const imageUrl = document.getElementById('post-img-input').value.trim();
+      const btn = document.getElementById('btn-publish-post');
+
+      if (!content && !imageUrl) {
+        alert("कृपया काही मजकूर किंवा फोटो लिंक टाका.");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> पोस्ट प्रसिद्ध होत आहे...';
+
+      try {
+        const newPostId = "post_" + Date.now();
+        await db.collection("posts").document(newPostId).set({
+          id: newPostId,
+          authorId: currentUser.id,
+          authorName: currentUser.fullName || "सभासद",
+          authorProfilePhoto: currentUser.profilePhotoUrl || "",
+          content: content,
+          imageUrlsJson: imageUrl || "",
+          likesCount: 0,
+          likedUserIdsJson: "",
+          commentsCount: 0,
+          timestamp: Date.now()
+        });
+
+        btn.disabled = false;
+        btn.innerHTML = '<span>पोस्ट प्रसिद्ध करा 🚩</span>';
+        closeModal('modal-create-post');
+        document.getElementById('post-text-input').value = '';
+        document.getElementById('post-img-input').value = '';
+        alert("पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 🚩");
+      } catch(e) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>पोस्ट प्रसिद्ध करा 🚩</span>';
+        alert("पोस्ट करताना त्रुटी आली: " + e.message);
+      }
+    }
+
+    // 12. Real-time Live Group Chat
+    function listenChatMessages() {
       if (!db) return;
       db.collection("chat_messages")
         .where("conversationId", "==", "conv_mandal_group")
         .orderBy("timestamp", "asc")
-        .limitToLast(50)
-        .onSnapshot(snapshot => {
-          const box = document.getElementById("chat-box");
-          if (snapshot.empty) {
-            box.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">अद्याप कोणताही मेसेज नाही. पहिला मेसेज पाठवा!</div>';
+        .limit(50)
+        .onSnapshot(snap => {
+          const chatBox = document.getElementById("chat-messages-box");
+          if (snap.empty) {
+            chatBox.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">ग्रुपमध्ये पहिला संदेश पाठवा! 🚩</div>';
             return;
           }
           let html = '';
-          snapshot.forEach(doc => {
+          snap.forEach(doc => {
             const m = doc.data();
-            const isMe = currentUser && m.senderId === currentUser.id;
+            const isOutgoing = currentUser && m.senderId === currentUser.id;
+            const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('mr-IN', { hour: '2-digit', minute: '2-digit' }) : '';
             html += `
-              <div class="chat-bubble ${isMe ? 'sent' : 'received'}">
-                ${!isMe ? `<div class="chat-sender-name">${m.senderName || 'सभासद'}</div>` : ''}
-                ${m.imageUrl ? `<img src="${m.imageUrl}" style="max-width:100%; border-radius:8px; margin-bottom:4px;" />` : ''}
+              <div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
+                ${!isOutgoing ? `<div class="msg-author">${m.senderName || 'सभासद'}</div>` : ''}
                 <div>${m.messageText || ''}</div>
-                <div class="chat-time">${m.time || ''}</div>
+                <div class="msg-time">${timeStr}</div>
               </div>
             `;
           });
-          box.innerHTML = html;
-          box.scrollTop = box.scrollHeight;
+          chatBox.innerHTML = html;
+          chatBox.scrollTop = chatBox.scrollHeight;
         });
     }
 
     async function sendChatMessage() {
-      if (!currentUser) {
-        alert("कृपया चॅट करण्यासाठी प्रथम वर दिलेल्या आयकॉनवर क्लिक करून लॉगिन करा!");
-        toggleAuthModal();
-        return;
-      }
-      const input = document.getElementById("chat-input");
+      if (!currentUser) return;
+      const input = document.getElementById('chat-msg-input');
       const text = input.value.trim();
       if (!text) return;
-      input.value = '';
 
+      input.value = '';
+      const msgId = "msg_" + Date.now();
       try {
-        const now = new Date();
-        const msgId = "msg_" + Date.now();
-        await db.collection("chat_messages").doc(msgId).set({
+        await db.collection("chat_messages").document(msgId).set({
           id: msgId,
-          senderId: currentUser.id,
-          senderName: currentUser.fullName,
-          receiverId: "GROUP_MANDAL",
-          receiverName: "जय हिंद मंडळ ग्रुप",
           conversationId: "conv_mandal_group",
+          senderId: currentUser.id,
+          senderName: currentUser.fullName || "सभासद",
+          senderPhoto: currentUser.profilePhotoUrl || "",
+          receiverId: "GROUP_MANDAL",
+          receiverName: "जय हिंद मंडळ",
           messageText: text,
           timestamp: Date.now(),
-          time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          date: now.toLocaleDateString(),
-          isRead: true,
-          status: "SENT"
+          isRead: false
         });
-      } catch (e) {
-        console.error("Chat send error", e);
-        alert("मेसेज पाठवताना त्रुटी: " + e.message);
+      } catch(e) {
+        console.error("Send msg error:", e);
       }
     }
 
-    // 6. Blood Donors List
-    async function loadDonors() {
-      if (!db) return;
-      try {
-        const snap = await db.collection("users").where("status", "==", "APPROVED").get();
-        const box = document.getElementById("donors-list");
+    // 13. Digital ID Card Generation (with QRCode)
+    function generateDigitalIdCard() {
+      if (!currentUser) return;
+      document.getElementById('id-card-name').textContent = currentUser.fullName || 'सभासद';
+      document.getElementById('id-card-role').textContent = "पद: " + (currentUser.designation || (currentUser.isAdmin ? 'कार्यकारिणी' : 'सभासद'));
+      document.getElementById('id-card-id').textContent = "ID: JHM-" + (currentUser.id ? currentUser.id.slice(-6).toUpperCase() : 'MEMBER');
+      document.getElementById('id-card-phone').textContent = "📞 " + (currentUser.mobileNumber || '-');
+      document.getElementById('id-card-blood').textContent = "रक्तगट: " + (currentUser.bloodGroup || 'माहित नाही');
+      
+      if (currentUser.profilePhotoUrl) {
+        document.getElementById('id-card-photo').src = currentUser.profilePhotoUrl;
+      }
+
+      // Generate Verification QR Code
+      const qrContainer = document.getElementById("qrcode-canvas");
+      if (qrContainer && window.QRCode) {
+        qrContainer.innerHTML = '';
+        const qrPayload = `https://jayhindmandal.web.app/verify?id=${currentUser.id}&name=${encodeURIComponent(currentUser.fullName)}&mobile=${currentUser.mobileNumber}`;
+        new QRCode(qrContainer, {
+          text: qrPayload,
+          width: 70,
+          height: 70,
+          colorDark: "#1A237E",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+    }
+
+    // 14. Notifications Modal
+    function openNotificationsModal() {
+      document.getElementById('modal-notifications').classList.add('active');
+    }
+
+    function listenNotifications() {
+      if (!db || !currentUser) return;
+      db.collection("notifications").orderBy("timestamp", "desc").limit(10).onSnapshot(snap => {
+        const notifBadge = document.getElementById("notif-badge");
+        const list = document.getElementById("notifications-list-box");
         if (snap.empty) {
-          box.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">रक्तदाते माहिती उपलब्ध नाही.</div>';
+          notifBadge.style.display = 'none';
+          return;
+        }
+
+        notifBadge.textContent = snap.size;
+        notifBadge.style.display = 'flex';
+
+        let html = '';
+        snap.forEach(doc => {
+          const n = doc.data();
+          html += `
+            <div class="announcement-card" style="margin-bottom:6px;">
+              <div style="font-weight:800; font-size:13px; color:var(--saffron-dark);">${n.title || 'सूचना'}</div>
+              <div style="font-size:12px; margin-top:2px;">${n.message || ''}</div>
+            </div>
+          `;
+        });
+        list.innerHTML = html;
+      });
+    }
+
+    // 15. Admin Panel (Approvals & Announcements)
+    function openAdminModal() {
+      document.getElementById('modal-admin-panel').classList.add('active');
+    }
+
+    function listenPendingMembers() {
+      if (!db) return;
+      db.collection("users").where("status", "==", "PENDING_APPROVAL").onSnapshot(snap => {
+        const container = document.getElementById("admin-pending-members-list");
+        if (snap.empty) {
+          container.innerHTML = '<div style="text-align:center; padding:10px; color:#888; font-size:12px;">कोणतीही नोंदणी प्रलंबित नाही. ✅</div>';
           return;
         }
         let html = '';
         snap.forEach(doc => {
           const u = doc.data();
-          if (u.bloodGroup && u.bloodGroup !== "माहित नाही") {
-            html += `
-              <div class="donor-card">
-                <div class="donor-badge">${u.bloodGroup}</div>
-                <div class="donor-info">
-                  <h4>${u.fullName}</h4>
-                  <p>${u.designation || 'सभासद'} • ${u.mobileNumber}</p>
-                </div>
-                <a href="tel:${u.mobileNumber}" class="btn-call"><i class="fa-solid fa-phone"></i> कॉल</a>
-              </div>
-            `;
-          }
-        });
-        box.innerHTML = html || '<div style="text-align:center; padding:20px; color:#888;">कोणतेही रक्तदाते आढळले नाहीत.</div>';
-      } catch (e) {
-        console.error("Donors error", e);
-      }
-    }
-
-    // 7. Receipts List
-    async function loadReceipts() {
-      if (!db) return;
-      try {
-        const box = document.getElementById("receipts-list");
-        let query = db.collection("receipts").orderBy("timestamp", "desc").limit(20);
-        const snap = await query.get();
-        if (snap.empty) {
-          box.innerHTML = '<div class="card" style="text-align:center; padding:20px; color:#888;">अद्याप कोणतीही पावती उपलब्ध नाही.</div>';
-          return;
-        }
-        let html = '';
-        snap.forEach(doc => {
-          const r = doc.data();
           html += `
-            <div class="card" style="border-left: 4px solid var(--success-green);">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:700; color:var(--saffron-dark);">पावती क्र. ${r.receiptNumber || r.id}</span>
-                <span style="font-size:15px; font-weight:800; color:var(--success-green);">₹ ${r.amount || 0}</span>
+            <div class="member-card" style="margin-bottom:6px;">
+              <div class="member-info">
+                <div class="member-name">${u.fullName}</div>
+                <div class="member-designation">📞 ${u.mobileNumber} • रक्तगट: ${u.bloodGroup}</div>
               </div>
-              <div style="font-size:13px; margin-top:4px;"><b>देणगीदार:</b> ${r.donorName || ''}</div>
-              <div style="font-size:11px; color:#777; margin-top:2px;">तारीख: ${r.date || ''} • उत्सव: ${r.festival || 'वार्षिक देणगी'}</div>
+              <div style="display:flex; gap:6px;">
+                <button style="background:#2E7D32; color:white; border:none; padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer;" onclick="approveMember('${doc.id}')">मंजूर</button>
+                <button style="background:#C62828; color:white; border:none; padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer;" onclick="rejectMember('${doc.id}')">नाकार</button>
+              </div>
             </div>
           `;
         });
-        box.innerHTML = html;
-      } catch (e) {
-        console.error("Receipts error", e);
-      }
-    }
-
-    // 8. Register Service Worker for PWA
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW Registered!', reg))
-          .catch(err => console.log('SW Registration failed', err));
+        container.innerHTML = html;
       });
     }
 
-    // Initial Calls
-    updateUserInfoUI();
-    listenAnnouncements();
-    listenPosts();
+    async function approveMember(userId) {
+      if (confirm("या सभासदाची नोंदणी मंजूर करायची आहे का?")) {
+        try {
+          await db.collection("users").document(userId).set({ status: "APPROVED" }, { merge: true });
+          alert("नोंदणी यशस्वीरित्या मंजूर केली!");
+        } catch(e) {
+          alert("मंजूर करताना एरर: " + e.message);
+        }
+      }
+    }
+
+    async function rejectMember(userId) {
+      if (confirm("या सभासदाची नोंदणी नाकारायची आहे का?")) {
+        try {
+          await db.collection("users").document(userId).set({ status: "REJECTED" }, { merge: true });
+          alert("नोंदणी नाकारण्यात आली.");
+        } catch(e) {
+          alert("एरर: " + e.message);
+        }
+      }
+    }
+
+    async function adminCreateAnnouncement() {
+      const title = document.getElementById('admin-announcement-title').value.trim();
+      const desc = document.getElementById('admin-announcement-desc').value.trim();
+      if (!title || !desc) {
+        alert("कृपया शीर्षक आणि माहिती टाका.");
+        return;
+      }
+      try {
+        const id = "ann_" + Date.now();
+        await db.collection("announcements").document(id).set({
+          id: id,
+          title: title,
+          description: desc,
+          date: new Date().toLocaleDateString('mr-IN'),
+          timestamp: Date.now()
+        });
+        document.getElementById('admin-announcement-title').value = '';
+        document.getElementById('admin-announcement-desc').value = '';
+        alert("घोषणा प्रसिद्ध झाली!");
+      } catch(e) {
+        alert("त्रुटी: " + e.message);
+      }
+    }
+
+    // 16. Logout & Password Change
+    async function updatePassword() {
+      if (!currentUser) return;
+      const newPass = document.getElementById('change-pass-input').value.trim();
+      if (newPass.length < 4) {
+        alert("नवीन पासवर्ड किमान ४ अक्षरांचा असावा.");
+        return;
+      }
+      try {
+        await db.collection("users").document(currentUser.id).set({ password: newPass }, { merge: true });
+        currentUser.password = newPass;
+        localStorage.setItem("mandal_user", JSON.stringify(currentUser));
+        document.getElementById('change-pass-input').value = '';
+        alert("पासवर्ड यशस्वीरित्या बदलला आहे!");
+      } catch(e) {
+        alert("पासवर्ड बदलताना त्रुटी: " + e.message);
+      }
+    }
+
+    function confirmLogout() {
+      if (confirm("आपण जय हिंद मंडळाच्या खात्यातून लॉगआऊट करू इच्छिता का?")) {
+        if (currentUser) {
+          try {
+            db.collection("users").document(currentUser.id).set({ isOnline: false, lastSeen: Date.now() }, { merge: true });
+          } catch(e) {}
+        }
+        localStorage.removeItem("mandal_user");
+        currentUser = null;
+        alert("लॉगआऊट यशस्वी!");
+        showAuthScreen();
+      }
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.remove('active');
+    }
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.log('SW registration error:', err);
+        });
+      });
+    }
   </script>
 </body>
 </html>
