@@ -1512,6 +1512,152 @@
       gap: 10px;
       margin-bottom: 6px;
     }
+
+    /* Emergency Blood SOS Banner */
+    @keyframes sirenPulse {
+      0% { box-shadow: 0 0 0 0 rgba(185, 28, 28, 0.7); }
+      50% { box-shadow: 0 0 0 14px rgba(185, 28, 28, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(185, 28, 28, 0); }
+    }
+    .emergency-sos-banner {
+      background: linear-gradient(135deg, #B91C1C, #7F1D1D);
+      color: white;
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      animation: sirenPulse 2s infinite;
+      border: 1.5px solid rgba(255,255,255,0.3);
+    }
+    .sos-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .sos-blood-badge {
+      background: white;
+      color: #B91C1C;
+      font-size: 15px;
+      font-weight: 900;
+      padding: 4px 12px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    .sos-details-box {
+      background: rgba(0,0,0,0.25);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .sos-action-row {
+      display: flex;
+      gap: 8px;
+    }
+    .sos-btn-call {
+      flex: 1;
+      background: white;
+      color: #B91C1C;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 800;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .sos-btn-share {
+      flex: 1;
+      background: #25D366;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 800;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .sos-btn-resolve {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Live Stream Card */
+    .live-stream-card {
+      background: linear-gradient(135deg, #0D47A1, #1565C0);
+      color: white;
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 4px 12px rgba(13,71,161,0.25);
+    }
+    .live-indicator-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #E53935;
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 8px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: white;
+      border-radius: 50%;
+      display: inline-block;
+      animation: blinkDot 1s infinite;
+    }
+    @keyframes blinkDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+
+    /* Online status indicator */
+    .online-indicator-dot {
+      width: 8px;
+      height: 8px;
+      background: #2E7D32;
+      border-radius: 50%;
+      border: 1.5px solid white;
+      display: inline-block;
+      margin-right: 4px;
+    }
+
+    /* Excel export button */
+    .btn-excel-export {
+      background: linear-gradient(135deg, #107C41, #1E8E3E);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(16,124,65,0.25);
+    }
   </style>
 </head>
 <body>
@@ -1703,9 +1849,15 @@
 
       <!-- ==================== TAB 1: HOME (मुख्य) ==================== -->
       <div id="tab-home" class="tab-view active">
+        <!-- Emergency Blood Siren SOS Banner (Active when needed) -->
+        <div id="emergency-blood-banner-home" style="display:none;"></div>
+
+        <!-- Live Streaming Banner (Active during Aarti or Live event) -->
+        <div id="live-stream-banner-home" style="display:none;"></div>
+
         <!-- Festive Banner -->
         <div class="festive-banner" id="festive-banner-box">
-          <i class="fa-solid fa-om"></i>
+          <i class="fa-solid fa-om" id="festive-icon"></i>
           <div>
             <h3 id="festive-title">🚩 जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ</h3>
             <p id="festive-desc">अर्जुनवाड • सर्व उपक्रम व सभासद संवाद एकाच ठिकाणी</p>
@@ -1783,8 +1935,11 @@
 
       <!-- ==================== TAB 2: MEMBERS (सभासद) ==================== -->
       <div id="tab-members" class="tab-view">
-        <div class="card" style="padding: 10px 14px; margin-bottom: 10px;">
-          <input type="text" id="member-search-input" class="form-control" placeholder="🔍 सभासदाचे नाव किंवा नंबर शोधा..." oninput="filterMembers()">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px;">
+          <input type="text" id="member-search-input" class="form-control" style="margin-bottom:0;" placeholder="🔍 नाव किंवा नंबर शोधा..." oninput="filterMembers()">
+          <button class="btn-excel-export" onclick="exportMembersToExcel()" title="Excel / CSV डाऊनलोड">
+            <i class="fa-solid fa-file-excel"></i> Excel
+          </button>
         </div>
 
         <!-- Blood Group Filter Chips -->
@@ -1905,6 +2060,13 @@
 
       <!-- ==================== TAB 5: BLOOD DONORS (रक्तदान) ==================== -->
       <div id="tab-blood" class="tab-view">
+        <!-- Active Blood Alert on Blood Tab -->
+        <div id="emergency-blood-banner-tab" style="display:none;"></div>
+
+        <button class="btn-main" style="background:#B91C1C; margin-bottom:12px;" onclick="openEmergencyBloodModal()">
+          <i class="fa-solid fa-triangle-exclamation"></i> 🚨 आणीबाणी रक्तदान विनंती (SOS Alert) पाठवा
+        </button>
+
         <div class="card" style="background:#FFEBEE; border-color:#FFCDD2; margin-bottom:12px;">
           <div style="display:flex; align-items:center; gap:10px;">
             <i class="fa-solid fa-droplet" style="color:var(--blood-red); font-size:24px;"></i>
@@ -2268,6 +2430,49 @@
         </button>
       </div>
 
+      <!-- Section 5: Member Register Excel / CSV Export -->
+      <div style="margin-bottom:16px; border-top:1px solid var(--border-color); padding-top:12px;">
+        <h4 style="font-size:14px; font-weight:800; color:#107C41; margin-bottom:8px;">
+          📊 सभासद नोंदणी रजिस्टर (Excel / CSV)
+        </h4>
+        <p style="font-size:12px; color:#666; margin-bottom:10px;">सर्व सभासदांची संपूर्ण माहिती (नाव, आयडी, मोबाईल, रक्तगट, पत्ता, तारीख) एक्सेलमध्ये डाउनलोड करा.</p>
+        <button class="btn-excel-export" onclick="exportMembersToExcel()">
+          <i class="fa-solid fa-file-excel"></i> संपूर्ण सभासद यादी Excel (CSV) डाउनलोड करा
+        </button>
+      </div>
+
+      <!-- Section 6: Emergency Blood SOS Alert -->
+      <div style="margin-bottom:16px; border-top:1px solid var(--border-color); padding-top:12px;">
+        <h4 style="font-size:14px; font-weight:800; color:#B91C1C; margin-bottom:8px;">
+          🚨 आणीबाणी रक्तदान सायरन अलर्ट (Emergency SOS)
+        </h4>
+        <p style="font-size:12px; color:#666; margin-bottom:10px;">रुग्णासाठी तातडीने रक्ताची गरज असल्यास सर्व सभासदांना सायरन अलर्ट पाठवा.</p>
+        <button class="btn-main" style="background:#B91C1C; padding:10px; font-size:13px;" onclick="openEmergencyBloodModal()">
+          <i class="fa-solid fa-bullhorn"></i> नवीन रक्तदान सायरन अलर्ट जारी करा
+        </button>
+      </div>
+
+      <!-- Section 7: Live Stream Management -->
+      <div style="margin-bottom:16px; border-top:1px solid var(--border-color); padding-top:12px;">
+        <h4 style="font-size:14px; font-weight:800; color:#1A237E; margin-bottom:8px;">
+          🔴 थेट प्रक्षेपण नियंत्रण (Live Streaming Controls)
+        </h4>
+        <div class="form-group">
+          <input type="text" id="admin-live-title" class="form-control" placeholder="कार्यक्रमाचे नाव (उदा. श्री गणेश महाआरती थेट प्रक्षेपण)">
+        </div>
+        <div class="form-group">
+          <input type="url" id="admin-live-url" class="form-control" placeholder="YouTube Live, Facebook Live किंवा व्हिडिओ URL">
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn-main" style="flex:1; background:#E53935; padding:10px; font-size:13px;" onclick="adminStartLiveStream()">
+            <i class="fa-solid fa-tower-broadcast"></i> लाईव्ह सुरू करा
+          </button>
+          <button class="btn-main" style="flex:1; background:#607D8B; padding:10px; font-size:13px;" onclick="adminStopLiveStream()">
+            <i class="fa-solid fa-stop"></i> लाईव्ह थांबवा
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -2285,6 +2490,100 @@
       <button id="fullscreen-photo-share" class="btn-main" style="width:auto; padding:6px 14px; font-size:12px; background:#25D366;" onclick="shareActivePhoto()">
         <i class="fa-brands fa-whatsapp"></i> शेअर करा
       </button>
+    </div>
+  </div>
+
+  <!-- Emergency Blood SOS Request Dialog Modal -->
+  <div id="modal-emergency-blood-request" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header" style="background:#B91C1C; color:white; margin:-16px -16px 16px -16px; padding:16px; border-radius:16px 16px 0 0;">
+        <h3 style="font-size:16px; font-weight:800;"><i class="fa-solid fa-triangle-exclamation"></i> 🚨 आणीबाणी रक्तदान विनंती (SOS)</h3>
+        <button onclick="closeModal('modal-emergency-blood-request')" style="background:none; border:none; color:white; font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12px; font-weight:700;">रुग्णाचे नाव: *</label>
+        <input type="text" id="sos-patient-name" class="form-control" placeholder="उदा. सुरेश पाटील">
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12px; font-weight:700;">आवश्यक रक्तगट: *</label>
+        <select id="sos-blood-group" class="form-control">
+          <option value="O+">O+ (पॉझिटिव्ह)</option>
+          <option value="A+">A+ (पॉझिटिव्ह)</option>
+          <option value="B+">B+ (पॉझिटिव्ह)</option>
+          <option value="AB+">AB+ (पॉझिटिव्ह)</option>
+          <option value="O-">O- (निगेटिव्ह)</option>
+          <option value="A-">A- (निगेटिव्ह)</option>
+          <option value="B-">B- (निगेटिव्ह)</option>
+          <option value="AB-">AB- (निगेटिव्ह)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12px; font-weight:700;">हॉस्पिटल व गाव/शहर: *</label>
+        <input type="text" id="sos-hospital" class="form-control" placeholder="उदा. सीपीआर हॉस्पिटल, कोल्हापूर">
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12px; font-weight:700;">आवश्यक बाटल्यांची संख्या: *</label>
+        <input type="number" id="sos-units" class="form-control" value="1" min="1" max="10">
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12px; font-weight:700;">तातडीचा संपर्क क्रमांक: *</label>
+        <input type="tel" id="sos-contact-phone" class="form-control" placeholder="१० अंकी मोबाईल नंबर" maxlength="10">
+      </div>
+
+      <div class="form-group">
+        <label style="font-size:12px; font-weight:700;">इतर महत्त्वाची माहिती / टीप:</label>
+        <input type="text" id="sos-note" class="form-control" placeholder="उदा. आज दुपारी १२ वाजेपर्यंत आवश्यकता आहे">
+      </div>
+
+      <button class="btn-main" style="background:#B91C1C;" onclick="submitEmergencyBloodSOS()">
+        <i class="fa-solid fa-bullhorn"></i> सायरन अलर्ट त्वरित पाठवा!
+      </button>
+    </div>
+  </div>
+
+  <!-- Live Stream Video Player Modal -->
+  <div id="modal-live-stream-player" class="modal-backdrop">
+    <div class="modal-card" style="max-width:540px; padding:0; overflow:hidden;">
+      <div style="background:var(--navy-primary); color:white; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="live-indicator-badge"><span class="pulse-dot"></span> LIVE</span>
+          <span id="live-player-modal-title" style="font-size:14px; font-weight:800;">थेट प्रक्षेपण</span>
+        </div>
+        <button onclick="closeLiveStreamPlayer()" style="background:none; border:none; color:white; font-size:22px; cursor:pointer;">&times;</button>
+      </div>
+
+      <div id="live-player-video-container" style="background:#000; width:100%; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;">
+        <!-- Embedded Iframe or Video Tag -->
+      </div>
+
+      <div style="padding:14px;">
+        <div style="font-size:13px; font-weight:700; color:var(--text-primary); margin-bottom:4px;" id="live-player-info-title">मंडळ थेट दर्शन व सोहळा</div>
+        <div style="font-size:11px; color:#666; margin-bottom:12px;">जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड</div>
+        <button class="btn-main" style="background:#25D366; font-size:12px; padding:8px 12px;" onclick="shareLiveStream()">
+          <i class="fa-brands fa-whatsapp"></i> थेट प्रक्षेपण लिंक शेअर करा
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forward Message Modal -->
+  <div id="modal-forward-message" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 style="font-size:16px; font-weight:800;">मेसेज फॉरवर्ड करा ➡️</h3>
+        <button onclick="closeModal('modal-forward-message')" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div style="background:#f5f5f5; border-radius:8px; padding:10px; font-size:13px; margin-bottom:12px; font-style:italic;" id="forward-message-preview"></div>
+      <p style="font-size:12px; font-weight:700; margin-bottom:8px;">कुठे फॉरवर्ड करायचे आहे?</p>
+      <button class="btn-main" style="margin-bottom:8px;" onclick="confirmForwardToGroup()">
+        <i class="fa-solid fa-users"></i> मंडळ ग्रुप चॅटमध्ये पाठवा
+      </button>
+      <p style="font-size:12px; color:#888; text-align:center; margin-top:8px;">किंवा वैयक्तिक चॅटमध्ये जाऊन पेस्ट करा.</p>
     </div>
   </div>
 
@@ -2369,6 +2668,10 @@
       listenNotifications();
       listenAlbums();
       listenEvents();
+      listenEmergencyBloodAlerts();
+      listenLiveStreamInfo();
+      setupFestiveOccasionBanner();
+      startPresenceHeartbeat();
       if (isAdmin) {
         listenPendingMembers();
         const galleryAdminBtn = document.getElementById('btn-gallery-admin-add');
@@ -2829,12 +3132,13 @@
       let html = '';
       filtered.forEach(m => {
         const roleStr = m.designation || (m.isAdmin ? 'कार्यकारिणी' : 'सभासद');
+        const isOnline = m.isOnline === true || (m.lastSeen && (Date.now() - m.lastSeen < 300000));
         html += `
           <div class="member-card">
             <img src="${m.profilePhotoUrl || './icons/icon-512.jpg'}" class="member-avatar" onerror="this.src='./icons/icon-512.jpg'">
             <div class="member-info">
-              <div class="member-name">${m.fullName || 'सभासद'}</div>
-              <div class="member-designation">${roleStr}</div>
+              <div class="member-name">${isOnline ? '<span class="online-indicator-dot" title="ऑनलाइन"></span>' : ''}${escapeHtml(m.fullName || 'सभासद')}</div>
+              <div class="member-designation">${roleStr}${isOnline ? ' • <span style="color:#2E7D32; font-weight:700;">ऑनलाइन</span>' : ''}</div>
               <span class="member-blood-badge">रक्तगट: ${m.bloodGroup || 'N/A'}</span>
             </div>
             <div class="member-actions-btn">
@@ -3270,12 +3574,13 @@
 
       let html = '';
       filtered.forEach(m => {
+        const isOnline = m.isOnline === true || (m.lastSeen && (Date.now() - m.lastSeen < 300000));
         html += `
           <div class="direct-chat-member-item" onclick="openDirectChatWithUser('${m.id}')">
             <img src="${m.profilePhotoUrl || './icons/icon-512.jpg'}" class="direct-chat-avatar" onerror="this.src='./icons/icon-512.jpg'">
             <div class="direct-chat-meta">
-              <div class="direct-chat-name">${escapeHtml(m.fullName || 'सभासद')}</div>
-              <div class="direct-chat-sub">📞 ${m.mobileNumber || ''} • ${m.designation || 'सभासद'}</div>
+              <div class="direct-chat-name">${isOnline ? '<span class="online-indicator-dot"></span>' : ''}${escapeHtml(m.fullName || 'सभासद')}</div>
+              <div class="direct-chat-sub">📞 ${m.mobileNumber || ''} • ${m.designation || 'सभासद'}${isOnline ? ' • <span style="color:#2E7D32; font-weight:700;">ऑनलाइन</span>' : ''}</div>
             </div>
             <div style="color:var(--saffron-dark); font-size:14px;"><i class="fa-solid fa-comment-dots"></i></div>
           </div>
@@ -3333,10 +3638,16 @@
             const m = doc.data();
             const isOutgoing = m.senderId === currentUser.id;
             const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('mr-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+            const safeText = encodeURIComponent(m.messageText || '');
             html += `
               <div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
                 <div>${escapeHtml(m.messageText || '')}</div>
-                <div class="msg-time">${timeStr}</div>
+                <div class="msg-time" style="display:flex; justify-content:flex-end; align-items:center; gap:6px;">
+                  <span>${timeStr}</span>
+                  <button type="button" style="background:none; border:none; color:inherit; opacity:0.6; cursor:pointer; font-size:10px; padding:0 2px;" onclick="openForwardModal(decodeURIComponent('${safeText}'))" title="फॉरवर्ड करा">
+                    <i class="fa-solid fa-share"></i>
+                  </button>
+                </div>
               </div>
             `;
           });
@@ -3401,11 +3712,17 @@
           msgs.forEach(m => {
             const isOutgoing = currentUser && m.senderId === currentUser.id;
             const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('mr-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+            const safeText = encodeURIComponent(m.messageText || '');
             html += `
               <div class="message-bubble ${isOutgoing ? 'outgoing' : 'incoming'}">
                 ${!isOutgoing ? `<div class="msg-author">${escapeHtml(m.senderName || 'सभासद')}</div>` : ''}
                 <div>${escapeHtml(m.messageText || '')}</div>
-                <div class="msg-time">${timeStr}</div>
+                <div class="msg-time" style="display:flex; justify-content:flex-end; align-items:center; gap:6px;">
+                  <span>${timeStr}</span>
+                  <button type="button" style="background:none; border:none; color:inherit; opacity:0.6; cursor:pointer; font-size:10px; padding:0 2px;" onclick="openForwardModal(decodeURIComponent('${safeText}'))" title="फॉरवर्ड करा">
+                    <i class="fa-solid fa-share"></i>
+                  </button>
+                </div>
               </div>
             `;
           });
@@ -3975,6 +4292,502 @@
         alert("लॉगआऊट यशस्वी!");
         showAuthScreen();
       }
+    }
+
+    // ==========================================
+    // 17. AUDIO SYNTHESIZER (CHIME & SOS SIREN)
+    // ==========================================
+    let audioCtx = null;
+    function playChimeSound(type) {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+
+        if (type === 'sos') {
+          // Emergency Siren Sound
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(700, now);
+          osc.frequency.linearRampToValueAtTime(1100, now + 0.25);
+          osc.frequency.linearRampToValueAtTime(700, now + 0.5);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+          osc.start(now);
+          osc.stop(now + 0.7);
+        } else {
+          // Notification chime
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, now);
+          osc.frequency.setValueAtTime(880, now + 0.08);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        }
+      } catch(e) {
+        console.warn("Audio chime error:", e);
+      }
+    }
+
+    // ==========================================
+    // 18. EXCEL (CSV) MEMBER REGISTER EXPORTER
+    // ==========================================
+    function exportMembersToExcel() {
+      if (!allMembersList || allMembersList.length === 0) {
+        alert("डाउनलोड करण्यासाठी सभासद उपलब्ध नाहीत.");
+        return;
+      }
+
+      const headers = [
+        "अनुक्रमांक",
+        "डिजिटल आयडी",
+        "सदस्याचे पूर्ण नाव",
+        "पद / भूमिका",
+        "मोबाईल नंबर",
+        "जन्मतारीख",
+        "रक्तगट",
+        "पत्ता",
+        "खाते स्थिती",
+        "नोंदणी दिनांक"
+      ];
+
+      const rows = [headers];
+
+      allMembersList.forEach((m, idx) => {
+        const idStr = "JHM-" + (m.id ? m.id.slice(-6).toUpperCase() : (idx + 1));
+        const nameStr = m.fullName || "सभासद";
+        const roleStr = m.designation || (m.isAdmin ? "कार्यकारिणी" : "सभासद");
+        const phoneStr = m.mobileNumber || "";
+        const dobStr = m.dateOfBirth || "";
+        const bloodStr = m.bloodGroup || "";
+        const addressStr = (m.address || "").replace(/[\r\n]+/g, ' ');
+        const statusStr = m.status === "PENDING_APPROVAL" ? "प्रलंबित" : (m.status === "BLOCKED" ? "ब्लॉक" : "मंजूर");
+        const regDateStr = m.joinedDate || (m.timestamp ? new Date(m.timestamp).toLocaleDateString('mr-IN') : "");
+
+        rows.push([
+          idx + 1,
+          `"${idStr.replace(/"/g, '""')}"`,
+          `"${nameStr.replace(/"/g, '""')}"`,
+          `"${roleStr.replace(/"/g, '""')}"`,
+          `"${phoneStr.replace(/"/g, '""')}"`,
+          `"${dobStr.replace(/"/g, '""')}"`,
+          `"${bloodStr.replace(/"/g, '""')}"`,
+          `"${addressStr.replace(/"/g, '""')}"`,
+          `"${statusStr.replace(/"/g, '""')}"`,
+          `"${regDateStr.replace(/"/g, '""')}"`
+        ]);
+      });
+
+      const csvContent = "\uFEFF" + rows.map(r => r.join(",")).join("\r\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      link.setAttribute("download", `जय_हिंद_मंडळ_अर्जुनवाड_सभासद_नोंदणी_${todayStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    // ==========================================
+    // 19. EMERGENCY BLOOD SOS ALERT SYSTEM
+    // ==========================================
+    let activeBloodAlert = null;
+    let hasAlertSoundPlayed = false;
+
+    function listenEmergencyBloodAlerts() {
+      if (!db) return;
+      db.collection("emergency_blood_alerts")
+        .where("isActive", "==", true)
+        .limit(1)
+        .onSnapshot(snap => {
+          const homeBanner = document.getElementById("emergency-blood-banner-home");
+          const tabBanner = document.getElementById("emergency-blood-banner-tab");
+
+          if (snap.empty) {
+            activeBloodAlert = null;
+            if (homeBanner) homeBanner.style.display = 'none';
+            if (tabBanner) tabBanner.style.display = 'none';
+            return;
+          }
+
+          let alertDoc = null;
+          snap.forEach(doc => {
+            alertDoc = { id: doc.id, ...doc.data() };
+          });
+
+          if (!alertDoc) return;
+          activeBloodAlert = alertDoc;
+
+          if (!hasAlertSoundPlayed) {
+            playChimeSound('sos');
+            hasAlertSoundPlayed = true;
+          }
+
+          const isAdmin = currentUser && (currentUser.isAdmin === true || currentUser.role === 'ADMIN' || currentUser.mobileNumber === '9545791089');
+          const shareText = encodeURIComponent(`🚨 *तातडीची रक्तदान गरज (Emergency Blood SOS)* 🚨\n\n` +
+            `*रक्तगट:* ${alertDoc.bloodGroup}\n` +
+            `*रुग्णाचे नाव:* ${alertDoc.patientName}\n` +
+            `*हॉस्पिटल:* ${alertDoc.hospitalName}\n` +
+            `*बाटल्यांची संख्या:* ${alertDoc.unitsRequired || 1}\n` +
+            `*तातडीचा संपर्क:* ${alertDoc.contactNumber}\n` +
+            `${alertDoc.additionalNotes ? `*टीप:* ${alertDoc.additionalNotes}\n` : ''}` +
+            `\nजय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड 🚩`);
+
+          const bannerHtml = `
+            <div class="emergency-sos-banner">
+              <div class="sos-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-triangle-exclamation" style="font-size:20px;"></i>
+                  <span style="font-weight:900; font-size:14px; letter-spacing:0.5px;">आणीबाणी रक्तदान गरज (SOS)!</span>
+                </div>
+                <span class="sos-blood-badge">${escapeHtml(alertDoc.bloodGroup || 'सर्व')}</span>
+              </div>
+              <div class="sos-details-box">
+                <div><strong>रुग्ण:</strong> ${escapeHtml(alertDoc.patientName || '-')}</div>
+                <div><strong>हॉस्पिटल:</strong> ${escapeHtml(alertDoc.hospitalName || '-')}</div>
+                <div><strong>आवश्यक बाटल्या:</strong> ${escapeHtml(String(alertDoc.unitsRequired || 1))}</div>
+                ${alertDoc.additionalNotes ? `<div><strong>टीप:</strong> ${escapeHtml(alertDoc.additionalNotes)}</div>` : ''}
+              </div>
+              <div class="sos-action-row">
+                <a href="tel:${alertDoc.contactNumber}" class="sos-btn-call">
+                  <i class="fa-solid fa-phone-volume"></i> कॉल करा (${escapeHtml(alertDoc.contactNumber || '')})
+                </a>
+                <a href="https://wa.me/?text=${shareText}" target="_blank" class="sos-btn-share">
+                  <i class="fa-brands fa-whatsapp"></i> WhatsApp वर पाठवा
+                </a>
+                ${isAdmin ? `
+                  <button class="sos-btn-resolve" onclick="resolveEmergencyBloodSOS('${alertDoc.id}')">
+                    <i class="fa-solid fa-check"></i> पूर्ण झाले (Resolve)
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+
+          if (homeBanner) {
+            homeBanner.innerHTML = bannerHtml;
+            homeBanner.style.display = 'block';
+          }
+          if (tabBanner) {
+            tabBanner.innerHTML = bannerHtml;
+            tabBanner.style.display = 'block';
+          }
+        }, err => {
+          console.warn("Blood alert listener error:", err);
+        });
+    }
+
+    function openEmergencyBloodModal() {
+      document.getElementById('modal-emergency-blood-request').classList.add('active');
+    }
+
+    async function submitEmergencyBloodSOS() {
+      if (!currentUser) return;
+      const patientName = document.getElementById('sos-patient-name').value.trim();
+      const bloodGroup = document.getElementById('sos-blood-group').value;
+      const hospital = document.getElementById('sos-hospital').value.trim();
+      const units = document.getElementById('sos-units').value.trim() || "1";
+      const contactPhone = document.getElementById('sos-contact-phone').value.trim();
+      const note = document.getElementById('sos-note').value.trim();
+
+      if (!patientName || !hospital || !contactPhone) {
+        alert("कृपया रुग्णाचे नाव, हॉस्पिटल आणि संपर्क नंबर भरा.");
+        return;
+      }
+
+      const alertId = "sos_" + Date.now();
+      try {
+        await db.collection("emergency_blood_alerts").doc(alertId).set({
+          id: alertId,
+          patientName: patientName,
+          bloodGroup: bloodGroup,
+          hospitalName: hospital,
+          unitsRequired: parseInt(units) || 1,
+          contactNumber: contactPhone,
+          additionalNotes: note,
+          requestedByUserId: currentUser.id,
+          requestedByName: currentUser.fullName || "सभासद",
+          isActive: true,
+          timestamp: Date.now()
+        });
+
+        // Add to notifications
+        const notifId = "notif_" + Date.now();
+        await db.collection("notifications").doc(notifId).set({
+          id: notifId,
+          title: `🚨 तातडीने ${bloodGroup} रक्ताची गरज!`,
+          message: `${patientName} यांना ${hospital} येथे तातडीने रक्ताची गरज आहे. संपर्क: ${contactPhone}`,
+          type: "BLOOD_ALERT",
+          timestamp: Date.now()
+        });
+
+        closeModal('modal-emergency-blood-request');
+        playChimeSound('sos');
+        alert("🚨 आणीबाणी रक्तदान अलर्ट सर्व सदस्यांसाठी यशस्वीरित्या प्रसारित करण्यात आला आहे!");
+      } catch(e) {
+        console.error("SOS submit error:", e);
+        alert("अलर्ट पाठवताना त्रुटी: " + e.message);
+      }
+    }
+
+    async function resolveEmergencyBloodSOS(alertId) {
+      if (!confirm("ही रक्तदान गरज पूर्ण झाली आहे का? अलर्ट बंद करायचा आहे का?")) return;
+      try {
+        await db.collection("emergency_blood_alerts").doc(alertId).set({
+          isActive: false,
+          resolvedAt: Date.now(),
+          resolvedBy: currentUser.fullName || "Admin"
+        }, { merge: true });
+        alert("रक्तदान अलर्ट यशस्वीरीत्या बंद करण्यात आला.");
+      } catch(e) {
+        alert("त्रुटी: " + e.message);
+      }
+    }
+
+    // ==========================================
+    // 20. LIVE STREAMING & VIDEO PLAYER
+    // ==========================================
+    window.activeLiveStreamInfo = null;
+
+    function listenLiveStreamInfo() {
+      if (!db) return;
+      db.collection("mandal_info").doc("mandal_default").onSnapshot(doc => {
+        const homeBanner = document.getElementById("live-stream-banner-home");
+        if (!doc.exists) {
+          if (homeBanner) homeBanner.style.display = 'none';
+          return;
+        }
+
+        const data = doc.data();
+        if (data.isLiveStreamActive && data.liveStreamUrl) {
+          window.activeLiveStreamInfo = data;
+          if (homeBanner) {
+            homeBanner.innerHTML = `
+              <div class="live-stream-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span class="live-indicator-badge"><span class="pulse-dot"></span> थेट प्रक्षेपण सुरू आहे</span>
+                  <span style="font-size:11px; opacity:0.9;">जय हिंद मंडळ लाईव्ह</span>
+                </div>
+                <div style="font-size:14px; font-weight:800; margin-bottom:10px;">${escapeHtml(data.liveStreamTitle || 'मंडळ उत्सव व महाआरती थेट प्रक्षेपण')}</div>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn-main" style="flex:1; background:white; color:#0D47A1; font-weight:800; padding:8px 12px; font-size:12px;" onclick="openLiveStreamPlayer()">
+                    <i class="fa-solid fa-play"></i> आत्ताच पहा (Watch Live)
+                  </button>
+                  <button class="btn-main" style="width:auto; background:#25D366; padding:8px 12px; font-size:12px;" onclick="shareLiveStream()">
+                    <i class="fa-brands fa-whatsapp"></i> शेअर
+                  </button>
+                </div>
+              </div>
+            `;
+            homeBanner.style.display = 'block';
+          }
+        } else {
+          window.activeLiveStreamInfo = null;
+          if (homeBanner) homeBanner.style.display = 'none';
+        }
+      });
+    }
+
+    function openLiveStreamPlayer() {
+      if (!window.activeLiveStreamInfo) return;
+      const modal = document.getElementById('modal-live-stream-player');
+      const container = document.getElementById('live-player-video-container');
+      const titleEl = document.getElementById('live-player-modal-title');
+      const infoTitleEl = document.getElementById('live-player-info-title');
+
+      const url = window.activeLiveStreamInfo.liveStreamUrl;
+      const title = window.activeLiveStreamInfo.liveStreamTitle || "मंडळ थेट प्रक्षेपण";
+
+      if (titleEl) titleEl.textContent = title;
+      if (infoTitleEl) infoTitleEl.textContent = title;
+
+      // Extract YouTube Embed URL
+      let embedHtml = '';
+      const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|live\/|watch\?.+&v=))([\w-]{11})/);
+      if (ytMatch && ytMatch[1]) {
+        embedHtml = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="border:none; width:100%; height:100%;"></iframe>`;
+      } else {
+        embedHtml = `<video src="${encodeURI(url)}" controls autoplay style="width:100%; height:100%; object-fit:contain;"></video>`;
+      }
+
+      container.innerHTML = embedHtml;
+      modal.classList.add('active');
+    }
+
+    function closeLiveStreamPlayer() {
+      const container = document.getElementById('live-player-video-container');
+      if (container) container.innerHTML = '';
+      closeModal('modal-live-stream-player');
+    }
+
+    function shareLiveStream() {
+      const title = window.activeLiveStreamInfo?.liveStreamTitle || "जय हिंद मंडळ थेट प्रक्षेपण";
+      const url = window.activeLiveStreamInfo?.liveStreamUrl || window.location.href;
+      const shareMsg = encodeURIComponent(`🔴 *जय हिंद मंडळ अर्जुनवाड - थेट प्रक्षेपण (Live Stream)*\n\n` +
+        `🚩 *${title}*\n\n` +
+        `लाईव्ह पाहण्यासाठी लिंक:\n${url}\n\nजय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड`);
+      window.open(`https://wa.me/?text=${shareMsg}`, '_blank');
+    }
+
+    async function adminStartLiveStream() {
+      const title = document.getElementById('admin-live-title').value.trim() || "मंडळ महाआरती थेट प्रक्षेपण";
+      const url = document.getElementById('admin-live-url').value.trim();
+
+      if (!url) {
+        alert("कृपया व्हिडिओ किंवा YouTube Live ची URL टाका.");
+        return;
+      }
+
+      try {
+        await db.collection("mandal_info").doc("mandal_default").set({
+          isLiveStreamActive: true,
+          liveStreamTitle: title,
+          liveStreamUrl: url,
+          liveStreamStartedAt: Date.now()
+        }, { merge: true });
+
+        const notifId = "notif_" + Date.now();
+        await db.collection("notifications").doc(notifId).set({
+          id: notifId,
+          title: `🔴 थेट प्रक्षेपण सुरू झाले आहे!`,
+          message: `${title} चे थेट प्रक्षेपण पाहण्यासाठी ॲप उघडा.`,
+          type: "LIVE_STREAM",
+          timestamp: Date.now()
+        });
+
+        alert("🔴 थेट प्रक्षेपण यशस्वीरित्या सुरू करण्यात आले आहे!");
+      } catch(e) {
+        alert("त्रुटी: " + e.message);
+      }
+    }
+
+    async function adminStopLiveStream() {
+      if (!confirm("थेट प्रक्षेपण बंद करायचे आहे का?")) return;
+      try {
+        await db.collection("mandal_info").doc("mandal_default").set({
+          isLiveStreamActive: false,
+          liveStreamStoppedAt: Date.now()
+        }, { merge: true });
+        alert("थेट प्रक्षेपण बंद करण्यात आले.");
+      } catch(e) {
+        alert("त्रुटी: " + e.message);
+      }
+    }
+
+    // ==========================================
+    // 21. FESTIVE OCCASION GREETINGS BANNER
+    // ==========================================
+    function setupFestiveOccasionBanner() {
+      const now = new Date();
+      const month = now.getMonth() + 1; // 1 to 12
+      const day = now.getDate();
+
+      const bannerTitle = document.getElementById("festive-title");
+      const bannerDesc = document.getElementById("festive-desc");
+      const bannerIcon = document.getElementById("festive-icon");
+      if (!bannerTitle || !bannerDesc) return;
+
+      if (month === 1 && day >= 13 && day <= 16) {
+        bannerTitle.innerHTML = "🌾 मकर संक्रांतीच्या हार्दिक शुभेच्छा!";
+        bannerDesc.innerHTML = "तिळगूळ घ्या, गोड गोड बोला • जय हिंद मंडळ, अर्जुनवाड";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-sun";
+      } else if (month === 2 && day >= 17 && day <= 20) {
+        bannerTitle.innerHTML = "🚩 शिवजयंतीच्या त्रिवार मानाचा मुजरा!";
+        bannerDesc.innerHTML = "छत्रपती शिवाजी महाराज की जय • जय हिंद मंडळ, अर्जुनवाड";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-flag";
+      } else if (month === 3 && day >= 25 && day <= 31) {
+        bannerTitle.innerHTML = "🌸 गुढीपाडव्याच्या हार्दिक शुभेच्छा!";
+        bannerDesc.innerHTML = "मराठी नववर्षाच्या सर्व सदस्यांना मनःपूर्वक शुभेच्छा";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-seedling";
+      } else if (month === 5 && day === 1) {
+        bannerTitle.innerHTML = "🇮🇳 महाराष्ट्र दिन व कामगार दिन";
+        bannerDesc.innerHTML = "जय जय महाराष्ट्र माझा, गर्जा महाराष्ट्र माझा • अर्जुनवाड";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-landmark";
+      } else if (month === 8 && day >= 14 && day <= 16) {
+        bannerTitle.innerHTML = "🇮🇳 भारतीय स्वातंत्र्य दिनाच्या शुभेच्छा!";
+        bannerDesc.innerHTML = "जय हिंद, जय भारत • जय हिंद मंडळ, अर्जुनवाड";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-flag";
+      } else if (month === 9 || (month === 8 && day >= 25)) {
+        bannerTitle.innerHTML = "🐘 श्री गणेशोत्सवाच्या हार्दिक शुभेच्छा!";
+        bannerDesc.innerHTML = "गणपती बाप्पा मोरया, मंगलमूर्ती मोरया • जय हिंद मंडळ, अर्जुनवाड";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-om";
+      } else if (month === 10) {
+        bannerTitle.innerHTML = "🏹 नवरात्र व विजयादशमीच्या शुभेच्छा!";
+        bannerDesc.innerHTML = "सोन्यासारख्या माणसांना सोन्यासारख्या दसऱ्याच्या शुभेच्छा";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-star";
+      } else if (month === 11) {
+        bannerTitle.innerHTML = "🪔 शुभ दीपावलीच्या मनःपूर्वक शुभेच्छा!";
+        bannerDesc.innerHTML = "आपल्या जीवनात सुख, समृद्धी आणि आरोग्य लाभो • अर्जुनवाड";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-fire-flame-curved";
+      } else {
+        bannerTitle.innerHTML = "🚩 जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ";
+        bannerDesc.innerHTML = "अर्जुनवाड • सर्व उपक्रम, सभासद व रक्तदाते एकाच ठिकाणी";
+        if (bannerIcon) bannerIcon.className = "fa-solid fa-om";
+      }
+    }
+
+    // ==========================================
+    // 22. MESSAGE FORWARDING
+    // ==========================================
+    let activeForwardText = '';
+    function openForwardModal(text) {
+      activeForwardText = text;
+      const preview = document.getElementById('forward-message-preview');
+      if (preview) preview.textContent = text;
+      const modal = document.getElementById('modal-forward-message');
+      if (modal) modal.classList.add('active');
+    }
+
+    async function confirmForwardToGroup() {
+      if (!currentUser || !activeForwardText) return;
+      const msgText = activeForwardText;
+      closeModal('modal-forward-message');
+      const msgId = "msg_" + Date.now();
+      try {
+        await db.collection("chat_messages").doc(msgId).set({
+          id: msgId,
+          conversationId: "conv_mandal_group",
+          senderId: currentUser.id,
+          senderName: currentUser.fullName || "सभासद",
+          senderPhoto: currentUser.profilePhotoUrl || "",
+          receiverId: "GROUP_MANDAL",
+          receiverName: "जय हिंद मंडळ",
+          messageText: "↪️ " + msgText,
+          timestamp: Date.now(),
+          isRead: false
+        });
+        alert("मेसेज ग्रुप चॅटमध्ये फॉरवर्ड करण्यात आला!");
+      } catch(e) {
+        alert("फॉरवर्ड करताना त्रुटी: " + e.message);
+      }
+    }
+
+    // ==========================================
+    // 23. USER PRESENCE HEARTBEAT
+    // ==========================================
+    function startPresenceHeartbeat() {
+      if (!db || !currentUser || !currentUser.id) return;
+      const updateOnline = () => {
+        try {
+          db.collection("users").doc(currentUser.id).set({
+            isOnline: true,
+            lastSeen: Date.now()
+          }, { merge: true });
+        } catch(e) {}
+      };
+      updateOnline();
+      setInterval(updateOnline, 120000);
     }
 
     function closeModal(modalId) {
