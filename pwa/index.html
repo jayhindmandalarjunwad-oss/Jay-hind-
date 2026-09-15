@@ -27,7 +27,6 @@
 
   <!-- Firebase v10 Compat CDN for robust, dependency-free web execution -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
@@ -1715,11 +1714,7 @@
           <span id="login-error-text">त्रुटी</span>
         </div>
 
-        <div style="margin-top: 14px; text-align: right; font-size: 13px;">
-          <a href="javascript:void(0)" style="color: var(--saffron-dark); font-weight: 600; text-decoration: none;" onclick="openForgotPasswordModal()">पासवर्ड विसरलात का? (Forgot Password)</a>
-        </div>
-
-        <div style="margin-top: 14px; text-align: center; font-size: 13px; color: var(--text-secondary);">
+        <div style="margin-top: 18px; text-align: center; font-size: 13px; color: var(--text-secondary);">
           नवीन सभासद आहात? <a href="javascript:void(0)" style="color: var(--saffron-dark); font-weight: 700; text-decoration: none;" onclick="setAuthMode('register')">येथे नवीन नोंदणी करा</a>
         </div>
       </div>
@@ -2593,54 +2588,7 @@
   </div>
 
 
-  <!-- Forgot Password Modal -->
-  <div id="modal-forgot-password" class="modal-backdrop">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 style="font-size:16px; font-weight:800; color:var(--navy-primary);"><i class="fa-solid fa-key"></i> पासवर्ड रीसेट विनंती</h3>
-        <button onclick="closeModal('modal-forgot-password')" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
-      </div>
-      <div style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
-        आपला नोंदणीकृत १० अंकी मोबाईल नंबर प्रविष्ट करा. मंडळाच्या ॲडमिनद्वारे आपले खाते पडताळून पासवर्ड रीसेट केला जाईल.
-      </div>
-      <div class="form-group">
-        <label>१० अंकी मोबाईल नंबर:</label>
-        <div class="input-with-prefix">
-          <span class="input-prefix">🇮🇳 +91</span>
-          <input type="tel" id="forgot-mobile-input" class="form-control" placeholder="उदा. 98XXXXXXXX" maxlength="10">
-        </div>
-      </div>
-      <button class="btn-main" id="btn-submit-forgot-pass" onclick="submitForgotPasswordRequest()">
-        <span>रीसेट विनंती पाठवा</span>
-        <i class="fa-solid fa-paper-plane"></i>
-      </button>
-      <div id="forgot-pass-alert" class="success-alert" style="display:none; margin-top:12px;">
-        <i class="fa-solid fa-circle-check"></i>
-        <span id="forgot-pass-msg">आपली विनंती ॲडमिनकडे पाठवण्यात आली आहे.</span>
-      </div>
-    </div>
-  </div>
 
-  <!-- Pending Approval Info Screen / Modal -->
-  <div id="modal-pending-approval" class="modal-backdrop">
-    <div class="modal-card" style="text-align:center;">
-      <div style="width:64px; height:64px; border-radius:50%; background:#FFF3E0; color:#E65100; display:flex; align-items:center; justify-content:center; font-size:32px; margin:0 auto 14px;">
-        <i class="fa-solid fa-hourglass-half"></i>
-      </div>
-      <h3 style="font-size:18px; font-weight:800; color:var(--navy-primary); margin-bottom:6px;">नोंदणी मंजुरी प्रलंबित आहे</h3>
-      <p style="font-size:12px; color:var(--saffron-dark); font-weight:700; margin-bottom:12px;">Pending Admin Approval</p>
-      <div style="background:#F5F5F5; border-radius:10px; padding:12px; font-size:13px; color:#444; text-align:left; margin-bottom:16px; line-height:1.6;">
-        🚩 <b>जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड</b><br>
-        आपला सभासद नोंदणी अर्ज मंडळाच्या कार्यकारिणीकडे मंजुरीसाठी पाठवण्यात आला आहे. सुरक्षेच्या कारणास्तव पडताळणी पूर्ण झाल्यावर आपले खाते सक्रिय केले जाईल.
-      </div>
-      <button class="btn-main" style="margin-bottom:8px;" onclick="checkPendingApprovalStatus()">
-        <i class="fa-solid fa-rotate"></i> स्थिती तपासा (Check Status)
-      </button>
-      <button class="btn-main" style="background:#607D8B;" onclick="closePendingApprovalModal()">
-        <i class="fa-solid fa-arrow-left"></i> लॉगिन पानावर परत जा
-      </button>
-    </div>
-  </div>
 
   <!-- ========================================== -->
   <!-- 4. JAVASCRIPT: FIREBASE & CORE CONTROLLER  -->
@@ -2657,17 +2605,14 @@
     };
 
     let db;
-    let auth;
     let storage;
     try {
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
       db = firebase.firestore();
-      auth = firebase.auth();
       storage = firebase.storage();
-      auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => console.warn("Auth persistence:", e));
-      console.log("Firebase initialized successfully with Auth, Firestore & Storage");
+      console.log("Firebase initialized successfully with Firestore & Storage");
     } catch(e) {
       console.error("Firebase init error", e);
     }
@@ -2710,12 +2655,6 @@
       }
     }
 
-    // Helper: Map 10-digit clean mobile number to canonical Firebase Auth email
-    function mobileToAuthEmail(mobile) {
-      const clean = mobile.replace(/\D/g, '').slice(-10);
-      return clean + '@jayhindmandal.org';
-    }
-
     // Helper: Firebase Storage Uploader with graceful fallback
     async function uploadMediaToStorage(path, dataUrl, fallback = null) {
       if (!storage) return fallback || dataUrl;
@@ -2730,7 +2669,7 @@
       }
     }
 
-    // On Initial Load & Firebase Auth State Listener
+    // On Initial Load
     window.addEventListener('DOMContentLoaded', () => {
       // Fast paint from localStorage cache if available
       const saved = localStorage.getItem("mandal_user");
@@ -2746,62 +2685,6 @@
         showAppInterface();
       } else {
         showAuthScreen();
-      }
-
-      // Live Firebase Authentication State (Single source of truth)
-      if (auth) {
-        auth.onAuthStateChanged(async (authUser) => {
-          if (authUser) {
-            try {
-              // Fetch user profile from Firestore
-              let userSnap = await db.collection("users").doc(authUser.uid).get();
-              let userData = null;
-              if (userSnap.exists) {
-                userData = { id: userSnap.id, ...userSnap.data() };
-              } else {
-                let snap = await db.collection("users").where("authUid", "==", authUser.uid).get();
-                if (!snap.empty) {
-                  userData = { id: snap.docs[0].id, ...snap.docs[0].data() };
-                } else if (authUser.email) {
-                  const clean = authUser.email.split('@')[0];
-                  let mSnap = await db.collection("users").where("mobileNumber", "==", clean).get();
-                  if (!mSnap.empty) {
-                    userData = { id: mSnap.docs[0].id, ...mSnap.docs[0].data() };
-                  }
-                }
-              }
-
-              if (userData) {
-                delete userData.password;
-                if (userData.status === "PENDING_APPROVAL") {
-                  openPendingApprovalModal();
-                  return;
-                }
-                if (userData.status === "REJECTED" || userData.status === "BLOCKED") {
-                  await auth.signOut();
-                  currentUser = null;
-                  localStorage.removeItem("mandal_user");
-                  showAuthScreen();
-                  return;
-                }
-
-                currentUser = userData;
-                localStorage.setItem("mandal_user", JSON.stringify(currentUser));
-                showAppInterface();
-              }
-            } catch(err) {
-              console.warn("Auth state profile fetch error:", err);
-            }
-          } else {
-            // Logged out
-            if (currentUser) {
-              unsubscribeAllListeners();
-              currentUser = null;
-              localStorage.removeItem("mandal_user");
-              showAuthScreen();
-            }
-          }
-        });
       }
     });
 
@@ -2911,94 +2794,7 @@
       document.getElementById('reg-photo-url').value = el.src;
     }
 
-    // Forgot Password & Pending Approval Handlers
-    function openForgotPasswordModal() {
-      const mob = document.getElementById('login-mobile').value.trim();
-      if (mob) document.getElementById('forgot-mobile-input').value = mob;
-      document.getElementById('forgot-pass-alert').style.display = 'none';
-      document.getElementById('modal-forgot-password').classList.add('active');
-    }
-
-    async function submitForgotPasswordRequest() {
-      const mob = document.getElementById('forgot-mobile-input').value.trim();
-      const cleanMobile = mob.replace(/\D/g, '').slice(-10);
-      const btn = document.getElementById('btn-submit-forgot-pass');
-      const alertBox = document.getElementById('forgot-pass-alert');
-      const alertMsg = document.getElementById('forgot-pass-msg');
-
-      if (cleanMobile.length < 10) {
-        alert("कृपया वैध १० अंकी मोबाईल नंबर टाका.");
-        return;
-      }
-
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> विनंती पाठवत आहे...';
-
-      try {
-        const notifId = "reset_req_" + Date.now();
-        await db.collection("notifications").doc(notifId).set({
-          id: notifId,
-          title: "🔑 पासवर्ड रीसेट विनंती",
-          message: `सभासद मोबाईल क्र. ${cleanMobile} यांनी पासवर्ड रीसेट करण्याची विनंती केली आहे. कृपया पडताळणी करून मदत करा.`,
-          type: "ADMIN",
-          targetUserId: "ADMIN",
-          mobileNumber: cleanMobile,
-          timestamp: Date.now()
-        });
-
-        alertMsg.textContent = "आपली पासवर्ड रीसेट विनंती मंडळाच्या ॲडमिनकडे पाठवली आहे. लवकरच संपर्क केला जाईल. 🚩";
-        alertBox.style.display = 'flex';
-        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> विनंती पाठवली!';
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.innerHTML = '<span>रीसेट विनंती पाठवा</span> <i class="fa-solid fa-paper-plane"></i>';
-          closeModal('modal-forgot-password');
-        }, 2500);
-      } catch(e) {
-        btn.disabled = false;
-        btn.innerHTML = '<span>रीसेट विनंती पाठवा</span> <i class="fa-solid fa-paper-plane"></i>';
-        alert("त्रुटी: " + e.message);
-      }
-    }
-
-    function openPendingApprovalModal() {
-      document.getElementById('modal-pending-approval').classList.add('active');
-    }
-
-    function closePendingApprovalModal() {
-      document.getElementById('modal-pending-approval').classList.remove('active');
-      setAuthMode('login');
-    }
-
-    async function checkPendingApprovalStatus() {
-      const mobInput = document.getElementById('login-mobile').value.trim() || (currentUser && currentUser.mobileNumber) || '';
-      const cleanMobile = mobInput.replace(/\D/g, '').slice(-10);
-      if (!cleanMobile) {
-        alert("कृपया लॉगिन बॉक्समध्ये आपला मोबाईल नंबर टाका.");
-        closePendingApprovalModal();
-        return;
-      }
-      try {
-        const snap = await db.collection("users").where("mobileNumber", "==", cleanMobile).get();
-        if (snap.empty) {
-          alert("नोंदणी सापडली नाही. कृपया नवीन नोंदणी करा.");
-          return;
-        }
-        const st = snap.docs[0].data().status;
-        if (st === 'APPROVED') {
-          alert("अभिनंदन! आपले खाते मंजूर झाले आहे. कृपया आता पासवर्ड टाकून लॉगिन करा. 🚩");
-          closePendingApprovalModal();
-        } else if (st === 'REJECTED') {
-          alert("आपले खाते नामंजूर करण्यात आले आहे. मंडळाशी संपर्क साधा.");
-        } else {
-          alert("आपले खाते अजूनही मंजुरीच्या प्रतीक्षेत आहे (Pending Approval). मंडळ लवकरच मंजुरी देईल. ⏳");
-        }
-      } catch(e) {
-        alert("तपासताना त्रुटी: " + e.message);
-      }
-    }
-
-    // 5. Submit Login (Uses Firebase Authentication + Secure Migration)
+    // 5. Submit Login (Direct Firestore matching MandalRepository)
     async function submitLogin() {
       const mobileRaw = document.getElementById('login-mobile').value.trim();
       const password = document.getElementById('login-password').value.trim();
@@ -3020,88 +2816,42 @@
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> लॉगिन होत आहे...';
 
-      const authEmail = mobileToAuthEmail(cleanMobile);
-
       try {
-        let authResult = null;
-        try {
-          authResult = await auth.signInWithEmailAndPassword(authEmail, password);
-        } catch(authErr) {
-          // Check for legacy Firestore user migration
-          if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/wrong-password') {
-            let legacySnap = await db.collection("users").where("mobileNumber", "==", cleanMobile).get();
-            if (legacySnap.empty && mobileRaw !== cleanMobile) {
-              legacySnap = await db.collection("users").where("mobileNumber", "==", mobileRaw).get();
-            }
-
-            if (!legacySnap.empty) {
-              const legacyDoc = legacySnap.docs[0];
-              const legacyData = legacyDoc.data();
-              // Check if legacy password matched
-              if (legacyData.password && legacyData.password === password) {
-                // Migrate to Firebase Auth securely
-                try {
-                  authResult = await auth.createUserWithEmailAndPassword(authEmail, password);
-                  // Remove plaintext password from Firestore
-                  await db.collection("users").doc(legacyDoc.id).set({
-                    password: firebase.firestore.FieldValue.delete(),
-                    authUid: authResult.user.uid
-                  }, { merge: true });
-                } catch(migErr) {
-                  if (migErr.code === 'auth/email-already-in-use') {
-                    throw authErr;
-                  }
-                  throw migErr;
-                }
-              } else {
-                throw authErr;
-              }
-            } else {
-              throw authErr;
-            }
-          } else {
-            throw authErr;
-          }
+        let snap = await db.collection("users").where("mobileNumber", "==", cleanMobile).get();
+        if (snap.empty && mobileRaw !== cleanMobile) {
+          snap = await db.collection("users").where("mobileNumber", "==", mobileRaw).get();
         }
 
-        const authUser = authResult.user;
-
-        // Fetch User profile from Firestore
-        let userDocSnap = await db.collection("users").doc(authUser.uid).get();
-        let user = null;
-        if (userDocSnap.exists) {
-          user = { id: userDocSnap.id, ...userDocSnap.data() };
-        } else {
-          // Check by authUid or mobileNumber
-          let snap = await db.collection("users").where("authUid", "==", authUser.uid).get();
-          if (snap.empty) {
-            snap = await db.collection("users").where("mobileNumber", "==", cleanMobile).get();
-          }
-          if (!snap.empty) {
-            user = { id: snap.docs[0].id, ...snap.docs[0].data() };
-            await db.collection("users").doc(user.id).set({
-              authUid: authUser.uid,
-              password: firebase.firestore.FieldValue.delete()
-            }, { merge: true });
-          }
-        }
-
-        if (!user) {
-          errText.textContent = "वापरकर्ता प्रोफाईल सापडले नाही. कृपया ॲडमिनशी संपर्क साधा.";
+        if (snap.empty) {
+          errText.textContent = "हा मोबाईल नंबर नोंदणीकृत नाही. कृपया प्रथम नोंदणी करा.";
           errBox.style.display = 'flex';
           btn.disabled = false;
           btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
-          await auth.signOut();
           return;
         }
 
-        delete user.password;
+        let user = null;
+        snap.forEach(doc => {
+          const d = doc.data();
+          if (d.password === password) {
+            user = { id: doc.id, ...d };
+          }
+        });
+
+        if (!user) {
+          errText.textContent = "पासवर्ड चुकीचा आहे. कृपया पुन्हा तपासा.";
+          errBox.style.display = 'flex';
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          return;
+        }
 
         // Account Status Checks (PENDING_APPROVAL, BLOCKED, REJECTED)
         if (user.status === "PENDING_APPROVAL") {
+          errText.textContent = "आपले खाते मंजुरीच्या प्रतीक्षेत आहे (Pending Approval). मंडळाच्या ॲडमिनने मंजुरी दिल्यावर आपण लॉगिन करू शकाल.";
+          errBox.style.display = 'flex';
           btn.disabled = false;
           btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
-          openPendingApprovalModal();
           return;
         }
 
@@ -3110,7 +2860,6 @@
           errBox.style.display = 'flex';
           btn.disabled = false;
           btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
-          await auth.signOut();
           return;
         }
 
@@ -3119,14 +2868,13 @@
           errBox.style.display = 'flex';
           btn.disabled = false;
           btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
-          await auth.signOut();
           return;
         }
 
         // Login Success!
         currentUser = user;
         localStorage.setItem("mandal_user", JSON.stringify(user));
-        
+
         // Update Firestore last seen & online
         try {
           db.collection("users").doc(user.id).set({
@@ -3144,24 +2892,14 @@
 
       } catch(err) {
         console.error("Login exception:", err);
-        let msg = "मोबाईल नंबर किंवा पासवर्ड चुकीचा आहे.";
-        if (err.code === 'auth/user-not-found') {
-          msg = "हा मोबाईल नंबर नोंदणीकृत नाही. कृपया प्रथम नोंदणी करा.";
-        } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-          msg = "पासवर्ड चुकीचा आहे. कृपया पुन्हा तपासा.";
-        } else if (err.code === 'auth/too-many-requests') {
-          msg = "खूप चुकीचे प्रयत्न झाले आहेत. कृपया थोड्या वेळाने प्रयत्न करा.";
-        } else if (err.code === 'auth/network-request-failed') {
-          msg = "इंटरनेट कनेक्शन तपासा.";
-        }
-        errText.textContent = msg;
+        errText.textContent = "सर्व्हर एरर: " + (err.message || "संपर्क अयशस्वी.");
         errBox.style.display = 'flex';
         btn.disabled = false;
         btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
       }
     }
 
-    // 6. Submit Registration (Firebase Authentication + Firestore Document, NO plaintext password)
+    // 6. Submit Registration (Matches MandalRepository registerMember)
     async function submitRegister() {
       const fullName = document.getElementById('reg-fullname').value.trim();
       const mobileRaw = document.getElementById('reg-mobile').value.trim();
@@ -3196,8 +2934,8 @@
         return;
       }
 
-      if (password.length < 6) {
-        errText.textContent = "सुरक्षिततेसाठी पासवर्ड किमान ६ अक्षरांचा असावा.";
+      if (password.length < 4) {
+        errText.textContent = "पासवर्ड किमान ४ अक्षरांचा असावा.";
         errBox.style.display = 'flex';
         return;
       }
@@ -3216,31 +2954,12 @@
           return;
         }
 
-        const authEmail = mobileToAuthEmail(cleanMobile);
-        let userCred;
-        try {
-          userCred = await auth.createUserWithEmailAndPassword(authEmail, password);
-        } catch(authErr) {
-          if (authErr.code === 'auth/email-already-in-use') {
-            errText.textContent = "हा मोबाईल नंबर आधीच नोंदणीकृत आहे. कृपया लॉगिन करा.";
-          } else if (authErr.code === 'auth/weak-password') {
-            errText.textContent = "पासवर्ड खूप सोपा आहे. कृपया किमान ६ अक्षरांचा पासवर्ड टाका.";
-          } else {
-            errText.textContent = "नोंदणी प्रमाणीकरण त्रुटी: " + authErr.message;
-          }
-          errBox.style.display = 'flex';
-          btn.disabled = false;
-          btn.innerHTML = '<span>नोंदणी अर्ज सादर करा</span> <i class="fa-solid fa-paper-plane"></i>';
-          return;
-        }
-
-        const newUserId = userCred.user.uid;
+        const newUserId = "user_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
         const newUserDoc = {
           id: newUserId,
-          authUid: newUserId,
           fullName: fullName,
           mobileNumber: cleanMobile,
-          email: authEmail,
+          password: password,
           profilePhotoUrl: photoUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80",
           gender: gender,
           bloodGroup: bloodGroup,
@@ -3252,16 +2971,8 @@
           createdAt: Date.now()
         };
 
-        // Write to Firestore (NO password stored in database!)
+        // Write to Firestore
         await db.collection("users").doc(newUserId).set(newUserDoc);
-
-        // Update profile in Firebase Auth
-        try {
-          await userCred.user.updateProfile({
-            displayName: fullName,
-            photoURL: newUserDoc.profilePhotoUrl
-          });
-        } catch(e) {}
 
         // Notify Admin
         const notifId = "notif_" + Date.now();
@@ -3276,11 +2987,6 @@
           timestamp: Date.now()
         });
 
-        // Sign out immediately so pending user cannot access application until approved
-        await auth.signOut();
-        currentUser = null;
-        localStorage.removeItem("mandal_user");
-
         successText.textContent = "नोंदणी यशस्वी झाली! आपले खाते 'Pending Approval' मध्ये आहे. मंडळाच्या ॲडमिन मंजुरीनंतर आपण लॉगिन करू शकाल. 🚩";
         successBox.style.display = 'flex';
         btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> अर्ज सादर झाला!';
@@ -3290,8 +2996,7 @@
           document.getElementById('login-mobile').value = cleanMobile;
           btn.disabled = false;
           btn.innerHTML = '<span>नोंदणी अर्ज सादर करा</span> <i class="fa-solid fa-paper-plane"></i>';
-          openPendingApprovalModal();
-        }, 1800);
+        }, 2200);
 
       } catch(err) {
         console.error("Register error:", err);
@@ -4211,10 +3916,6 @@
           profilePhotoUrl: downloadUrl
         }, { merge: true });
 
-        if (auth && auth.currentUser) {
-          auth.currentUser.updateProfile({ photoURL: downloadUrl }).catch(() => {});
-        }
-
         updateCurrentUserUI();
         generateDigitalIdCard();
         alert("आपला प्रोफाईल फोटो यशस्वीरित्या बदलला आहे! 🚩");
@@ -4657,34 +4358,22 @@
       }
     }
 
-    // 16. Logout & Secure Password Change
+    // 16. Logout & Password Change
     async function updatePassword() {
       if (!currentUser) return;
       const newPass = document.getElementById('change-pass-input').value.trim();
-      if (newPass.length < 6) {
-        alert("सुरक्षिततेसाठी नवीन पासवर्ड किमान ६ अक्षरांचा असावा.");
-        return;
-      }
-      const authUser = auth ? auth.currentUser : null;
-      if (!authUser) {
-        alert("सत्र समाप्त झाले आहे. कृपया पुन्हा लॉगिन करा.");
+      if (newPass.length < 4) {
+        alert("नवीन पासवर्ड किमान ४ अक्षरांचा असावा.");
         return;
       }
       try {
-        await authUser.updatePassword(newPass);
-        // Ensure no plaintext password in Firestore
-        await db.collection("users").doc(currentUser.id).set({
-          password: firebase.firestore.FieldValue.delete()
-        }, { merge: true }).catch(() => {});
+        await db.collection("users").doc(currentUser.id).set({ password: newPass }, { merge: true });
+        currentUser.password = newPass;
+        localStorage.setItem("mandal_user", JSON.stringify(currentUser));
         document.getElementById('change-pass-input').value = '';
-        alert("पासवर्ड सुरक्षितपणे बदलण्यात आला आहे! 🔒🚩");
+        alert("पासवर्ड यशस्वीरित्या बदलला आहे! 🚩");
       } catch(e) {
-        console.error("Change pass err:", e);
-        if (e.code === 'auth/requires-recent-login') {
-          alert("सुरक्षेसाठी कृपया एकदा लॉगआऊट करून पुन्हा लॉगिन करा आणि मग पासवर्ड बदला.");
-        } else {
-          alert("पासवर्ड बदलताना त्रुटी: " + (e.message || "अयशस्वी"));
-        }
+        alert("पासवर्ड बदलताना त्रुटी: " + e.message);
       }
     }
 
@@ -4695,7 +4384,6 @@
             await db.collection("users").doc(currentUser.id).set({ isOnline: false, lastSeen: Date.now() }, { merge: true });
           }
           unsubscribeAllListeners();
-          if (auth) await auth.signOut();
         } catch(e) {
           console.warn("Logout error:", e);
         }
