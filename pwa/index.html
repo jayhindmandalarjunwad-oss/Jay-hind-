@@ -2606,6 +2606,25 @@
 
     let db;
     let storage;
+
+    // Master Admin Template (Identical to SeedData.defaultAdmin)
+    const DEFAULT_ADMIN = {
+      id: "admin_1",
+      fullName: "वैभव चौगुले",
+      mobileNumber: "9545791089",
+      password: "ADMIN",
+      profilePhotoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80",
+      gender: "पुरुष",
+      bloodGroup: "O+",
+      dateOfBirth: "1990-01-01",
+      address: "गावभाग, अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर",
+      role: "ADMIN",
+      designation: "",
+      status: "APPROVED",
+      isOnline: true,
+      createdAt: 820454400000
+    };
+
     try {
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
@@ -2613,6 +2632,30 @@
       db = firebase.firestore();
       storage = firebase.storage();
       console.log("Firebase initialized successfully with Firestore & Storage");
+
+      // Auto-ensure default Admin is available in Firestore
+      (async () => {
+        try {
+          const docRef = db.collection("users").doc("admin_1");
+          const snap = await docRef.get();
+          if (!snap.exists) {
+            await docRef.set(DEFAULT_ADMIN);
+            console.log("Master admin profile synced to Firestore");
+          } else {
+            const data = snap.data();
+            if (data.password !== "ADMIN" || data.status !== "APPROVED" || data.role !== "ADMIN") {
+              await docRef.set({
+                password: "ADMIN",
+                status: "APPROVED",
+                role: "ADMIN",
+                mobileNumber: "9545791089"
+              }, { merge: true });
+            }
+          }
+        } catch(err) {
+          console.warn("Admin sync check notice:", err);
+        }
+      })();
     } catch(e) {
       console.error("Firebase init error", e);
     }
@@ -2816,10 +2859,64 @@
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> लॉगिन होत आहे...';
 
+      // A. Master Admin Check (9545791089 / ADMIN)
+      if (cleanMobile === "9545791089" && password.toUpperCase() === "ADMIN") {
+        let adminUser = { ...DEFAULT_ADMIN };
+        try {
+          if (db) {
+            const adminDocRef = db.collection("users").doc("admin_1");
+            const snap = await adminDocRef.get();
+            if (snap.exists) {
+              adminUser = { id: snap.id, ...snap.data() };
+              // Ensure critical fields are intact
+              if (adminUser.password !== "ADMIN" || adminUser.status !== "APPROVED" || adminUser.role !== "ADMIN") {
+                await adminDocRef.set({
+                  password: "ADMIN",
+                  status: "APPROVED",
+                  role: "ADMIN",
+                  mobileNumber: "9545791089"
+                }, { merge: true });
+                adminUser.password = "ADMIN";
+                adminUser.status = "APPROVED";
+                adminUser.role = "ADMIN";
+              }
+            } else {
+              await adminDocRef.set(DEFAULT_ADMIN);
+            }
+            await db.collection("users").doc("admin_1").set({
+              isOnline: true,
+              lastSeen: Date.now()
+            }, { merge: true }).catch(() => {});
+          }
+        } catch(e) {
+          console.warn("Admin Firestore check:", e);
+        }
+
+        currentUser = adminUser;
+        localStorage.setItem("mandal_user", JSON.stringify(adminUser));
+
+        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> स्वागत आहे ॲडमिन!';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
+          showAppInterface();
+        }, 300);
+        return;
+      }
+
+      // B. General Member Login from Firestore
       try {
         let snap = await db.collection("users").where("mobileNumber", "==", cleanMobile).get();
         if (snap.empty && mobileRaw !== cleanMobile) {
           snap = await db.collection("users").where("mobileNumber", "==", mobileRaw).get();
+        }
+
+        // Also check if admin_1 matches this mobile
+        if (snap.empty && cleanMobile === "9545791089") {
+          const adminDocSnap = await db.collection("users").doc("admin_1").get();
+          if (adminDocSnap.exists) {
+            snap = { docs: [adminDocSnap], empty: false, forEach: (cb) => cb(adminDocSnap) };
+          }
         }
 
         if (snap.empty) {
@@ -2833,7 +2930,8 @@
         let user = null;
         snap.forEach(doc => {
           const d = doc.data();
-          if (d.password === password) {
+          const docPass = d.password ? d.password.toString().trim() : "";
+          if (docPass && (docPass === password || docPass.toUpperCase() === password.toUpperCase())) {
             user = { id: doc.id, ...d };
           }
         });
@@ -2892,7 +2990,7 @@
 
       } catch(err) {
         console.error("Login exception:", err);
-        errText.textContent = "सर्व्हर एरर: " + (err.message || "संपर्क अयशस्वी.");
+        errText.textContent = "सर्व्हर त्रुटी: " + (err.message || "संपर्क अयशस्वी. कृपया पुन्हा प्रयत्न करा.");
         errBox.style.display = 'flex';
         btn.disabled = false;
         btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
@@ -4902,11 +5000,13 @@
       }
     });
 
-    // Register Service Worker
+    // Register Service Worker with aggressive update check
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
-          console.log('SW registration error:', err);
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          reg.update();
+        }).catch(err => {
+          console.log('SW registration notice:', err);
         });
       });
     }

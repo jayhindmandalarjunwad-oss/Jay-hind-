@@ -1,5 +1,5 @@
 // PWA Service Worker for Jay Hind Mandal
-const CACHE_NAME = 'jayhind-mandal-v8';
+const CACHE_NAME = 'jayhind-mandal-v9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -49,6 +49,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-First for HTML/Navigation to prevent stale login or app scripts
+  if (event.request.mode === 'navigate' || url.endsWith('index.html') || url.endsWith('/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Cache-First for static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       return cachedResponse || fetch(event.request).catch(() => caches.match('./index.html'));
