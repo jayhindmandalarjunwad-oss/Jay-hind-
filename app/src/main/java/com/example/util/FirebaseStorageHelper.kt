@@ -35,6 +35,9 @@ object FirebaseStorageHelper {
     private const val TAG = "FirebaseStorageHelper"
     private const val STORAGE_BUCKET_URL = "gs://jayhindmandal112.firebasestorage.app"
 
+    @Volatile
+    private var isStorageBucketAvailable: Boolean? = null
+
     val storage: FirebaseStorage by lazy {
         try {
             val fbStorage = FirebaseStorage.getInstance(STORAGE_BUCKET_URL)
@@ -158,6 +161,14 @@ object FirebaseStorageHelper {
                 return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
             }
 
+            if (isStorageBucketAvailable == false) {
+                if (webpBytes.isNotEmpty()) {
+                    val b64 = Base64.encodeToString(webpBytes, Base64.NO_WRAP)
+                    return@withContext "data:image/webp;base64,$b64"
+                }
+                return@withContext MediaUtils.uriToBase64(context, uri) ?: uri.toString()
+            }
+
             val fileName = if (!customFileName.isNullOrBlank()) {
                 if (customFileName.endsWith(".webp", ignoreCase = true)) customFileName else "$customFileName.webp"
             } else {
@@ -188,9 +199,13 @@ object FirebaseStorageHelper {
 
             uploadTask.await()
             val downloadUrl = ref.downloadUrl.await().toString()
+            isStorageBucketAvailable = true
             Log.d(TAG, "Image uploaded successfully: $downloadUrl (Size: ${webpBytes.size / 1024} KB)")
             return@withContext downloadUrl
         } catch (t: Throwable) {
+            if (t.message?.contains("Object does not exist") == true || t.message?.contains("404") == true) {
+                isStorageBucketAvailable = false
+            }
             Log.w(TAG, "Firebase Storage upload failed or offline (${t.message}), falling back to compact WebP base64")
             if (webpBytes.isNotEmpty()) {
                 // Direct Base64 conversion of already-compressed WebP bytes:
@@ -219,6 +234,10 @@ object FirebaseStorageHelper {
                 return@withContext ""
             }
 
+            if (isStorageBucketAvailable == false) {
+                return@withContext AudioRecorderHelper.fileToBase64(audioFile)
+            }
+
             val fileName = if (!customFileName.isNullOrBlank()) {
                 if (customFileName.endsWith(".m4a", ignoreCase = true)) customFileName else "$customFileName.m4a"
             } else {
@@ -244,9 +263,13 @@ object FirebaseStorageHelper {
 
             uploadTask.await()
             val downloadUrl = ref.downloadUrl.await().toString()
+            isStorageBucketAvailable = true
             Log.d(TAG, "Audio uploaded successfully: $downloadUrl ($fileName)")
             return@withContext downloadUrl
         } catch (e: Exception) {
+            if (e.message?.contains("Object does not exist") == true || e.message?.contains("404") == true) {
+                isStorageBucketAvailable = false
+            }
             Log.w(TAG, "Audio upload failed, fallback to base64: ${e.message}")
             return@withContext AudioRecorderHelper.fileToBase64(audioFile)
         }
@@ -444,6 +467,34 @@ object FirebaseStorageHelper {
             throw IllegalStateException("कागदपत्राचा आकार १० MB पेक्षा कमी असावा (Max 10MB allowed).")
         }
 
+        if (isStorageBucketAvailable == false) {
+            // Fallback directly to persistent storage / base64 without calling Firebase Storage
+            val docDir = File(context.filesDir, "jayhind_docs").apply { if (!exists()) mkdirs() }
+            val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)
+            val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val cleanName = fileName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+            val standardizedDocName = if (cleanName.startsWith("JayHind_Doc_")) cleanName else "JayHind_Doc_${cleanSender}_${dateStr}_$cleanName"
+            val localDoc = File(docDir, standardizedDocName)
+            var rawBytes: ByteArray? = null
+            try {
+                context.contentResolver.openInputStream(uri)?.use { inStream ->
+                    rawBytes = inStream.readBytes()
+                    FileOutputStream(localDoc).use { outStream ->
+                        outStream.write(rawBytes ?: byteArrayOf())
+                    }
+                }
+            } catch (_: Exception) {}
+            val sizeLabel = formatFileSize(fileSize)
+
+            val bytes = rawBytes
+            if (bytes != null && bytes.isNotEmpty() && bytes.size <= 800 * 1024) {
+                val mime = context.contentResolver.getType(uri) ?: "application/pdf"
+                val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                return@withContext Pair("data:$mime;base64,$b64", sizeLabel)
+            }
+            return@withContext Pair(Uri.fromFile(localDoc).toString(), sizeLabel)
+        }
+
         try {
             val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)
             val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
@@ -472,6 +523,9 @@ object FirebaseStorageHelper {
             Log.d(TAG, "Document uploaded successfully: $docUrl ($sizeLabel, $standardizedDocName)")
             return@withContext Pair(docUrl, sizeLabel)
         } catch (e: Exception) {
+            if (e.message?.contains("Object does not exist") == true || e.message?.contains("404") == true) {
+                isStorageBucketAvailable = false
+            }
             Log.w(TAG, "Document cloud upload note (${e.message}). Falling back to persistent storage.")
             val docDir = File(context.filesDir, "jayhind_docs").apply { if (!exists()) mkdirs() }
             val cleanSender = (senderName ?: "Member").replace(Regex("[^a-zA-Z0-9_]"), "_").take(15)

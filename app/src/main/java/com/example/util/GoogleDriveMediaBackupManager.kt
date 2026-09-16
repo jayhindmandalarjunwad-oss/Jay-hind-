@@ -2,7 +2,10 @@ package com.example.util
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
@@ -12,9 +15,11 @@ import com.example.data.local.PhotoEntity
 import com.example.data.local.PostEntity
 import com.example.data.local.BannerEntity
 import com.example.data.local.EventEntity
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.tasks.await
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -27,6 +32,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -704,9 +710,15 @@ object GoogleDriveMediaBackupManager {
                 val respBody = response.body?.string() ?: ""
                 Log.d(TAG, "Script upload response: $respBody")
                 try {
+                    // Check if response is HTML error page from Google instead of JSON
+                    val trimmed = respBody.trim()
+                    if (trimmed.startsWith("<") || trimmed.contains("<html", ignoreCase = true) || trimmed.contains("<!DOCTYPE", ignoreCase = true)) {
+                        Log.w(TAG, "Google Apps Script returned HTML auth/error page. Ensure deployment is set to 'Who has access: Anyone'.")
+                        return@withContext null
+                    }
                     val jsonObj = JSONObject(respBody)
                     val status = jsonObj.optString("status")
-                    if (status.equals("success", ignoreCase = true) || jsonObj.has("fileUrl")) {
+                    if (status.equals("success", ignoreCase = true) || jsonObj.has("fileUrl") || jsonObj.has("fileId")) {
                         val fileUrl = jsonObj.optString("fileUrl")
                         val downloadUrl = jsonObj.optString("downloadUrl")
                         val fileId = jsonObj.optString("fileId")
@@ -714,16 +726,16 @@ object GoogleDriveMediaBackupManager {
                         // Return a direct stream-friendly URL if fileId is present
                         if (fileId.isNotBlank()) {
                             return@withContext "https://drive.google.com/uc?export=view&id=$fileId"
-                        } else if (fileUrl.isNotBlank()) {
+                        } else if (fileUrl.isNotBlank() && !fileUrl.startsWith("<")) {
                             return@withContext fileUrl
-                        } else if (downloadUrl.isNotBlank()) {
+                        } else if (downloadUrl.isNotBlank() && !downloadUrl.startsWith("<")) {
                             return@withContext downloadUrl
                         }
                     }
                 } catch (e: Exception) {
-                    // Check if response is raw text containing drive link
-                    if (respBody.contains("drive.google.com")) {
-                        return@withContext respBody.trim()
+                    val cleanText = respBody.trim()
+                    if (!cleanText.startsWith("<") && cleanText.startsWith("https://drive.google.com/")) {
+                        return@withContext cleanText
                     }
                 }
             }
@@ -735,6 +747,141 @@ object GoogleDriveMediaBackupManager {
     }
 
     /**
+     * Compresses bytes into an ultra-compact WebP thumbnail (~12-18 KB)
+     * for saving in Firestore when Web App Drive upload is unreachable.
+     * Prevents calling Firebase Storage (which causes 404 StorageException when bucket is not provisioned)
+     * while reducing original 2-3MB images down by 99% in Firestore.
+     */
+    private fun compressBytesToTinyWebp(bytes: ByteArray, maxDimension: Int = 480, quality: Int = 55): ByteArray {
+        return try {
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            val srcWidth = options.outWidth
+            val srcHeight = options.outHeight
+            if (srcWidth <= 0 || srcHeight <= 0) return bytes
+
+            var inSampleSize = 1
+            while (srcWidth / inSampleSize > maxDimension || srcHeight / inSampleSize > maxDimension) {
+                inSampleSize *= 2
+            }
+            val decodeOptions = BitmapFactory.Options().apply {
+                this.inSampleSize = inSampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return bytes
+            val scaledBitmap = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
+                val ratio = minOf(maxDimension.toFloat() / bitmap.width, maxDimension.toFloat() / bitmap.height)
+                val w = (bitmap.width * ratio).toInt().coerceAtLeast(1)
+                val h = (bitmap.height * ratio).toInt().coerceAtLeast(1)
+                Bitmap.createScaledBitmap(bitmap, w, h, true)
+            } else bitmap
+
+            val out = ByteArrayOutputStream()
+            val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Bitmap.CompressFormat.WEBP_LOSSY
+            } else {
+                @Suppress("DEPRECATION")
+                Bitmap.CompressFormat.WEBP
+            }
+            scaledBitmap.compress(format, quality, out)
+            if (scaledBitmap != bitmap) scaledBitmap.recycle()
+            bitmap.recycle()
+            val result = out.toByteArray()
+            if (result.isNotEmpty() && result.size < bytes.size) result else bytes
+        } catch (e: Exception) {
+            Log.w(TAG, "WebP tiny compression skipped: ${e.message}")
+            bytes
+        }
+    }
+
+    /**
+     * Uploads media to Google Drive SAF folder and/or Google Apps Script Web App.
+     * - Always saves original quality file to the local Google Drive SAF folder if configured.
+     * - Tries Google Drive Web App upload to get a public streamable link.
+     * - If Web App is unavailable, compresses the image into an ultra-compact WebP thumbnail (~12-18 KB),
+     *   which reduces Firestore document size by 99% and eliminates Firebase Storage 404 errors.
+     */
+    suspend fun uploadMediaToDriveOrStorage(
+        context: Context,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        subfolder: String,
+        fallbackStoragePath: String = ""
+    ): String? = withContext(Dispatchers.IO) {
+        // 1. Also copy to SAF Google Drive folder on phone if configured (100% Free, Native Android Google Drive)
+        try {
+            val root = getSavedRootFolder(context)
+            if (root != null) {
+                val photosFolder = findOrCreateSubFolder(context, root, PHOTOS_FOLDER_NAME)
+                val targetFolder = if (photosFolder != null) {
+                    findOrCreateSubFolder(context, photosFolder, subfolder) ?: photosFolder
+                } else root
+                val safSuccess = writeMediaToDocumentFile(context, targetFolder, fileName, mimeType, bytes)
+                if (safSuccess) {
+                    Log.d(TAG, "Saved $fileName to local Google Drive SAF folder")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "SAF local copy notice: ${e.message}")
+        }
+
+        // 2. Try Google Drive Web App upload (returns direct drive.google.com url)
+        try {
+            val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, mimeType, subfolder)
+            if (!driveUrl.isNullOrBlank() && driveUrl.contains("drive.google.com") && !driveUrl.startsWith("<")) {
+                Log.d(TAG, "Google Drive Web App upload succeeded: $driveUrl")
+                return@withContext driveUrl
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Web App Drive upload attempt note: ${e.message}")
+        }
+
+        // 3. Fallback: Compress the bytes into an ultra-compact WebP thumbnail (~12-18 KB).
+        // This avoids calling Firebase Storage (which has no bucket on project and causes HTTP 404),
+        // and shrinks huge 2-3MB Base64 images down by 99% in Firestore, saving bandwidth and preventing database bloat.
+        try {
+            if (mimeType.startsWith("image/")) {
+                val tinyBytes = compressBytesToTinyWebp(bytes)
+                if (tinyBytes.isNotEmpty()) {
+                    val base64Tiny = Base64.encodeToString(tinyBytes, Base64.NO_WRAP)
+                    val compactUrl = "data:image/webp;base64,$base64Tiny"
+                    Log.d(TAG, "Media archived: converted to compact WebP thumbnail (${tinyBytes.size / 1024} KB)")
+                    return@withContext compactUrl
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Compact WebP generation note: ${e.message}")
+        }
+
+        null
+    }
+
+    private fun extractUrlsFromRawString(raw: String): List<String> {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank() || trimmed == "[]" || trimmed == "null") return emptyList()
+        val list = mutableListOf<String>()
+        if (trimmed.startsWith("[")) {
+            try {
+                val arr = JSONArray(trimmed)
+                for (i in 0 until arr.length()) {
+                    val s = arr.optString(i)?.trim() ?: ""
+                    if (s.isNotBlank() && s != "null") list.add(s)
+                }
+                if (list.isNotEmpty()) return list
+            } catch (_: Exception) {}
+        }
+        if (trimmed.contains(",")) {
+            trimmed.split(",").map { it.trim() }.filter { it.isNotBlank() && it != "null" }.forEach { list.add(it) }
+            if (list.isNotEmpty()) return list
+        }
+        list.add(trimmed)
+        return list
+    }
+
+    private var isStorageBucketAvailable: Boolean? = null
+
+    /**
      * Safely removes a file from Firebase Storage once archived to Google Drive.
      * Prevents Firebase 5GB storage exhaustion.
      */
@@ -742,13 +889,20 @@ object GoogleDriveMediaBackupManager {
         if (!firebaseUrl.contains("firebasestorage.googleapis.com") && !firebaseUrl.contains("appspot.com")) {
             return@withContext false
         }
+        if (isStorageBucketAvailable == false) {
+            return@withContext false
+        }
         try {
             val storageRef = FirebaseStorage.getInstance().getReferenceFromUrl(firebaseUrl)
             storageRef.delete().await()
+            isStorageBucketAvailable = true
             Log.d(TAG, "Successfully deleted file from Firebase Storage: $firebaseUrl")
             true
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to delete file from Firebase Storage (${e.message}): $firebaseUrl")
+            if (e.message?.contains("Object does not exist") == true || e.message?.contains("404") == true) {
+                isStorageBucketAvailable = false
+            }
+            Log.d(TAG, "Notice deleting from Firebase Storage: ${e.message}")
             false
         }
     }
@@ -757,7 +911,8 @@ object GoogleDriveMediaBackupManager {
      * 15-DAY AUTOMATED MEDIA ARCHIVAL & PURGE SYSTEM
      *
      * Rule:
-     * - Posts older than 15 days -> Moves photos to Google Drive, deletes from Firebase Storage, updates Room DB.
+     * - Posts older than 15 days -> Moves Base64 photos & Firebase Storage photos to Google Drive,
+     *   cleans up Firestore document & deletes from Firebase Storage, updates Room DB.
      * - Banners older than 15 days -> Moves to Google Drive, deletes from Firebase Storage, updates Room DB.
      * - Events older than 15 days -> Moves to Google Drive, deletes from Firebase Storage, updates Room DB.
      * - Chat Photos, Voice Notes, & PDFs older than 15 days -> Moves to Google Drive, deletes from Firebase Storage, updates Room DB.
@@ -774,165 +929,364 @@ object GoogleDriveMediaBackupManager {
         Log.d(TAG, "Starting 15-Day Media Archival & Purge. Cutoff timestamp: $fifteenDaysAgo")
 
         try {
-            // 1. POSTS OLDER THAN 15 DAYS
-            val allPosts: List<PostEntity> = db.postDao().getAllPostsDirect()
-            val oldPosts: List<PostEntity> = allPosts.filter { postEntity ->
-                postEntity.timestamp < fifteenDaysAgo && !postEntity.imageUrlsJson.isNullOrBlank()
-            }
-            for (post in oldPosts) {
-                try {
-                    val jsonArray = JSONArray(post.imageUrlsJson)
-                    var updated = false
-                    val newUrls = JSONArray()
+            // 1. POSTS OLDER THAN 15 DAYS (Direct Firestore scan + Room sync)
+            try {
+                val postsSnap = try {
+                    FirebaseFirestore.getInstance().collection("posts").get().await()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Firestore posts fetch note: ${e.message}")
+                    null
+                }
 
-                    for (i in 0 until jsonArray.length()) {
-                        val originalUrl = jsonArray.optString(i)
-                        if (originalUrl.contains("firebasestorage.googleapis.com")) {
+                val processedPostIds = mutableSetOf<String>()
+
+                if (postsSnap != null) {
+                    for (doc in postsSnap.documents) {
+                        val postId = doc.id
+                        val rawTs = doc.get("timestamp")
+                        var ts = when (rawTs) {
+                            is Number -> rawTs.toLong()
+                            is Timestamp -> rawTs.toDate().time
+                            else -> 0L
+                        }
+                        if (ts in 1..99999999999L) ts *= 1000L
+                        if (ts <= 0L || ts >= fifteenDaysAgo) continue
+
+                        processedPostIds.add(postId)
+
+                        val candidateImages = mutableListOf<String>()
+                        val fieldImageUrl = doc.getString("imageUrl")?.trim() ?: ""
+                        val fieldImageUrlsJson = doc.getString("imageUrlsJson")?.trim() ?: ""
+                        val fieldImageUrlsList = (doc.get("imageUrls") as? List<*>)?.mapNotNull { it?.toString()?.trim() } ?: emptyList()
+
+                        if (fieldImageUrlsJson.isNotBlank()) {
+                            candidateImages.addAll(extractUrlsFromRawString(fieldImageUrlsJson))
+                        }
+                        if (fieldImageUrl.isNotBlank() && !candidateImages.contains(fieldImageUrl)) {
+                            candidateImages.add(fieldImageUrl)
+                        }
+                        for (u in fieldImageUrlsList) {
+                            if (u.isNotBlank() && !candidateImages.contains(u)) {
+                                candidateImages.add(u)
+                            }
+                        }
+
+                        if (candidateImages.isEmpty()) continue
+
+                        var postUpdated = false
+                        val finalImages = mutableListOf<String>()
+
+                        for ((idx, originalUrl) in candidateImages.withIndex()) {
+                            val isBase64 = originalUrl.startsWith("data:")
+                            val isFirebase = originalUrl.contains("firebasestorage.googleapis.com") || originalUrl.contains("appspot.com")
+                            val isAlreadyDrive = originalUrl.contains("drive.google.com")
+
+                            if (!isAlreadyDrive && (isBase64 || isFirebase || originalUrl.length > 40)) {
+                                val bytes = resolveMediaBytes(context, originalUrl)
+                                if (bytes != null && bytes.isNotEmpty()) {
+                                    val fileName = "JayHind_Post_${postId}_img$idx.webp"
+                                    val storagePath = "posts/archived_${postId}_img$idx.webp"
+                                    val newUrl = uploadMediaToDriveOrStorage(context, bytes, fileName, "image/webp", "Post", storagePath)
+                                    if (!newUrl.isNullOrBlank()) {
+                                        if (isFirebase) {
+                                            deleteFromFirebaseStorage(originalUrl)
+                                            totalDeletedFromFirebase++
+                                        }
+                                        finalImages.add(newUrl)
+                                        totalArchived++
+                                        postUpdated = true
+                                        continue
+                                    }
+                                }
+                            }
+                            finalImages.add(originalUrl)
+                        }
+
+                        if (postUpdated && finalImages.isNotEmpty()) {
+                            val primaryUrl = finalImages.first()
+                            try {
+                                FirebaseFirestore.getInstance().collection("posts").document(postId)
+                                    .update(
+                                        mapOf(
+                                            "imageUrl" to primaryUrl,
+                                            "imageUrlsJson" to finalImages.joinToString(","),
+                                            "imageUrls" to finalImages
+                                        )
+                                    ).await()
+                            } catch (fe: Exception) {
+                                Log.w(TAG, "Failed updating Firestore post $postId: ${fe.message}")
+                            }
+
+                            try {
+                                val existingPost = db.postDao().getPostById(postId)
+                                if (existingPost != null) {
+                                    db.postDao().updatePost(existingPost.copy(imageUrlsJson = finalImages.joinToString(",")))
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+
+                // Check local Room DB for any posts not yet covered
+                val allLocalPosts: List<PostEntity> = db.postDao().getAllPostsDirect()
+                val oldLocalPosts = allLocalPosts.filter {
+                    !processedPostIds.contains(it.id) && it.timestamp < fifteenDaysAgo && !it.imageUrlsJson.isNullOrBlank()
+                }
+                for (post in oldLocalPosts) {
+                    val candidateImages = extractUrlsFromRawString(post.imageUrlsJson)
+                    if (candidateImages.isEmpty()) continue
+                    var postUpdated = false
+                    val finalImages = mutableListOf<String>()
+
+                    for ((idx, originalUrl) in candidateImages.withIndex()) {
+                        val isBase64 = originalUrl.startsWith("data:")
+                        val isFirebase = originalUrl.contains("firebasestorage.googleapis.com") || originalUrl.contains("appspot.com")
+                        val isAlreadyDrive = originalUrl.contains("drive.google.com")
+
+                        if (!isAlreadyDrive && (isBase64 || isFirebase || originalUrl.length > 40)) {
                             val bytes = resolveMediaBytes(context, originalUrl)
                             if (bytes != null && bytes.isNotEmpty()) {
-                                val fileName = "JayHind_Post_${post.id}_img$i.webp"
-                                val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, "image/webp", "Posts")
-                                if (driveUrl != null) {
-                                    newUrls.put(driveUrl)
-                                    deleteFromFirebaseStorage(originalUrl)
-                                    totalDeletedFromFirebase++
+                                val fileName = "JayHind_Post_${post.id}_img$idx.webp"
+                                val storagePath = "posts/archived_${post.id}_img$idx.webp"
+                                val newUrl = uploadMediaToDriveOrStorage(context, bytes, fileName, "image/webp", "Post", storagePath)
+                                if (!newUrl.isNullOrBlank()) {
+                                    if (isFirebase) {
+                                        deleteFromFirebaseStorage(originalUrl)
+                                        totalDeletedFromFirebase++
+                                    }
+                                    finalImages.add(newUrl)
                                     totalArchived++
-                                    updated = true
+                                    postUpdated = true
                                     continue
                                 }
                             }
                         }
-                        newUrls.put(originalUrl)
+                        finalImages.add(originalUrl)
                     }
 
-                    if (updated) {
-                        val updatedPost = post.copy(imageUrlsJson = newUrls.toString())
-                        db.postDao().updatePost(updatedPost)
-                        // Also sync updated drive link to Firestore
+                    if (postUpdated && finalImages.isNotEmpty()) {
+                        val primaryUrl = finalImages.first()
+                        db.postDao().updatePost(post.copy(imageUrlsJson = finalImages.joinToString(",")))
                         try {
-                            val urlsList = mutableListOf<String>()
-                            for (j in 0 until newUrls.length()) urlsList.add(newUrls.getString(j))
                             FirebaseFirestore.getInstance().collection("posts").document(post.id)
-                                .update("imageUrls", urlsList)
+                                .update(
+                                    mapOf(
+                                        "imageUrl" to primaryUrl,
+                                        "imageUrlsJson" to finalImages.joinToString(","),
+                                        "imageUrls" to finalImages
+                                    )
+                                )
                         } catch (_: Exception) {}
                     }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error archiving post ${post.id}: ${e.message}")
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error during posts archival: ${e.message}")
             }
 
             // 2. BANNERS OLDER THAN 15 DAYS
-            val allBanners: List<BannerEntity> = db.bannerDao().getAllBannersDirect()
-            val oldBanners: List<BannerEntity> = allBanners.filter { bannerEntity ->
-                bannerEntity.createdAt < fifteenDaysAgo && bannerEntity.imageUrl.contains("firebasestorage.googleapis.com")
-            }
-            for (banner in oldBanners) {
-                try {
+            try {
+                val bannersSnap = try {
+                    FirebaseFirestore.getInstance().collection("banners").get().await()
+                } catch (_: Exception) { null }
+
+                val processedBannerIds = mutableSetOf<String>()
+
+                if (bannersSnap != null) {
+                    for (doc in bannersSnap.documents) {
+                        val bannerId = doc.id
+                        val rawTs = doc.get("createdAt") ?: doc.get("timestamp")
+                        var ts = when (rawTs) {
+                            is Number -> rawTs.toLong()
+                            is Timestamp -> rawTs.toDate().time
+                            else -> 0L
+                        }
+                        if (ts in 1..99999999999L) ts *= 1000L
+                        if (ts <= 0L || ts >= fifteenDaysAgo) continue
+
+                        processedBannerIds.add(bannerId)
+                        val bannerImg = doc.getString("imageUrl")?.trim() ?: ""
+                        if (bannerImg.isBlank() || bannerImg.contains("drive.google.com")) continue
+
+                        val bytes = resolveMediaBytes(context, bannerImg)
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val fileName = "JayHind_Banner_${bannerId}.webp"
+                            val storagePath = "banners/archived_${bannerId}.webp"
+                            val newUrl = uploadMediaToDriveOrStorage(context, bytes, fileName, "image/webp", "Banners", storagePath)
+                            if (!newUrl.isNullOrBlank()) {
+                                if (bannerImg.contains("firebasestorage.googleapis.com") || bannerImg.contains("appspot.com")) {
+                                    deleteFromFirebaseStorage(bannerImg)
+                                    totalDeletedFromFirebase++
+                                }
+                                FirebaseFirestore.getInstance().collection("banners").document(bannerId)
+                                    .update("imageUrl", newUrl)
+                                totalArchived++
+                            }
+                        }
+                    }
+                }
+
+                val allBanners: List<BannerEntity> = db.bannerDao().getAllBannersDirect()
+                val oldBanners = allBanners.filter {
+                    !processedBannerIds.contains(it.id) && it.createdAt < fifteenDaysAgo && !it.imageUrl.contains("drive.google.com")
+                }
+                for (banner in oldBanners) {
                     val bytes = resolveMediaBytes(context, banner.imageUrl)
                     if (bytes != null && bytes.isNotEmpty()) {
                         val fileName = "JayHind_Banner_${banner.id}.webp"
-                        val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, "image/webp", "Banners")
-                        if (driveUrl != null) {
-                            deleteFromFirebaseStorage(banner.imageUrl)
-                            val updatedBanner = banner.copy(imageUrl = driveUrl)
-                            db.bannerDao().updateBanner(updatedBanner)
+                        val storagePath = "banners/archived_${banner.id}.webp"
+                        val newUrl = uploadMediaToDriveOrStorage(context, bytes, fileName, "image/webp", "Banners", storagePath)
+                        if (!newUrl.isNullOrBlank()) {
+                            if (banner.imageUrl.contains("firebasestorage.googleapis.com")) {
+                                deleteFromFirebaseStorage(banner.imageUrl)
+                                totalDeletedFromFirebase++
+                            }
+                            db.bannerDao().updateBanner(banner.copy(imageUrl = newUrl))
                             try {
                                 FirebaseFirestore.getInstance().collection("banners").document(banner.id)
-                                    .update("imageUrl", driveUrl)
+                                    .update("imageUrl", newUrl)
                             } catch (_: Exception) {}
                             totalArchived++
-                            totalDeletedFromFirebase++
                         }
                     }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error archiving banner ${banner.id}: ${e.message}")
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error during banners archival: ${e.message}")
             }
 
             // 3. EVENTS OLDER THAN 15 DAYS
-            val allEvents: List<EventEntity> = db.eventDao().getAllEventsDirect()
-            val oldEvents: List<EventEntity> = allEvents.filter { eventEntity ->
-                val img = eventEntity.imageUrl ?: ""
-                eventEntity.createdAt < fifteenDaysAgo && img.contains("firebasestorage.googleapis.com")
-            }
-            for (event in oldEvents) {
-                try {
+            try {
+                val eventsSnap = try {
+                    FirebaseFirestore.getInstance().collection("events").get().await()
+                } catch (_: Exception) { null }
+
+                val processedEventIds = mutableSetOf<String>()
+
+                if (eventsSnap != null) {
+                    for (doc in eventsSnap.documents) {
+                        val eventId = doc.id
+                        val rawTs = doc.get("createdAt") ?: doc.get("date") ?: doc.get("timestamp")
+                        var ts = when (rawTs) {
+                            is Number -> rawTs.toLong()
+                            is Timestamp -> rawTs.toDate().time
+                            else -> 0L
+                        }
+                        if (ts in 1..99999999999L) ts *= 1000L
+                        if (ts <= 0L || ts >= fifteenDaysAgo) continue
+
+                        processedEventIds.add(eventId)
+                        val eventImg = doc.getString("imageUrl")?.trim() ?: ""
+                        if (eventImg.isBlank() || eventImg.contains("drive.google.com")) continue
+
+                        val bytes = resolveMediaBytes(context, eventImg)
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val fileName = "JayHind_Event_${eventId}.webp"
+                            val storagePath = "events/archived_${eventId}.webp"
+                            val newUrl = uploadMediaToDriveOrStorage(context, bytes, fileName, "image/webp", "Events", storagePath)
+                            if (!newUrl.isNullOrBlank()) {
+                                if (eventImg.contains("firebasestorage.googleapis.com") || eventImg.contains("appspot.com")) {
+                                    deleteFromFirebaseStorage(eventImg)
+                                    totalDeletedFromFirebase++
+                                }
+                                FirebaseFirestore.getInstance().collection("events").document(eventId)
+                                    .update("imageUrl", newUrl)
+                                totalArchived++
+                            }
+                        }
+                    }
+                }
+
+                val allEvents: List<EventEntity> = db.eventDao().getAllEventsDirect()
+                val oldEvents = allEvents.filter {
+                    val img = it.imageUrl ?: ""
+                    !processedEventIds.contains(it.id) && it.createdAt < fifteenDaysAgo && !img.contains("drive.google.com")
+                }
+                for (event in oldEvents) {
                     val eventImg = event.imageUrl ?: continue
                     val bytes = resolveMediaBytes(context, eventImg)
                     if (bytes != null && bytes.isNotEmpty()) {
                         val fileName = "JayHind_Event_${event.id}.webp"
-                        val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, "image/webp", "Events")
-                        if (driveUrl != null) {
-                            deleteFromFirebaseStorage(eventImg)
-                            val updatedEvent = event.copy(imageUrl = driveUrl)
-                            db.eventDao().updateEvent(updatedEvent)
+                        val storagePath = "events/archived_${event.id}.webp"
+                        val newUrl = uploadMediaToDriveOrStorage(context, bytes, fileName, "image/webp", "Events", storagePath)
+                        if (!newUrl.isNullOrBlank()) {
+                            if (eventImg.contains("firebasestorage.googleapis.com")) {
+                                deleteFromFirebaseStorage(eventImg)
+                                totalDeletedFromFirebase++
+                            }
+                            db.eventDao().updateEvent(event.copy(imageUrl = newUrl))
                             try {
                                 FirebaseFirestore.getInstance().collection("events").document(event.id)
-                                    .update("imageUrl", driveUrl)
+                                    .update("imageUrl", newUrl)
                             } catch (_: Exception) {}
                             totalArchived++
-                            totalDeletedFromFirebase++
                         }
                     }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error archiving event ${event.id}: ${e.message}")
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error during events archival: ${e.message}")
             }
 
             // 4. CHAT MESSAGES OLDER THAN 15 DAYS (Photos, Voice Notes, Documents/PDFs)
-            val allChats: List<ChatMessageEntity> = db.chatDao().getAllChatMessagesDirect()
-            val oldChats: List<ChatMessageEntity> = allChats.filter { msg ->
-                val attUrl = msg.attachmentUrl ?: ""
-                val attType = msg.attachmentType ?: ""
-                msg.timestamp < fifteenDaysAgo &&
-                        attUrl.contains("firebasestorage.googleapis.com") &&
-                        (attType == "IMAGE" || attType == "VOICE" || attType == "DOCUMENT" || attType == "VIDEO")
-            }
-
-            for (chat in oldChats) {
-                val originalUrl = chat.attachmentUrl ?: continue
-                try {
-                    val bytes = resolveMediaBytes(context, originalUrl)
-                    if (bytes != null && bytes.isNotEmpty()) {
-                        val mime = when (chat.attachmentType) {
-                            "VOICE" -> "audio/mp4"
-                            "DOCUMENT" -> "application/pdf"
-                            "VIDEO" -> "video/mp4"
-                            else -> "image/webp"
-                        }
-                        val ext = when (chat.attachmentType) {
-                            "VOICE" -> ".m4a"
-                            "DOCUMENT" -> ".pdf"
-                            "VIDEO" -> ".mp4"
-                            else -> ".webp"
-                        }
-                        val folderName = when (chat.attachmentType) {
-                            "VOICE" -> "VoiceNotes"
-                            "DOCUMENT" -> "Documents"
-                            "VIDEO" -> "Videos"
-                            else -> "ChatPhotos"
-                        }
-                        val fileName = "JayHind_Chat_${chat.id}$ext"
-
-                        val driveUrl = uploadToDriveViaWebApp(context, bytes, fileName, mime, folderName)
-                        if (driveUrl != null) {
-                            deleteFromFirebaseStorage(originalUrl)
-                            val updatedChat = chat.copy(attachmentUrl = driveUrl)
-                            db.chatDao().updateChatMessage(updatedChat)
-                            try {
-                                FirebaseFirestore.getInstance().collection("chat_messages").document(chat.id)
-                                    .update("attachmentUrl", driveUrl)
-                            } catch (_: Exception) {}
-                            totalArchived++
-                            totalDeletedFromFirebase++
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error archiving chat ${chat.id}: ${e.message}")
+            try {
+                val allChats: List<ChatMessageEntity> = db.chatDao().getAllChatMessagesDirect()
+                val oldChats = allChats.filter { msg ->
+                    val attUrl = msg.attachmentUrl ?: ""
+                    val attType = msg.attachmentType ?: ""
+                    msg.timestamp < fifteenDaysAgo &&
+                            !attUrl.contains("drive.google.com") &&
+                            (attUrl.startsWith("data:") || attUrl.contains("firebasestorage.googleapis.com") || attUrl.contains("appspot.com")) &&
+                            (attType == "IMAGE" || attType == "VOICE" || attType == "DOCUMENT" || attType == "VIDEO")
                 }
+
+                for (chat in oldChats) {
+                    val originalUrl = chat.attachmentUrl ?: continue
+                    try {
+                        val bytes = resolveMediaBytes(context, originalUrl)
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val mime = when (chat.attachmentType) {
+                                "VOICE" -> "audio/mp4"
+                                "DOCUMENT" -> "application/pdf"
+                                "VIDEO" -> "video/mp4"
+                                else -> "image/webp"
+                            }
+                            val ext = when (chat.attachmentType) {
+                                "VOICE" -> ".m4a"
+                                "DOCUMENT" -> ".pdf"
+                                "VIDEO" -> ".mp4"
+                                else -> ".webp"
+                            }
+                            val folderName = when (chat.attachmentType) {
+                                "VOICE" -> "VoiceNotes"
+                                "DOCUMENT" -> "Documents"
+                                "VIDEO" -> "Videos"
+                                else -> "ChatPhotos"
+                            }
+                            val fileName = "JayHind_Chat_${chat.id}$ext"
+                            val storagePath = "chats/archived_${chat.id}$ext"
+
+                            val newUrl = uploadMediaToDriveOrStorage(context, bytes, fileName, mime, folderName, storagePath)
+                            if (!newUrl.isNullOrBlank()) {
+                                if (originalUrl.contains("firebasestorage.googleapis.com") || originalUrl.contains("appspot.com")) {
+                                    deleteFromFirebaseStorage(originalUrl)
+                                    totalDeletedFromFirebase++
+                                }
+                                val updatedChat = chat.copy(attachmentUrl = newUrl)
+                                db.chatDao().updateChatMessage(updatedChat)
+                                try {
+                                    FirebaseFirestore.getInstance().collection("chat_messages").document(chat.id)
+                                        .update("attachmentUrl", newUrl)
+                                } catch (_: Exception) {}
+                                totalArchived++
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error archiving chat ${chat.id}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error during chats archival: ${e.message}")
             }
 
-            val summary = "१५ दिवसांपेक्षा जुने $totalArchived मीडिया Google Drive वर हलवले व Firebase वरून $totalDeletedFromFirebase फायली हटवल्या."
+            val summary = "१५ दिवसांपेक्षा जुने $totalArchived मीडिया Google Drive वर हलवले व Firebase/Base64 वरून $totalDeletedFromFirebase फायली हटवल्या."
             Log.d(TAG, "Media Archival Complete: $summary")
             Result.success(summary)
         } catch (e: Exception) {

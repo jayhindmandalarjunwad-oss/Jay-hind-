@@ -3332,18 +3332,31 @@ fun PostEntity.toMap(): Map<String, Any?> = mapOf(
 fun DocumentSnapshot.toPostEntity(): PostEntity? {
     val id = getString("id") ?: id
     val authorId = getString("authorId") ?: return null
+    val rawImage = getString("imageUrlsJson")?.takeIf { it.isNotBlank() }
+        ?: getString("imageUrl")?.takeIf { it.isNotBlank() }
+        ?: (get("imageUrls") as? List<*>)?.filterNotNull()?.joinToString(",")
+        ?: ""
+    val rawTs = get("timestamp")
+    var postTs = when (rawTs) {
+        is Number -> rawTs.toLong()
+        is com.google.firebase.Timestamp -> rawTs.toDate().time
+        else -> System.currentTimeMillis()
+    }
+    if (postTs in 1..99999999999L) {
+        postTs *= 1000L
+    }
     return PostEntity(
         id = id,
         authorId = authorId,
         authorName = getString("authorName") ?: "",
-        authorPhotoUrl = getString("authorPhotoUrl") ?: "",
+        authorPhotoUrl = getString("authorPhotoUrl") ?: getString("authorProfilePhoto") ?: "",
         authorRole = getString("authorRole") ?: "",
         content = getString("content") ?: "",
-        imageUrlsJson = getString("imageUrlsJson") ?: "",
+        imageUrlsJson = rawImage,
         videoUrl = getString("videoUrl"),
         likedUserIdsJson = getString("likedUserIdsJson") ?: "",
         commentsCount = (getLong("commentsCount") ?: 0L).toInt(),
-        timestamp = getLong("timestamp") ?: System.currentTimeMillis()
+        timestamp = postTs
     )
 }
 

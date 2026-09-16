@@ -2862,45 +2862,39 @@
       // A. Master Admin Check (9545791089 / ADMIN)
       if (cleanMobile === "9545791089" && password.toUpperCase() === "ADMIN") {
         let adminUser = { ...DEFAULT_ADMIN };
-        try {
-          if (db) {
-            const adminDocRef = db.collection("users").doc("admin_1");
-            const snap = await adminDocRef.get();
-            if (snap.exists) {
-              adminUser = { id: snap.id, ...snap.data() };
-              // Ensure critical fields are intact
-              if (adminUser.password !== "ADMIN" || adminUser.status !== "APPROVED" || adminUser.role !== "ADMIN") {
-                await adminDocRef.set({
+        currentUser = adminUser;
+        localStorage.setItem("mandal_user", JSON.stringify(adminUser));
+
+        // Background sync to Firestore without blocking UI
+        if (db) {
+          db.collection("users").doc("admin_1").get().then((snap) => {
+            if (!snap.exists) {
+              return db.collection("users").doc("admin_1").set(DEFAULT_ADMIN);
+            } else {
+              const d = snap.data();
+              if (d.password !== "ADMIN" || d.status !== "APPROVED" || d.role !== "ADMIN") {
+                return db.collection("users").doc("admin_1").set({
                   password: "ADMIN",
                   status: "APPROVED",
                   role: "ADMIN",
                   mobileNumber: "9545791089"
                 }, { merge: true });
-                adminUser.password = "ADMIN";
-                adminUser.status = "APPROVED";
-                adminUser.role = "ADMIN";
               }
-            } else {
-              await adminDocRef.set(DEFAULT_ADMIN);
             }
-            await db.collection("users").doc("admin_1").set({
-              isOnline: true,
-              lastSeen: Date.now()
-            }, { merge: true }).catch(() => {});
-          }
-        } catch(e) {
-          console.warn("Admin Firestore check:", e);
-        }
+          }).catch(e => console.warn("Admin Firestore sync notice:", e));
 
-        currentUser = adminUser;
-        localStorage.setItem("mandal_user", JSON.stringify(adminUser));
+          db.collection("users").doc("admin_1").set({
+            isOnline: true,
+            lastSeen: Date.now()
+          }, { merge: true }).catch(() => {});
+        }
 
         btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> स्वागत आहे ॲडमिन!';
         setTimeout(() => {
           btn.disabled = false;
           btn.innerHTML = '<span>लॉगिन करा</span> <i class="fa-solid fa-arrow-right"></i>';
           showAppInterface();
-        }, 300);
+        }, 200);
         return;
       }
 
@@ -3455,8 +3449,18 @@
           const commentsCount = p.commentsCount || 0;
 
           let mediaHtml = '';
-          if (p.imageUrlsJson) {
-            const imgUrl = Array.isArray(p.imageUrlsJson) ? p.imageUrlsJson[0] : p.imageUrlsJson;
+          const rawImg = p.imageUrl || p.imageUrlsJson || (Array.isArray(p.imageUrls) ? p.imageUrls[0] : '');
+          if (rawImg) {
+            let imgUrl = Array.isArray(rawImg) ? rawImg[0] : rawImg;
+            if (typeof imgUrl === 'string' && imgUrl.startsWith('[') && imgUrl.endsWith(']')) {
+              try { imgUrl = JSON.parse(imgUrl)[0] || ''; } catch (_) {}
+            }
+            if (typeof imgUrl === 'string' && imgUrl.includes('drive.google.com')) {
+              let fileId = null;
+              if (imgUrl.includes('/file/d/')) fileId = imgUrl.split('/file/d/')[1].split('/')[0];
+              else if (imgUrl.includes('id=')) fileId = imgUrl.split('id=')[1].split('&')[0];
+              if (fileId) imgUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+            }
             if (imgUrl && typeof imgUrl === 'string' && (imgUrl.startsWith('http') || imgUrl.startsWith('data:image'))) {
               mediaHtml = `<img src="${imgUrl}" class="post-image" onerror="this.style.display='none'">`;
             }
@@ -3570,7 +3574,9 @@
           authorName: currentUser.fullName || "सभासद",
           authorProfilePhoto: currentUser.profilePhotoUrl || "",
           content: content,
+          imageUrl: finalImageUrl,
           imageUrlsJson: finalImageUrl,
+          imageUrls: finalImageUrl ? [finalImageUrl] : [],
           likesCount: 0,
           likedUserIdsJson: "",
           commentsCount: 0,

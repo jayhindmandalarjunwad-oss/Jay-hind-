@@ -51,6 +51,9 @@ interface PostDao {
     @Query("SELECT * FROM posts ORDER BY timestamp DESC")
     suspend fun getAllPostsDirect(): List<PostEntity>
 
+    @Query("SELECT * FROM posts WHERE id = :postId LIMIT 1")
+    suspend fun getPostById(postId: String): PostEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPost(post: PostEntity)
 
