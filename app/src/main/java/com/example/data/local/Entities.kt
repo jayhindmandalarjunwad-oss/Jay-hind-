@@ -47,7 +47,12 @@ data class CommentEntity(
     val authorName: String,
     val authorPhotoUrl: String,
     val text: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val likedUserIdsJson: String = "",
+    val parentId: String? = null,
+    val replyToAuthorName: String? = null,
+    val isEdited: Boolean = false,
+    val editedAt: Long? = null
 )
 
 @Entity(tableName = "chat_messages")

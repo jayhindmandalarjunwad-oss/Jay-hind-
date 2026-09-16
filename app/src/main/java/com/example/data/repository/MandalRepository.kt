@@ -1353,7 +1353,12 @@ class MandalRepository(context: Context) {
         return commentDao.getCommentsForPost(postId).map { list -> list.map { it.toDomain() } }
     }
 
-    suspend fun addComment(postId: String, text: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun addComment(
+        postId: String,
+        text: String,
+        parentId: String? = null,
+        replyToAuthorName: String? = null
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
         if (user.status == "BLOCKED") {
             return@withContext Result.failure(Exception("आपले खाते ब्लॉक असल्याने आपण कमेंट करू शकत नाही."))
@@ -1365,7 +1370,12 @@ class MandalRepository(context: Context) {
             authorName = user.fullName,
             authorPhotoUrl = user.profilePhotoUrl,
             text = text.trim(),
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            likedUserIdsJson = "",
+            parentId = parentId,
+            replyToAuthorName = replyToAuthorName,
+            isEdited = false,
+            editedAt = null
         )
         commentDao.insertComment(comment)
         postDao.incrementCommentsCount(postId)
@@ -1374,10 +1384,16 @@ class MandalRepository(context: Context) {
         val notifId = "notif_" + UUID.randomUUID().toString().take(8)
         var notifEntity: NotificationEntity? = null
         if (post != null && post.authorId != user.id) {
+            val title = if (replyToAuthorName != null) "कमेंटला रिप्लाय आला 💬" else "आपल्या पोस्टवर नवीन कमेंट 💬"
+            val msg = if (replyToAuthorName != null) {
+                "${user.fullName} यांनी ${replyToAuthorName} यांच्या कमेंटला उत्तर दिले: \"${text.take(45)}\""
+            } else {
+                "${user.fullName} यांनी आपल्या पोस्टवर कमेंट केली: \"${text.take(45)}\""
+            }
             notifEntity = NotificationEntity(
                 id = notifId,
-                title = "आपल्या पोस्टवर नवीन कमेंट 💬",
-                message = "${user.fullName} यांनी आपल्या पोस्टवर कमेंट केली: \"${text.take(45)}\"",
+                title = title,
+                message = msg,
                 type = "COMMENT",
                 targetUserId = post.authorId,
                 targetRoute = "POST_COMMENTS",
@@ -1396,6 +1412,76 @@ class MandalRepository(context: Context) {
             }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error adding comment on Firestore", e)
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun toggleLikeComment(commentId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
+        val existing = commentDao.getCommentById(commentId) ?: return@withContext Result.failure(Exception("कमेंट सापडली नाही"))
+        val currentLikes = if (existing.likedUserIdsJson.isNotBlank()) {
+            existing.likedUserIdsJson.split(",").filter { it.isNotBlank() }.toMutableList()
+        } else {
+            mutableListOf()
+        }
+
+        if (currentLikes.contains(user.id)) {
+            currentLikes.remove(user.id)
+        } else {
+            currentLikes.add(user.id)
+        }
+
+        val updatedLikesJson = currentLikes.joinToString(",")
+        commentDao.updateCommentLikes(commentId, updatedLikesJson)
+        try {
+            firestore.collection("comments").document(commentId).update("likedUserIdsJson", updatedLikesJson)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating comment like on Firestore: ${e.message}")
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun editComment(commentId: String, newText: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
+        val existing = commentDao.getCommentById(commentId) ?: return@withContext Result.failure(Exception("कमेंट सापडली नाही"))
+        if (existing.authorId != user.id && !user.isAnyAdmin) {
+            return@withContext Result.failure(Exception("आपण केवळ स्वतःची कमेंट संपादित करू शकता"))
+        }
+        val clean = newText.trim()
+        if (clean.isBlank()) {
+            return@withContext Result.failure(Exception("कमेंट रिक्त असू शकत नाही"))
+        }
+        val now = System.currentTimeMillis()
+        commentDao.updateCommentText(commentId, clean, now)
+        try {
+            firestore.collection("comments").document(commentId).update(
+                mapOf(
+                    "text" to clean,
+                    "isEdited" to true,
+                    "editedAt" to now
+                )
+            )
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating comment on Firestore: ${e.message}")
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun deleteComment(commentId: String, postId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
+        val existing = commentDao.getCommentById(commentId)
+        if (existing != null && existing.authorId != user.id && !user.isAnyAdmin) {
+            return@withContext Result.failure(Exception("आपल्याकडे ही कमेंट डिलीट करण्याचे अधिकार नाहीत"))
+        }
+        commentDao.deleteComment(commentId)
+        postDao.decrementCommentsCount(postId)
+        try {
+            firestore.collection("comments").document(commentId).delete()
+            val post = postDao.getAllPosts().first().find { it.id == postId }
+            val newCount = post?.commentsCount ?: 0
+            firestore.collection("posts").document(postId).set(mapOf("commentsCount" to newCount), SetOptions.merge())
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error deleting comment on Firestore: ${e.message}")
         }
         Result.success(Unit)
     }
@@ -3140,7 +3226,12 @@ fun CommentEntity.toDomain() = Comment(
     authorName = authorName,
     authorPhotoUrl = authorPhotoUrl,
     text = text,
-    timestamp = timestamp
+    timestamp = timestamp,
+    likedUserIds = if (likedUserIdsJson.isNotBlank()) likedUserIdsJson.split(",").filter { it.isNotBlank() } else emptyList(),
+    parentId = parentId,
+    replyToAuthorName = replyToAuthorName,
+    isEdited = isEdited,
+    editedAt = editedAt
 )
 
 fun ChatMessageEntity.toDomain() = ChatMessage(
@@ -3367,7 +3458,12 @@ fun CommentEntity.toMap(): Map<String, Any?> = mapOf(
     "authorName" to authorName,
     "authorPhotoUrl" to authorPhotoUrl,
     "text" to text,
-    "timestamp" to timestamp
+    "timestamp" to timestamp,
+    "likedUserIdsJson" to likedUserIdsJson,
+    "parentId" to parentId,
+    "replyToAuthorName" to replyToAuthorName,
+    "isEdited" to isEdited,
+    "editedAt" to editedAt
 )
 
 fun DocumentSnapshot.toCommentEntity(): CommentEntity? {
@@ -3380,7 +3476,12 @@ fun DocumentSnapshot.toCommentEntity(): CommentEntity? {
         authorName = getString("authorName") ?: "",
         authorPhotoUrl = getString("authorPhotoUrl") ?: "",
         text = getString("text") ?: "",
-        timestamp = getLong("timestamp") ?: System.currentTimeMillis()
+        timestamp = getLong("timestamp") ?: System.currentTimeMillis(),
+        likedUserIdsJson = getString("likedUserIdsJson") ?: "",
+        parentId = getString("parentId"),
+        replyToAuthorName = getString("replyToAuthorName"),
+        isEdited = getBoolean("isEdited") ?: false,
+        editedAt = getLong("editedAt")
     )
 }
 

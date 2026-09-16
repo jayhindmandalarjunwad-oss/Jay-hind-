@@ -43,6 +43,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -1872,82 +1877,154 @@ fun ChatDetailScreen(
         )
     }
 
-    // Fullscreen Photo Preview
+    // Fullscreen Photo Preview (Edge-to-Edge with Glass/Translucent Backdrop & Pinch-to-Zoom)
     if (previewImageUrl != null) {
-        Dialog(onDismissRequest = { previewImageUrl = null }) {
+        var photoScale by remember { mutableFloatStateOf(1f) }
+        var photoOffsetX by remember { mutableFloatStateOf(0f) }
+        var photoOffsetY by remember { mutableFloatStateOf(0f) }
+
+        Dialog(
+            onDismissRequest = { previewImageUrl = null },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.92f)),
+                    .background(Color.Black.copy(alpha = 0.86f))
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (photoScale > 1f) {
+                                    photoScale = 1f
+                                    photoOffsetX = 0f
+                                    photoOffsetY = 0f
+                                } else {
+                                    photoScale = 2.5f
+                                }
+                            }
+                        )
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                UniversalAsyncImage(
-                    model = previewImageUrl ?: "",
-                    contentDescription = "Fullscreen Photo",
-                    contentScale = ContentScale.Fit,
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                )
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                photoScale = (photoScale * zoom).coerceIn(1f, 5f)
+                                if (photoScale > 1f) {
+                                    photoOffsetX += pan.x * photoScale
+                                    photoOffsetY += pan.y * photoScale
+                                } else {
+                                    photoOffsetX = 0f
+                                    photoOffsetY = 0f
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    UniversalAsyncImage(
+                        model = previewImageUrl ?: "",
+                        contentDescription = "Fullscreen Photo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX = photoScale
+                                scaleY = photoScale
+                                translationX = photoOffsetX
+                                translationY = photoOffsetY
+                            }
+                    )
+                }
 
-                // Top Controls: Close and Save to Gallery
+                // Top Controls: Glass Floating Bar
                 Row(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Save Button
                     Surface(
-                        shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.6f)
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.Black.copy(alpha = 0.5f)
                     ) {
-                        IconButton(
-                            onClick = {
-                                previewImageUrl?.let { url ->
-                                    scope.launch {
-                                        isSavingPhoto = true
-                                        val success = MediaUtils.saveImageToGallery(
-                                            context = context,
-                                            imageUrlOrBase64 = url,
-                                            fileNamePrefix = "JayHind_ChatPhoto",
-                                            subFolder = "JayHind_Mandal_Chat"
-                                        )
-                                        isSavingPhoto = false
-                                        if (success) {
-                                            Toast.makeText(context, "फोटो गॅलरीमध्ये सेव्ह केला! (Pictures/JayHind_Mandal_Chat)", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "फोटो सेव्ह करण्यात अयशस्वी झाले.", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                }
-                            },
-                            enabled = !isSavingPhoto
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (isSavingPhoto) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Download,
-                                    contentDescription = "Download Photo",
-                                    tint = Color.White
-                                )
-                            }
+                            Icon(Icons.Default.Image, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "फोटो व्ह्यूअर",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
 
-                    // Close Button
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.6f)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { previewImageUrl = null }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        // Save Button
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.6f)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    previewImageUrl?.let { url ->
+                                        scope.launch {
+                                            isSavingPhoto = true
+                                            val success = MediaUtils.saveImageToGallery(
+                                                context = context,
+                                                imageUrlOrBase64 = url,
+                                                fileNamePrefix = "JayHind_ChatPhoto",
+                                                subFolder = "JayHind_Mandal_Chat"
+                                            )
+                                            isSavingPhoto = false
+                                            if (success) {
+                                                Toast.makeText(context, "फोटो गॅलरीमध्ये सेव्ह केला! (Pictures/JayHind_Mandal_Chat)", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "फोटो सेव्ह करण्यात अयशस्वी झाले.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = !isSavingPhoto
+                            ) {
+                                if (isSavingPhoto) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "Download Photo",
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        }
+
+                        // Close Button
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.6f)
+                        ) {
+                            IconButton(onClick = { previewImageUrl = null }) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                            }
                         }
                     }
                 }

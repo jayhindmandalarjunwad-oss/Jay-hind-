@@ -75,6 +75,9 @@ interface PostDao {
     @Query("UPDATE posts SET commentsCount = commentsCount + 1 WHERE id = :postId")
     suspend fun incrementCommentsCount(postId: String)
 
+    @Query("UPDATE posts SET commentsCount = CASE WHEN commentsCount > 0 THEN commentsCount - 1 ELSE 0 END WHERE id = :postId")
+    suspend fun decrementCommentsCount(postId: String)
+
     @Query("UPDATE posts SET content = :content, imageUrlsJson = :imageUrls, videoUrl = :videoUrl WHERE id = :postId")
     suspend fun updatePostContent(postId: String, content: String, imageUrls: String, videoUrl: String?)
 }
@@ -87,11 +90,26 @@ interface CommentDao {
     @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY timestamp ASC")
     fun getCommentsForPost(postId: String): Flow<List<CommentEntity>>
 
+    @Query("SELECT * FROM comments WHERE id = :commentId LIMIT 1")
+    suspend fun getCommentById(commentId: String): CommentEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertComment(comment: CommentEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertComments(comments: List<CommentEntity>)
+
+    @Query("UPDATE comments SET text = :newText, isEdited = 1, editedAt = :editedAt WHERE id = :commentId")
+    suspend fun updateCommentText(commentId: String, newText: String, editedAt: Long)
+
+    @Query("UPDATE comments SET likedUserIdsJson = :likesJson WHERE id = :commentId")
+    suspend fun updateCommentLikes(commentId: String, likesJson: String)
+
+    @Query("DELETE FROM comments WHERE id = :commentId")
+    suspend fun deleteComment(commentId: String)
+
+    @Query("DELETE FROM comments WHERE postId = :postId")
+    suspend fun deleteCommentsForPost(postId: String)
 }
 
 data class ChatMessageSummaryRecord(

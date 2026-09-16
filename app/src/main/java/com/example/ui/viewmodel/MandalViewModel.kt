@@ -524,7 +524,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         _activeCommentPost.value = null
     }
 
-    fun addComment(text: String) {
+    fun addComment(text: String, parentId: String? = null, replyToAuthorName: String? = null) {
         val user = currentUser.value
         if (user?.status == "BLOCKED") {
             showSnackbar("आपले खाते ब्लॉक असल्याने आपण कमेंट करू शकत नाही. ⚠️")
@@ -533,9 +533,45 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         val post = _activeCommentPost.value ?: return
         if (text.isBlank()) return
         viewModelScope.launch {
-            repository.addComment(post.id, text)
+            repository.addComment(post.id, text, parentId, replyToAuthorName)
             // Update comments count in local state
             _activeCommentPost.value = post.copy(commentsCount = post.commentsCount + 1)
+        }
+    }
+
+    fun toggleCommentLike(commentId: String) {
+        val user = currentUser.value
+        if (user?.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण लाईक करू शकत नाही. ⚠️")
+            return
+        }
+        viewModelScope.launch {
+            repository.toggleLikeComment(commentId)
+        }
+    }
+
+    fun editComment(commentId: String, newText: String) {
+        if (newText.isBlank()) return
+        viewModelScope.launch {
+            val res = repository.editComment(commentId, newText)
+            res.onSuccess {
+                showSnackbar("कमेंट यशस्वीरित्या संपादित केली.")
+            }.onFailure {
+                showSnackbar(it.message ?: "कमेंट संपादित करताना त्रुटी आली.")
+            }
+        }
+    }
+
+    fun deleteComment(commentId: String) {
+        val post = _activeCommentPost.value ?: return
+        viewModelScope.launch {
+            val res = repository.deleteComment(commentId, post.id)
+            res.onSuccess {
+                _activeCommentPost.value = post.copy(commentsCount = maxOf(0, post.commentsCount - 1))
+                showSnackbar("कमेंट हटवली आहे.")
+            }.onFailure {
+                showSnackbar(it.message ?: "कमेंट हटवताना त्रुटी आली.")
+            }
         }
     }
 

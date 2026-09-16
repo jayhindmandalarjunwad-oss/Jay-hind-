@@ -58,8 +58,16 @@ data class Comment(
     val authorName: String,
     val authorPhotoUrl: String,
     val text: String,
-    val timestamp: Long = System.currentTimeMillis()
-)
+    val timestamp: Long = System.currentTimeMillis(),
+    val likedUserIds: List<String> = emptyList(),
+    val parentId: String? = null,
+    val replyToAuthorName: String? = null,
+    val isEdited: Boolean = false,
+    val editedAt: Long? = null
+) {
+    fun isLikedBy(userId: String): Boolean = likedUserIds.contains(userId)
+    val likesCount: Int get() = likedUserIds.size
+}
 
 data class ChatMessage(
     val id: String,

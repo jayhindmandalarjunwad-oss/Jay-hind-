@@ -184,7 +184,12 @@ fun PostsScreen(
                 comments = activePostComments,
                 currentUser = currentUser,
                 onDismiss = { viewModel.closeComments() },
-                onAddComment = { viewModel.addComment(it) }
+                onAddComment = { text, parentId, replyToAuthorName ->
+                    viewModel.addComment(text, parentId, replyToAuthorName)
+                },
+                onToggleLike = { viewModel.toggleCommentLike(it) },
+                onEditComment = { commentId, newText -> viewModel.editComment(commentId, newText) },
+                onDeleteComment = { viewModel.deleteComment(it) }
             )
         }
 

@@ -7,9 +7,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -73,6 +75,12 @@ fun FullscreenPhotoDialog(
         pageCount = { validPhotos.size }
     )
 
+    var isCurrentPhotoZoomed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pagerState.currentPage) {
+        isCurrentPhotoZoomed = false
+    }
+
     // Allow download for everyone (Admin or regular member)
     val canDownload = true
 
@@ -123,7 +131,7 @@ fun FullscreenPhotoDialog(
             // Horizontal Pager for smooth left/right swipe
             HorizontalPager(
                 state = pagerState,
-                userScrollEnabled = true,
+                userScrollEnabled = !isCurrentPhotoZoomed,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(vertical = 56.dp)
@@ -132,7 +140,12 @@ fun FullscreenPhotoDialog(
                 if (currentUrl != null) {
                     ZoomablePhotoItem(
                         imageUrl = currentUrl,
-                        contentDescription = "Full Screen Photo ${page + 1}"
+                        contentDescription = "Full Screen Photo ${page + 1}",
+                        onZoomStateChanged = { zoomed ->
+                            if (page == pagerState.currentPage) {
+                                isCurrentPhotoZoomed = zoomed
+                            }
+                        }
                     )
                 }
             }
@@ -420,12 +433,15 @@ fun FullscreenPhotoDialog(
 }
 
 /**
- * Zoomable & Pannable Photo with Double Tap to Zoom and Pinch-to-Zoom
+ * Zoomable & Pannable Photo with Double Tap to Zoom and Pinch-to-Zoom.
+ * Perfectly integrates with HorizontalPager: 1-finger swipes change photos smoothly
+ * when not zoomed, and 2-finger pinch zooms without blocking pager scrolling when normal.
  */
 @Composable
 fun ZoomablePhotoItem(
     imageUrl: String,
-    contentDescription: String
+    contentDescription: String,
+    onZoomStateChanged: (Boolean) -> Unit = {}
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -434,21 +450,7 @@ fun ZoomablePhotoItem(
     LaunchedEffect(imageUrl) {
         scale = 1f
         offset = Offset.Zero
-    }
-
-    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
-        val newScale = (scale * zoomChange).coerceIn(1f, 5f)
-        scale = newScale
-        if (newScale > 1f) {
-            // Allow panning when zoomed in
-            val maxX = (newScale - 1f) * 400f
-            val maxY = (newScale - 1f) * 600f
-            val newOffsetX = (offset.x + panChange.x).coerceIn(-maxX, maxX)
-            val newOffsetY = (offset.y + panChange.y).coerceIn(-maxY, maxY)
-            offset = Offset(newOffsetX, newOffsetY)
-        } else {
-            offset = Offset.Zero
-        }
+        onZoomStateChanged(false)
     }
 
     Box(
@@ -456,20 +458,78 @@ fun ZoomablePhotoItem(
             .fillMaxSize()
             .pointerInput(imageUrl) {
                 detectTapGestures(
-                    onDoubleTap = {
+                    onDoubleTap = { tapOffset ->
                         if (scale > 1.2f) {
                             // Reset back to normal 1x
                             scale = 1f
                             offset = Offset.Zero
+                            onZoomStateChanged(false)
                         } else {
-                            // Quick zoom in to 2.5x
+                            // Quick zoom in to 2.5x centered on tap
                             scale = 2.5f
-                            offset = Offset.Zero
+                            val center = Offset(size.width / 2f, size.height / 2f)
+                            val targetOffset = (center - tapOffset) * (2.5f - 1f)
+                            val maxX = (2.5f - 1f) * size.width / 2f
+                            val maxY = (2.5f - 1f) * size.height / 2f
+                            offset = Offset(
+                                targetOffset.x.coerceIn(-maxX, maxX),
+                                targetOffset.y.coerceIn(-maxY, maxY)
+                            )
+                            onZoomStateChanged(true)
                         }
                     }
                 )
             }
-            .transformable(state = transformableState),
+            .pointerInput(imageUrl) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var currentScale = scale
+                    var currentOffset = offset
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val pointerCount = event.changes.size
+
+                        if (pointerCount >= 2) {
+                            // 2 or more fingers: Multi-touch Pinch to Zoom
+                            val zoomChange = event.calculateZoom()
+                            val panChange = event.calculatePan()
+
+                            val newScale = (currentScale * zoomChange).coerceIn(1f, 5f)
+                            currentScale = newScale
+                            scale = newScale
+                            val isZoomed = newScale > 1.05f
+                            onZoomStateChanged(isZoomed)
+
+                            if (isZoomed) {
+                                val maxX = (newScale - 1f) * size.width / 2f
+                                val maxY = (newScale - 1f) * size.height / 2f
+                                val newOffsetX = (currentOffset.x + panChange.x * newScale).coerceIn(-maxX, maxX)
+                                val newOffsetY = (currentOffset.y + panChange.y * newScale).coerceIn(-maxY, maxY)
+                                currentOffset = Offset(newOffsetX, newOffsetY)
+                                offset = currentOffset
+                            } else {
+                                currentOffset = Offset.Zero
+                                offset = Offset.Zero
+                            }
+                            event.changes.forEach { it.consume() }
+                        } else if (pointerCount == 1 && currentScale > 1.05f) {
+                            // 1 finger AND currently zoomed in: Pan around the zoomed photo
+                            val panChange = event.calculatePan()
+                            val maxX = (currentScale - 1f) * size.width / 2f
+                            val maxY = (currentScale - 1f) * size.height / 2f
+                            val newOffsetX = (currentOffset.x + panChange.x).coerceIn(-maxX, maxX)
+                            val newOffsetY = (currentOffset.y + panChange.y).coerceIn(-maxY, maxY)
+                            currentOffset = Offset(newOffsetX, newOffsetY)
+                            offset = currentOffset
+                            event.changes.forEach { it.consume() }
+                        } else {
+                            // 1 finger AND normal 1x scale: DO NOT CONSUME
+                            // HorizontalPager handles left/right swipe smoothly without interference!
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         UniversalAsyncImage(
