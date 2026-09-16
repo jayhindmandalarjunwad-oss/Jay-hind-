@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -9,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,12 +23,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -36,6 +46,8 @@ import com.example.R
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
+import com.example.util.FirebaseStorageHelper
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +57,26 @@ fun AuthScreen(
 ) {
     var isRegisterMode by remember { mutableStateOf(isRegisterModeInitial) }
     val mandalLogoUrl by viewModel.mandalLogoUrl.collectAsStateWithLifecycle()
+    val focusManager = LocalFocusManager.current
+
+    val standardTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color(0xFF0F172A),
+        unfocusedTextColor = Color(0xFF0F172A),
+        focusedContainerColor = Color.White,
+        unfocusedContainerColor = Color.White,
+        cursorColor = SaffronPrimary,
+        focusedBorderColor = SaffronPrimary,
+        unfocusedBorderColor = Color(0xFFCBD5E1),
+        focusedLabelColor = SaffronPrimary,
+        unfocusedLabelColor = Color(0xFF64748B),
+        focusedLeadingIconColor = SaffronPrimary,
+        unfocusedLeadingIconColor = SaffronPrimary
+    )
+    val standardTextStyle = TextStyle(
+        fontSize = 15.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = Color(0xFF0F172A)
+    )
 
     // Login Form State
     val isLoggingIn by viewModel.isLoggingIn.collectAsStateWithLifecycle()
@@ -61,7 +93,7 @@ fun AuthScreen(
     var regBloodGroup by remember { mutableStateOf("O+") }
     var regDob by remember { mutableStateOf("1998-08-22") }
     var regAddress by remember { mutableStateOf("अर्जुनवाड, ता. शिरोळ, जि. कोल्हापूर") }
-    var regPhotoUrl by remember { mutableStateOf("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80") }
+    var regPhotoUrl by remember { mutableStateOf("") }
 
     val bloodGroups = listOf("A+", "B+", "AB+", "O+", "A-", "B-", "AB-", "O-")
     val genders = listOf("पुरुष", "स्त्री", "इतर")
@@ -77,6 +109,7 @@ fun AuthScreen(
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .testTag("auth_screen_root")
     ) { innerPadding ->
         Column(
@@ -186,7 +219,10 @@ fun AuthScreen(
                         onValueChange = { loginMobile = it },
                         label = { Text("मोबाईल नंबर") },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = SaffronPrimary) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                        textStyle = standardTextStyle,
+                        colors = standardTextFieldColors,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("login_mobile_input"),
@@ -210,7 +246,10 @@ fun AuthScreen(
                             }
                         },
                         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        textStyle = standardTextStyle,
+                        colors = standardTextFieldColors,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("login_password_input"),
@@ -265,33 +304,23 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Profile Photo Selection via Gallery
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "प्रोफाइल फोटो (गॅलरीतून निवडा):",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        GalleryImagePicker(
-                            selectedImageUrl = regPhotoUrl,
-                            onImageSelected = { regPhotoUrl = it },
-                            label = "गॅलरीतून फोटो निवडा",
-                            helperText = "मोबाईल गॅलरीतून स्वतःचा फोटो अपलोड करा",
-                            height = 120.dp
-                        )
-                    }
+                    // Circular Profile Photo Selection via Gallery
+                    CircularProfilePicker(
+                        selectedImageUrl = regPhotoUrl,
+                        onImageSelected = { regPhotoUrl = it }
+                    )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     OutlinedTextField(
                         value = regFullName,
                         onValueChange = { regFullName = it },
                         label = { Text("संपूर्ण नाव (उदा. वैभव चौगुले)") },
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = SaffronPrimary) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                        textStyle = standardTextStyle,
+                        colors = standardTextFieldColors,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("reg_name_input"),
@@ -306,7 +335,10 @@ fun AuthScreen(
                         onValueChange = { regMobile = it },
                         label = { Text("मोबाईल नंबर (१० अंकी)") },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = SaffronPrimary) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                        textStyle = standardTextStyle,
+                        colors = standardTextFieldColors,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("reg_mobile_input"),
@@ -375,6 +407,10 @@ fun AuthScreen(
                         onValueChange = { regAddress = it },
                         label = { Text("पत्ता (अर्जुनवाड)") },
                         leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = SaffronPrimary) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                        textStyle = standardTextStyle,
+                        colors = standardTextFieldColors,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     )
@@ -387,7 +423,10 @@ fun AuthScreen(
                         label = { Text("पासवर्ड तयार करा") },
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = SaffronPrimary) },
                         visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        textStyle = standardTextStyle,
+                        colors = standardTextFieldColors,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true
@@ -426,6 +465,137 @@ fun AuthScreen(
 
                 Spacer(modifier = Modifier.height(30.dp))
             }
+        }
+    }
+}
+
+@Composable
+fun CircularProfilePicker(
+    selectedImageUrl: String?,
+    onImageSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isUploading by remember { mutableStateOf(false) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                isUploading = true
+                val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, "profile_photos")
+                isUploading = false
+                if (uploadedUrl.isNotBlank()) {
+                    onImageSelected(uploadedUrl)
+                }
+            }
+        }
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(116.dp)
+                .clip(CircleShape)
+                .background(Color.White, CircleShape)
+                .clickable(enabled = !isUploading) { galleryLauncher.launch("image/*") }
+                .testTag("reg_profile_photo_picker"),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = CircleShape,
+                color = Color(0xFFF1F5F9),
+                border = BorderStroke(2.5.dp, if (!selectedImageUrl.isNullOrBlank()) SaffronPrimary else Color(0xFFCBD5E1)),
+                shadowElevation = 3.dp
+            ) {
+                if (!selectedImageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = selectedImageUrl,
+                        contentDescription = "प्रोफाइल फोटो",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(62.dp)
+                        )
+                    }
+                }
+            }
+
+            if (isUploading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(34.dp),
+                        strokeWidth = 3.dp
+                    )
+                }
+            }
+
+            // Camera badge at bottom-right
+            Surface(
+                shape = CircleShape,
+                color = SaffronPrimary,
+                border = BorderStroke(2.dp, Color.White),
+                shadowElevation = 3.dp,
+                modifier = Modifier
+                    .size(34.dp)
+                    .align(Alignment.BottomEnd)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = "फोटो निवडा",
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(enabled = !isUploading) { galleryLauncher.launch("image/*") }
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.PhotoLibrary,
+                contentDescription = null,
+                tint = SaffronPrimary,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = if (!selectedImageUrl.isNullOrBlank()) "फोटो बदला (गॅलरीतून निवडा)" else "गॅलरीतून प्रोफाइल फोटो निवडा",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = SaffronPrimary
+            )
         }
     }
 }
