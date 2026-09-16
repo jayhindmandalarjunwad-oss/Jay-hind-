@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -61,6 +62,7 @@ import com.example.ui.theme.*
 import com.example.ui.viewmodel.MandalViewModel
 import com.example.util.AudioPlayerManager
 import com.example.util.AudioRecorderHelper
+import com.example.util.DateUtils
 import com.example.util.FirebaseStorageHelper
 import com.example.util.MediaUtils
 import kotlinx.coroutines.launch
@@ -563,6 +565,16 @@ fun MandalGroupChatPinnedCard(
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
+
+                    if (lastMessage != null && lastMessage.timestamp > 0) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = DateUtils.formatChatListTime(lastMessage.timestamp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(2.dp))
@@ -603,8 +615,7 @@ fun ChatConversationRow(
     summary: ChatConversationSummary,
     onClick: () -> Unit
 ) {
-    val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
-    val formattedTime = remember(summary.lastTimestamp) { timeFormatter.format(Date(summary.lastTimestamp)) }
+    val formattedTime = remember(summary.lastTimestamp) { DateUtils.formatChatListTime(summary.lastTimestamp) }
 
     Row(
         modifier = Modifier
@@ -1358,7 +1369,19 @@ fun ChatDetailScreen(
                         .padding(horizontal = 6.dp),
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    items(distinctMessages, key = { it.id }) { msg ->
+                    itemsIndexed(distinctMessages, key = { _, msg -> msg.id }) { index, msg ->
+                        // WhatsApp-style Date Separator: Check if date changed compared to previous message
+                        val showDateSeparator = if (index == 0) {
+                            true
+                        } else {
+                            val prevMsg = distinctMessages[index - 1]
+                            DateUtils.getDayKey(prevMsg.timestamp) != DateUtils.getDayKey(msg.timestamp)
+                        }
+
+                        if (showDateSeparator) {
+                            ChatDateSeparatorBadge(dateText = DateUtils.formatChatDateHeader(msg.timestamp))
+                        }
+
                         val isMe = msg.senderId == currentUser?.id
                         ChatBubble(
                             message = msg,
@@ -2082,5 +2105,45 @@ fun AttachmentItemOption(
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(text = label, style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = TextPrimary)
+    }
+}
+
+/**
+ * WhatsApp-style Floating / Centered Date Separator Badge:
+ * Displays clean pills like "आज", "काल", or "१६ सप्टेंबर २०२६"
+ */
+@Composable
+fun ChatDateSeparatorBadge(dateText: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFFE2E8F0),
+            shadowElevation = 1.dp,
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFCBD5E1))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(11.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = dateText,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF334155)
+                )
+            }
+        }
     }
 }

@@ -1,6 +1,8 @@
 package com.example.util
 
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 object DateUtils {
@@ -87,5 +89,79 @@ object DateUtils {
         } catch (_: Exception) {}
 
         return Long.MAX_VALUE
+    }
+
+    /**
+     * Formats a timestamp into a WhatsApp-style date header string:
+     * - "आज" (Today)
+     * - "काल" (Yesterday)
+     * - "१६ सप्टेंबर २०२६" or "16 Sep 2026" (Other days)
+     */
+    fun formatChatDateHeader(timestamp: Long): String {
+        if (timestamp <= 0L) return ""
+        val messageCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+        val nowCal = Calendar.getInstance()
+
+        // Same day -> "आज"
+        val isToday = messageCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+                messageCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
+        if (isToday) return "आज"
+
+        // Yesterday
+        val yesterdayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+        val isYesterday = messageCal.get(Calendar.YEAR) == yesterdayCal.get(Calendar.YEAR) &&
+                messageCal.get(Calendar.DAY_OF_YEAR) == yesterdayCal.get(Calendar.DAY_OF_YEAR)
+        if (isYesterday) return "काल"
+
+        // Check if same year
+        val marathiMonths = arrayOf(
+            "जानेवारी", "फेब्रुवारी", "मार्च", "एप्रिल", "मे", "जून",
+            "जुलै", "ऑगस्ट", "सप्टेंबर", "ऑक्टोबर", "नोव्हेंबर", "डिसेंबर"
+        )
+        val day = messageCal.get(Calendar.DAY_OF_MONTH)
+        val month = messageCal.get(Calendar.MONTH)
+        val year = messageCal.get(Calendar.YEAR)
+        val currentYear = nowCal.get(Calendar.YEAR)
+
+        val monthName = if (month in marathiMonths.indices) marathiMonths[month] else ""
+
+        return if (year == currentYear) {
+            "$day $monthName"
+        } else {
+            "$day $monthName $year"
+        }
+    }
+
+    /**
+     * Returns a day key (e.g. "yyyy-DDD") to group or check date transitions
+     */
+    fun getDayKey(timestamp: Long): String {
+        val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
+        return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
+    }
+
+    /**
+     * Returns smart time for chat summary lists (like WhatsApp):
+     * - "10:30 AM" if today
+     * - "काल" if yesterday
+     * - "15/09/26" if older
+     */
+    fun formatChatListTime(timestamp: Long): String {
+        if (timestamp <= 0L) return ""
+        val messageCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+        val nowCal = Calendar.getInstance()
+
+        val isToday = messageCal.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+                messageCal.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR)
+        if (isToday) {
+            return SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(timestamp))
+        }
+
+        val yesterdayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+        val isYesterday = messageCal.get(Calendar.YEAR) == yesterdayCal.get(Calendar.YEAR) &&
+                messageCal.get(Calendar.DAY_OF_YEAR) == yesterdayCal.get(Calendar.DAY_OF_YEAR)
+        if (isYesterday) return "काल"
+
+        return SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(Date(timestamp))
     }
 }
