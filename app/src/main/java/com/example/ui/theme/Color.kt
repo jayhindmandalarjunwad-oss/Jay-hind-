@@ -2,45 +2,51 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Vibrant Palette - Energetic Orange, Deep Blue, Clean Slate Canvas & Accents
-val SaffronPrimary = Color(0xFFF27D26) // Vibrant Orange
-val SaffronDark = Color(0xFFE65100)    // Deep Vibrant Orange for gradients
-val SaffronLight = Color(0xFFFF9E58)
-val SaffronContainer = Color(0xFFFFEDD5) // Soft Peach / Orange Tint
-val OnSaffron = Color(0xFFFFFFFF)
+// =================================================================
+// UNIFIED CORPORATE BRAND PALETTE (60-30-10 Design Hierarchy)
+// 60% Modern Canvas | 30% Pure White Elevated Cards | 10% Royal Brand Accents
+// =================================================================
 
-val NavySecondary = Color(0xFF1E40AF) // Vivid Accent Blue
-val NavyContainer = Color(0xFFDBEAFE) // Soft Blue Tint
+// 10% Royal Brand Accents (Vibrant Saffron & Royal Navy Touchpoints)
+val SaffronPrimary = Color(0xFFEA580C)    // Royal Deep Saffron (Orange 600 - High Contrast & Prestige)
+val SaffronDark = Color(0xFFC2410C)       // Deep Crimson Saffron (Orange 700)
+val SaffronLight = Color(0xFFFB923C)      // Bright Radiant Saffron (Orange 400)
+val SaffronContainer = Color(0xFFFFF7ED)  // Ultra-Soft Saffron Tint (Orange 50 - Gentle on Eyes)
+val OnSaffron = Color(0xFFFFFFFF)         // Crisp Pure White
+
+val NavySecondary = Color(0xFF1E3A8A)     // Royal Navy Blue (Blue 900 - Sophisticated & Authoritative)
+val NavyDark = Color(0xFF172554)          // Deep Midnight Navy
+val NavyContainer = Color(0xFFEFF6FF)     // Ultra-Soft Blue Tint (Blue 50)
 val OnNavy = Color(0xFFFFFFFF)
 
-val GoldenTertiary = Color(0xFFF59E0B) // Vibrant Amber Gold
-val GoldContainer = Color(0xFFFEF3C7)  // Warm Gold Tint
+val GoldenTertiary = Color(0xFFD97706)    // Majestic Warm Amber Gold (Amber 600)
+val GoldContainer = Color(0xFFFEF3C7)     // Soft Cream Gold Tint (Amber 100)
 
-// Clean, Crisp Modern Backgrounds & Card Surfaces (Vibrant Palette)
-val BackgroundWarm = Color(0xFFF8F9FA) // Modern Light Slate Canvas
-val SurfaceWarm = Color(0xFFFFFFFF)    // Pure White Card Surface
-val SurfaceVariantWarm = Color(0xFFF1F5F9) // Slate 100 subtle surface
-val CardBorderColor = Color(0xFFE2E8F0)    // Slate 200 crisp border
+// 60% Modern Canvas & 30% Elevated Card Surfaces (International App Standard)
+val BackgroundWarm = Color(0xFFF8FAFC)    // Ultra-clean Pearl/Slate Canvas (Slate 50 - No Eye Strain)
+val SurfaceWarm = Color(0xFFFFFFFF)       // Crisp Pure White Card Surface (Pure #FFFFFF)
+val SurfaceVariantWarm = Color(0xFFF1F5F9)// Soft Elevated Container Surface (Slate 100)
+val CardBorderColor = Color(0xFFE2E8F0)   // Subtle 0.8dp Clean Border Line (Slate 200)
 
-// Accents & Badges
-val BloodRed = Color(0xFFDC2626)       // Vibrant Red
-val SuccessGreen = Color(0xFF16A34A)   // Vibrant Emerald Green
-val PendingOrange = Color(0xFFEA580C)  // Alert Amber Orange
-val BirthdayPink = Color(0xFFF472B6)   // Pink 400 for celebratory avatar rings
-val BirthdayPinkDark = Color(0xFFDB2777)
+// Status & Semantic Accents
+val BloodRed = Color(0xFFDC2626)          // Crimson Rose (Red 600 - Medical & Alerts)
+val SuccessGreen = Color(0xFF16A34A)      // Emerald Green (Green 600 - Verified Badges & Success)
+val PendingOrange = Color(0xFFD97706)     // Alert Amber (Amber 600)
+val BirthdayPink = Color(0xFFEC4899)      // Radiant Festive Pink
+val BirthdayPinkDark = Color(0xFFBE185D)
 
-// Pure Dark Black Typography (Maximum High Contrast Everywhere)
-val TextPrimary = Color(0xFF000000)    // Pure Dark Black (#000000)
-val TextSecondary = Color(0xFF000000)  // Pure Dark Black (#000000)
-val TextMuted = Color(0xFF111111)      // Deep Dark Black (#111111)
-val DividerColor = Color(0xFFE2E8F0)   // Light Slate 200 crisp divider
+// Clear High-Contrast Corporate Typography Hierarchy
+val TextPrimary = Color(0xFF0F172A)       // Crisp Slate-900 (Maximum legibility without harsh glare)
+val TextSecondary = Color(0xFF475569)     // Slate-600 (Subtitles, metadata, clean readability)
+val TextMuted = Color(0xFF64748B)         // Slate-500 (Captions, timestamps, disabled states)
+val DividerColor = Color(0xFFE2E8F0)      // Subtle 0.5dp Clean Divider
 
-// Soft Dark Theme Colors (Night Comfort / Eye-Safe)
-val DarkBackground = Color(0xFF121212)
-val DarkSurface = Color(0xFF1E1E1E)
-val DarkSurfaceVariant = Color(0xFF2C2C2C)
-val DarkCardBorder = Color(0xFF383838)
-val DarkTextPrimary = Color(0xFFEEEEEE)
-val DarkTextSecondary = Color(0xFFB0B0B0)
+// Night / Eye-Safe Dark Colors
+val DarkBackground = Color(0xFF0B0F17)
+val DarkSurface = Color(0xFF151D2A)
+val DarkSurfaceVariant = Color(0xFF1E293B)
+val DarkCardBorder = Color(0xFF334155)
+val DarkTextPrimary = Color(0xFFF8FAFC)
+val DarkTextSecondary = Color(0xFF94A3B8)
 
 

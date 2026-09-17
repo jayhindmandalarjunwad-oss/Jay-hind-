@@ -411,8 +411,8 @@ fun MandalTopHeader(
     Surface(
         color = SurfaceWarm,
         contentColor = TextPrimary,
-        shadowElevation = 1.dp,
-        modifier = Modifier.border(width = 1.dp, color = CardBorderColor)
+        shadowElevation = 1.5.dp,
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor)
     ) {
         Row(
             modifier = Modifier

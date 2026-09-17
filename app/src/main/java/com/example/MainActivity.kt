@@ -573,9 +573,9 @@ fun MandalBottomNavigation(
 
     NavigationBar(
         containerColor = SurfaceWarm,
-        tonalElevation = 0.dp,
+        tonalElevation = 2.dp,
         modifier = Modifier
-            .border(width = 1.dp, color = CardBorderColor)
+            .border(width = 0.6.dp, color = CardBorderColor)
             .testTag("bottom_navigation_bar")
     ) {
         items.forEach { item ->
