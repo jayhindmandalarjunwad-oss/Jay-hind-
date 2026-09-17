@@ -38,11 +38,11 @@ fun MemberCard(
             .fillMaxWidth()
             .clickable { onCardClick() }
             .testTag("member_card_${member.id}"),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = SurfaceWarm
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -73,7 +73,7 @@ fun MemberCard(
                         text = member.fullName,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 14.5.sp
                         ),
                         color = TextPrimary,
                         maxLines = 1,
@@ -96,18 +96,18 @@ fun MemberCard(
                     "सभासद"
                 }
 
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(4.dp),
+                    shape = RoundedCornerShape(6.dp),
                     color = if (member.isAnyAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronContainer else Color(0xFFF1F5F9)
                 ) {
                     Text(
                         text = "🎖️ $designationText",
-                        fontSize = 10.sp,
+                        fontSize = 10.5.sp,
                         color = if (member.isAnyAdmin || member.designation.isNotBlank() && member.designation != "सभासद") SaffronDark else TextSecondary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
 

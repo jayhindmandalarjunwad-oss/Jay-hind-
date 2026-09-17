@@ -241,7 +241,7 @@ fun GalleryScreen(
                     selectedTabIndex = selectedTab.ordinal,
                     containerColor = SurfaceWarm,
                     contentColor = SaffronPrimary,
-                    modifier = Modifier.border(1.dp, CardBorderColor)
+                    modifier = Modifier.border(0.6.dp, CardBorderColor)
                 ) {
                     Tab(
                         selected = selectedTab == GalleryTab.PHOTOS,
@@ -856,8 +856,8 @@ fun AlbumCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column {
                 Box(
@@ -1019,10 +1019,10 @@ fun VideoAlbumCard(
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
             border = androidx.compose.foundation.BorderStroke(
-                if (isLiveAlbum) 1.5.dp else 1.dp,
+                if (isLiveAlbum) 1.2.dp else 0.6.dp,
                 if (isLiveAlbum) BloodRed else CardBorderColor
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = if (isLiveAlbum) 5.dp else 4.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = if (isLiveAlbum) 3.dp else 2.dp)
         ) {
             Column {
                 Box(
@@ -1191,18 +1191,18 @@ fun VideoCard(
         }
     }
 
-    Card(
+        Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
             .testTag("video_card_${video.id}"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
         border = androidx.compose.foundation.BorderStroke(
-            if (isLiveVideo) 1.2.dp else 1.dp,
+            if (isLiveVideo) 1.dp else 0.6.dp,
             if (isLiveVideo) BloodRed.copy(alpha = 0.5f) else CardBorderColor
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column {
             Box(

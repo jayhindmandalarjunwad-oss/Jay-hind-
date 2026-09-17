@@ -63,10 +63,10 @@ fun QuickAccessScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -142,10 +142,10 @@ fun QuickAccessScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { showIdCardDialog = true },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, SaffronPrimary.copy(alpha = 0.5f)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.45f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Row(
                             modifier = Modifier
@@ -347,7 +347,7 @@ fun QuickAccessScreen(
                     .testTag("quick_access_about_us_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+                border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(
@@ -413,7 +413,7 @@ fun QuickAccessScreen(
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = DividerColor)
+                    HorizontalDivider(color = CardBorderColor.copy(alpha = 0.5f))
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
@@ -542,11 +542,11 @@ fun QuickServiceCard(
 ) {
     Card(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(

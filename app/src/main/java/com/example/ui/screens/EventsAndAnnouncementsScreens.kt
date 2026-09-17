@@ -201,9 +201,10 @@ fun FullEventCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Column {
             if (event.imageUrl.isNotBlank()) {
@@ -552,10 +553,13 @@ fun AnnouncementsScreen(
 
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                border = if (isMeetingMinute) androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.35f)) else null,
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    if (isMeetingMinute) 1.2.dp else 0.6.dp,
+                                    if (isMeetingMinute) SaffronPrimary.copy(alpha = 0.5f) else CardBorderColor
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(
@@ -1108,12 +1112,15 @@ fun NotificationsScreen(
                                             notificationToDelete = notif
                                         }
                                     ),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (notif.isRead) MaterialTheme.colorScheme.surface else SurfaceWarm
+                                    containerColor = if (notif.isRead) SurfaceWarm.copy(alpha = 0.65f) else SurfaceWarm
                                 ),
-                                border = if (!notif.isRead) androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)) else null,
-                                elevation = CardDefaults.cardElevation(defaultElevation = if (!notif.isRead) 2.dp else 1.dp)
+                                border = androidx.compose.foundation.BorderStroke(
+                                    if (!notif.isRead) 1.dp else 0.6.dp,
+                                    if (!notif.isRead) SaffronPrimary.copy(alpha = 0.5f) else CardBorderColor
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (!notif.isRead) 1.5.dp else 0.5.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),

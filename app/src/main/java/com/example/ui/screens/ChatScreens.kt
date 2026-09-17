@@ -142,12 +142,12 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("नाव किंवा मोबाईल नंबर टाकून शोधा...", fontSize = 13.sp) },
+                        placeholder = { Text("नाव किंवा मोबाईल नंबर टाकून शोधा...", fontSize = 13.5.sp, color = TextSecondary) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaffronPrimary) },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
                                 IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
                                 }
                             }
                         },
@@ -155,10 +155,12 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 10.dp)
                             .testTag("chat_search_input"),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceWarm,
+                            unfocusedContainerColor = SurfaceWarm,
                             focusedBorderColor = SaffronPrimary,
-                            unfocusedBorderColor = DividerColor
+                            unfocusedBorderColor = CardBorderColor
                         ),
                         singleLine = true
                     )
@@ -210,7 +212,7 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                                 onClick = { viewModel.openGroupChat() }
                             )
                             HorizontalDivider(
-                                color = DividerColor.copy(alpha = 0.5f),
+                                color = CardBorderColor.copy(alpha = 0.5f),
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                             )
                         }
@@ -261,7 +263,7 @@ fun ChatListScreen(viewModel: MandalViewModel) {
                                 onClick = { viewModel.openChatWith(summary.otherUser) }
                             )
                             HorizontalDivider(
-                                color = DividerColor.copy(alpha = 0.5f),
+                                color = CardBorderColor.copy(alpha = 0.4f),
                                 modifier = Modifier.padding(start = 74.dp)
                             )
                         }
@@ -497,10 +499,10 @@ fun MandalGroupChatPinnedCard(
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, SaffronPrimary.copy(alpha = 0.6f)),
-        shadowElevation = 2.dp,
+        shape = RoundedCornerShape(18.dp),
+        color = SurfaceWarm,
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, SaffronPrimary.copy(alpha = 0.5f)),
+        shadowElevation = 1.dp,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 6.dp)
@@ -709,9 +711,9 @@ fun ChatMemberPickCard(member: User, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -1246,7 +1248,8 @@ fun ChatDetailScreen(
                             placeholder = {
                                 Text(
                                     if (isGroupChat) "ग्रुपमध्ये संदेश लिहा..." else "संदेश लिहा (Type message)...",
-                                    fontSize = 14.sp
+                                    fontSize = 13.5.sp,
+                                    color = TextSecondary
                                 )
                             },
                             modifier = Modifier
@@ -1254,8 +1257,10 @@ fun ChatDetailScreen(
                                 .testTag("chat_detail_input"),
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = SurfaceWarm,
+                                unfocusedContainerColor = SurfaceWarm,
                                 focusedBorderColor = SaffronPrimary,
-                                unfocusedBorderColor = DividerColor
+                                unfocusedBorderColor = CardBorderColor
                             ),
                             trailingIcon = {
                                 IconButton(onClick = { launchCamera() }) {

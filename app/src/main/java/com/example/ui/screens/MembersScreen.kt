@@ -66,24 +66,26 @@ fun MembersScreen(viewModel: MandalViewModel) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.setMemberSearchQuery(it) },
-                        placeholder = { Text("नाव किंवा मोबाईल नंबर शोधा...", fontSize = 13.sp) },
+                        placeholder = { Text("नाव किंवा मोबाईल नंबर शोधा...", fontSize = 13.5.sp, color = TextSecondary) },
                         leadingIcon = {
                             Icon(Icons.Default.Search, contentDescription = "Search", tint = SaffronPrimary)
                         },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
                                 IconButton(onClick = { viewModel.setMemberSearchQuery("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
                                 }
                             }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("member_search_input"),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = SurfaceWarm,
+                            unfocusedContainerColor = SurfaceWarm,
                             focusedBorderColor = SaffronPrimary,
-                            unfocusedBorderColor = DividerColor
+                            unfocusedBorderColor = CardBorderColor
                         ),
                         singleLine = true
                     )
@@ -96,7 +98,7 @@ fun MembersScreen(viewModel: MandalViewModel) {
                     ) {
                         Text(
                             text = "रक्तगट:",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                             color = TextSecondary
                         )
 
@@ -114,13 +116,22 @@ fun MembersScreen(viewModel: MandalViewModel) {
                                     label = {
                                         Text(
                                             text = bg,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                             fontSize = 12.sp
                                         )
                                     },
+                                    shape = RoundedCornerShape(12.dp),
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = if (bg == "सर्व") SaffronPrimary else BloodRed,
-                                        selectedLabelColor = Color.White
+                                        selectedLabelColor = Color.White,
+                                        containerColor = SurfaceWarm,
+                                        labelColor = TextPrimary
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = isSelected,
+                                        borderColor = if (isSelected) Color.Transparent else CardBorderColor,
+                                        borderWidth = 0.6.dp
                                     )
                                 )
                             }

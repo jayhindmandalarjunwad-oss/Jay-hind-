@@ -118,7 +118,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                         .height(46.dp)
                         .testTag("profile_save_hd_id_card_button"),
                     colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.FileDownload,
@@ -128,7 +128,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (isSavingIdCard) "सेव्ह होत आहे..." else "HD सेव्ह करा",
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
                     )
                 }
@@ -148,7 +148,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                         .height(46.dp)
                         .testTag("profile_share_whatsapp_id_card_button"),
                     colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
@@ -158,7 +158,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "WhatsApp शेअर",
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
                     )
                 }
@@ -176,14 +176,14 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (user.isAdmin) NavySecondary else Color(0xFF2563EB)
                 ),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(imageVector = Icons.Default.AdminPanelSettings, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (user.isAdmin) "मंडळ ॲडमिन पॅनेल (Admin Panel)" else "मंडळ व्यवस्थापन पॅनेल (Content Panel)",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+                    fontSize = 14.5.sp
                 )
             }
         }
@@ -191,9 +191,9 @@ fun ProfileScreen(viewModel: MandalViewModel) {
         // PROFILE ACTIONS (Strictly Personal Profile Edit & Password Change)
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column {
@@ -203,7 +203,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                     subtitle = "नाव, फोटो, रक्तगट, जन्म तारीख, पत्ता",
                     onClick = { showEditProfileDialog = true }
                 )
-                HorizontalDivider(color = DividerColor)
+                HorizontalDivider(color = CardBorderColor.copy(alpha = 0.5f))
                 ProfileOptionRow(
                     icon = Icons.Default.Lock,
                     title = "पासवर्ड बदला",
@@ -219,12 +219,12 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 .fillMaxWidth()
                 .clickable { showFeedbackDialog = true }
                 .testTag("profile_feedback_card"),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(
                 containerColor = SurfaceWarm
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.4f))
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            border = androidx.compose.foundation.BorderStroke(0.8.dp, SaffronPrimary.copy(alpha = 0.35f))
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // Official Ribbon Banner Header
@@ -323,9 +323,10 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                     )
                     android.widget.Toast.makeText(context, "चाचणी नोटिफिकेशन पाठवले आहे! 🔔", android.widget.Toast.LENGTH_SHORT).show()
                 },
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+            border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -335,7 +336,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = SaffronPrimary.copy(alpha = 0.12f),
+                    color = SaffronPrimary.copy(alpha = 0.10f),
                     modifier = Modifier.size(42.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -343,7 +344,7 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                             imageVector = Icons.Default.NotificationsActive,
                             contentDescription = null,
                             tint = SaffronPrimary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -359,15 +360,15 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = SuccessGreen.copy(alpha = 0.12f)
                         ) {
                             Text(
                                 text = "सक्रिय",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = SuccessGreen,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
@@ -396,12 +397,12 @@ fun ProfileScreen(viewModel: MandalViewModel) {
                 .height(48.dp)
                 .testTag("logout_button"),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = BloodRed),
-            border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed),
-            shape = RoundedCornerShape(10.dp)
+            border = androidx.compose.foundation.BorderStroke(0.8.dp, BloodRed.copy(alpha = 0.6f)),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Icon(imageVector = Icons.Default.Logout, contentDescription = null, tint = BloodRed)
+            Icon(imageVector = Icons.Default.Logout, contentDescription = null, tint = BloodRed, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("लॉगआउट करा (Logout)", fontWeight = FontWeight.Bold, color = BloodRed)
+            Text("लॉगआउट करा (Logout)", fontWeight = FontWeight.SemiBold, color = BloodRed)
         }
 
         Spacer(modifier = Modifier.height(90.dp))
@@ -482,19 +483,19 @@ fun ProfileOptionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = SaffronPrimary.copy(alpha = 0.12f),
+            shape = CircleShape,
+            color = SaffronPrimary.copy(alpha = 0.10f),
             contentColor = SaffronPrimary,
             modifier = Modifier.size(38.dp)
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(19.dp))
             }
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
-            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary, fontSize = 11.sp)
+            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = TextPrimary)
+            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary, fontSize = 11.5.sp)
         }
         Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary)
     }

@@ -482,13 +482,13 @@ fun MandalTopHeader(
 fun BloodGroupBadge(bloodGroup: String, modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(50),
-        color = BloodRed.copy(alpha = 0.12f),
+        color = BloodRed.copy(alpha = 0.10f),
         contentColor = BloodRed,
-        border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed.copy(alpha = 0.25f)),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, BloodRed.copy(alpha = 0.25f)),
         modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -501,7 +501,7 @@ fun BloodGroupBadge(bloodGroup: String, modifier: Modifier = Modifier) {
             Text(
                 text = bloodGroup,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = BloodRed
             )
         }

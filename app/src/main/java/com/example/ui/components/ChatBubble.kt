@@ -306,13 +306,14 @@ fun ChatBubble(
         Box {
             Surface(
                 shape = RoundedCornerShape(
-                    topStart = 14.dp,
-                    topEnd = 14.dp,
-                    bottomStart = if (isSentByMe) 14.dp else 2.dp,
-                    bottomEnd = if (isSentByMe) 2.dp else 14.dp
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (isSentByMe) 16.dp else 4.dp,
+                    bottomEnd = if (isSentByMe) 4.dp else 16.dp
                 ),
                 color = bubbleColor,
-                shadowElevation = 1.5.dp,
+                border = androidx.compose.foundation.BorderStroke(0.6.dp, if (isSentByMe) SaffronPrimary.copy(alpha = 0.25f) else CardBorderColor),
+                shadowElevation = 1.dp,
                 modifier = Modifier
                     .widthIn(max = 300.dp)
                     .combinedClickable(
@@ -322,7 +323,7 @@ fun ChatBubble(
                         }
                     )
             ) {
-                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)) {
 
                 // 1. IMAGE ATTACHMENT (Natural Aspect Ratio / Original Size)
                 val imageToDisplay = message.attachmentUrl.takeIf { message.attachmentType == "IMAGE" } ?: message.imageUrl
