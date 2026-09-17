@@ -372,9 +372,11 @@ fun GalleryScreen(
                                                 .clip(RoundedCornerShape(14.dp))
                                                 .border(1.dp, CardBorderColor.copy(alpha = 0.7f), RoundedCornerShape(14.dp))
                                                 .clickable {
+                                                    viewModel.recordPhotoView(photo.id)
                                                     viewModel.openFullscreenPhotos(
                                                         photos = photos.map { it.imageUrl },
                                                         titles = photos.map { it.caption },
+                                                        viewCounts = photos.map { it.viewCount },
                                                         initialIndex = index
                                                     )
                                                 }
@@ -467,6 +469,34 @@ fun GalleryScreen(
                                                         )
                                                     }
                                                 }
+
+                                                // Admin Only: Photo View Count Badge
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = Color.Black.copy(alpha = 0.65f),
+                                                    modifier = Modifier
+                                                        .align(if (photo.caption.isNotBlank()) Alignment.BottomEnd else Alignment.BottomStart)
+                                                        .padding(6.dp)
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Visibility,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF34D399),
+                                                            modifier = Modifier.size(11.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text(
+                                                            text = "${photo.viewCount}",
+                                                            color = Color(0xFF34D399),
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -553,7 +583,10 @@ fun GalleryScreen(
                                         VideoCard(
                                             video = video,
                                             isAdmin = isAdmin,
-                                            onClick = { activePlayingVideo = video },
+                                            onClick = {
+                                                viewModel.recordVideoView(video.id)
+                                                activePlayingVideo = video
+                                            },
                                             onEdit = { editingVideo = video },
                                             onDelete = { viewModel.deleteVideo(video.id, selectedVideoAlbum!!.id) }
                                         )
@@ -719,6 +752,7 @@ fun GalleryScreen(
                 FullscreenPhotoDialog(
                     photos = fullscreenViewerState!!.photos,
                     titles = fullscreenViewerState!!.titles,
+                    viewCounts = fullscreenViewerState!!.viewCounts,
                     initialIndex = fullscreenViewerState!!.initialIndex,
                     isAdmin = isAdmin,
                     onDismiss = { viewModel.closeFullscreenPhoto() }
@@ -812,11 +846,15 @@ fun GalleryScreen(
 
             // IN-APP VIDEO PLAYER DIALOG
             if (activePlayingVideo != null) {
+                val currentVideoId = activePlayingVideo!!.id
+                val latestVideo = albumVideos.find { it.id == currentVideoId } ?: activePlayingVideo!!
                 VideoPlayerDialog(
-                    videoUrl = activePlayingVideo!!.videoUrl,
-                    title = activePlayingVideo!!.title,
-                    senderName = "जयहिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड • ${activePlayingVideo!!.category}",
-                    thumbnailUrl = activePlayingVideo!!.thumbnailUrl,
+                    videoUrl = latestVideo.videoUrl,
+                    title = latestVideo.title,
+                    senderName = "जयहिंद कला, क्रीडा व सांस्कृतिक मंडळ अर्जुनवाड • ${latestVideo.category}",
+                    thumbnailUrl = latestVideo.thumbnailUrl,
+                    viewCount = latestVideo.viewCount,
+                    isAdmin = isAdmin,
                     onDismiss = { activePlayingVideo = null }
                 )
             }
@@ -1320,21 +1358,54 @@ fun VideoCard(
                 // प्रक्षेपण दिनांक व वेळ (Date and Time)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        tint = BloodRed,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = "प्रक्षेपण: $formattedDate",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = BloodRed,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "प्रक्षेपण: $formattedDate",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    if (isAdmin) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF10B981).copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    tint = Color(0xFF059669),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "${video.viewCount} व्ह्यूज",
+                                    color = Color(0xFF059669),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (video.description.isNotBlank()) {

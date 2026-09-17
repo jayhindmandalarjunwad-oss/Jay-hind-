@@ -448,6 +448,7 @@ fun MandalApp(viewModel: MandalViewModel) {
                 FullscreenPhotoDialog(
                     photos = fullscreenViewerState!!.photos,
                     titles = fullscreenViewerState!!.titles,
+                    viewCounts = fullscreenViewerState!!.viewCounts,
                     initialIndex = fullscreenViewerState!!.initialIndex,
                     isAdmin = currentUser?.isAnyAdmin == true,
                     onDismiss = { viewModel.closeFullscreenPhoto() }

@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -400,6 +401,8 @@ fun VideoPlayerDialog(
     title: String = "व्हिडिओ",
     senderName: String = "",
     thumbnailUrl: String? = null,
+    viewCount: Int = 0,
+    isAdmin: Boolean = false,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -864,6 +867,26 @@ fun VideoPlayerDialog(
                                     fontSize = 12.sp,
                                     maxLines = 1
                                 )
+                            }
+                            if (isAdmin) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = Color(0xFF34D399),
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "$viewCount व्ह्यूज (Viewer Count)",
+                                        color = Color(0xFF34D399),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 
