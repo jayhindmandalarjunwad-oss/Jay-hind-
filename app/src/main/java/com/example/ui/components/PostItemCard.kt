@@ -64,10 +64,10 @@ fun PostItemCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag("post_card_${post.id}"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Official Mandal Announcement Ribbon
@@ -262,7 +262,7 @@ fun PostItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val likeTint by animateColorAsState(
-                    targetValue = if (isLiked) BloodRed else Color(0xFF475569),
+                    targetValue = if (isLiked) BloodRed else TextSecondary,
                     label = "likeColor"
                 )
                 val likeScale by animateFloatAsState(
@@ -308,13 +308,13 @@ fun PostItemCard(
                     Icon(
                         imageVector = Icons.Outlined.ChatBubbleOutline,
                         contentDescription = "कमेंट",
-                        tint = Color(0xFF475569),
+                        tint = TextSecondary,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "कमेंट",
-                        color = Color(0xFF475569),
+                        color = TextSecondary,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     )
@@ -335,13 +335,13 @@ fun PostItemCard(
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = "शेअर",
-                        tint = Color(0xFF475569),
+                        tint = TextSecondary,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "शेअर",
-                        color = Color(0xFF475569),
+                        color = TextSecondary,
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     )

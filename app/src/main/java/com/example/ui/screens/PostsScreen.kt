@@ -70,9 +70,10 @@ fun PostsScreen(
                         .fillMaxWidth()
                         .clickable { onOpenCreatePost() }
                         .testTag("feed_create_post_trigger"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+                    border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Row(
                         modifier = Modifier

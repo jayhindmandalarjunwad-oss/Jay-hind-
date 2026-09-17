@@ -512,7 +512,7 @@ fun HomeScreen(
                             .testTag("upcoming_events_card"),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+                        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(
@@ -618,7 +618,7 @@ fun HomeScreen(
                             .testTag("today_birthdays_card"),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+                        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(
@@ -897,33 +897,33 @@ fun SocialHandleButton(
             .height(68.dp)
             .clickable { onClick() }
             .testTag("social_btn_$label"),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.25f)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(4.dp),
+                .padding(vertical = 6.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .background(color),
-                contentAlignment = Alignment.Center
+            Surface(
+                shape = CircleShape,
+                color = color.copy(alpha = 0.12f),
+                modifier = Modifier.size(32.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = color,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
@@ -940,10 +940,10 @@ fun SocialHandleButton(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.5.sp
                     ),
-                    color = color,
+                    color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -968,7 +968,7 @@ fun AboutUsHomeSection(
             .testTag("about_us_section"),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -1310,41 +1310,41 @@ fun QuickButton(
 ) {
     Card(
         modifier = modifier
-            .height(72.dp)
+            .height(74.dp)
             .clickable { onClick() }
             .testTag("quick_btn_$label"),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWarm),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderColor),
+        border = androidx.compose.foundation.BorderStroke(0.6.dp, CardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(6.dp),
+                .padding(vertical = 8.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(color.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
+            Surface(
+                shape = CircleShape,
+                color = color.copy(alpha = 0.10f),
+                modifier = Modifier.size(34.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = color,
-                    modifier = Modifier.size(18.dp)
-                )
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = color,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(5.dp))
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold
                 ),
                 color = TextPrimary,
                 maxLines = 1,
