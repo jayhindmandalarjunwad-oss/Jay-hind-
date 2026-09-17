@@ -647,27 +647,32 @@ fun GalleryScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(12.dp),
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = BloodRed)
+                                        Row(
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = BloodRed, modifier = Modifier.size(20.dp))
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
-                                                text = "ॲडमिन: व्हिडिओ ॲल्बम व्यवस्थापन",
+                                                text = "व्हिडिओ ॲल्बम व्यवस्थापन",
                                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                                 color = TextPrimary
                                             )
                                         }
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Button(
                                             onClick = { showCreateVideoAlbumDialog = true },
                                             colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
-                                            shape = RoundedCornerShape(12.dp)
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                         ) {
                                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text("नवीन व्हिडिओ ॲल्बम", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text("+ नवीन ॲल्बम", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -1032,13 +1037,14 @@ fun VideoAlbumCard(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Video Album Play Badge overlay with ripple aesthetic
+                    // Modern translucent play badge with subtle glassmorphism overlay
+                    // Doesn't obstruct thumbnail text and looks clean & modern
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(BloodRed.copy(alpha = 0.90f))
-                            .border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                            .background(Color.Black.copy(alpha = 0.42f))
+                            .border(1.2.dp, Color.White.copy(alpha = 0.75f), CircleShape)
                             .align(Alignment.Center),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1046,49 +1052,49 @@ fun VideoAlbumCard(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = "Video Album",
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
-                    // Frosted category badge
+                    // Compact frosted category badge
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isLiveAlbum) BloodRed else Color.Black.copy(alpha = 0.60f),
-                        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color.White.copy(alpha = 0.35f)),
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isLiveAlbum) BloodRed.copy(alpha = 0.90f) else Color.Black.copy(alpha = 0.50f),
+                        border = androidx.compose.foundation.BorderStroke(0.6.dp, Color.White.copy(alpha = 0.35f)),
                         contentColor = Color.White,
                         modifier = Modifier
-                            .padding(8.dp)
+                            .padding(6.dp)
                             .align(Alignment.TopStart)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         ) {
                             if (isLiveAlbum) {
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
+                                        .size(5.dp)
                                         .clip(CircleShape)
                                         .background(Color.White)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "🔴 LIVE VIDEO",
-                                    fontSize = 10.sp,
+                                    text = "LIVE",
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             } else {
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
+                                        .size(5.dp)
                                         .clip(CircleShape)
                                         .background(BloodRed)
                                 )
-                                Spacer(modifier = Modifier.width(5.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = album.category,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
@@ -1098,24 +1104,24 @@ fun VideoAlbumCard(
                         Row(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                .padding(5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             IconButton(
                                 onClick = onEdit,
                                 modifier = Modifier
-                                    .size(30.dp)
-                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                    .size(26.dp)
+                                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
                             ) {
-                                Icon(Icons.Default.Edit, contentDescription = "शीर्षक व कॅटेगिरी बदला", tint = Color.White, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Edit, contentDescription = "शीर्षक व कॅटेगिरी बदला", tint = Color.White, modifier = Modifier.size(12.dp))
                             }
                             IconButton(
                                 onClick = onDelete,
                                 modifier = Modifier
-                                    .size(30.dp)
-                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                    .size(26.dp)
+                                    .background(Color.Black.copy(alpha = 0.45f), CircleShape)
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = Color.White, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Delete, contentDescription = "हटवा", tint = Color.White, modifier = Modifier.size(12.dp))
                             }
                         }
                     }
@@ -1211,12 +1217,13 @@ fun VideoCard(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Play Icon Overlay
+                // Play Icon Overlay - Semi-transparent glass circle with subtle white border
                 Box(
                     modifier = Modifier
-                        .size(54.dp)
+                        .size(46.dp)
                         .clip(CircleShape)
-                        .background(BloodRed.copy(alpha = 0.9f))
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .border(1.5.dp, Color.White.copy(alpha = 0.8f), CircleShape)
                         .align(Alignment.Center),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1224,7 +1231,7 @@ fun VideoCard(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "Play",
                         tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
 
