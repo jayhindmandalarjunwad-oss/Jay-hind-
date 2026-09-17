@@ -32,6 +32,7 @@ class MandalRepository(context: Context) {
     private val notificationDao = db.notificationDao()
     private val bannerDao = db.bannerDao()
     private val mandalInfoDao = db.mandalInfoDao()
+    private val businessDirectoryDao = db.businessDirectoryDao()
 
     private val prefs = context.getSharedPreferences("mandal_prefs", Context.MODE_PRIVATE)
     private val _mandalLogoUrl = MutableStateFlow<String?>(prefs.getString("mandal_logo_url", null))
@@ -333,6 +334,19 @@ class MandalRepository(context: Context) {
                         }
                     } catch (e: Exception) {
                         Log.w("FirebaseSync", "Mandal info sync error: ${e.message}")
+                    }
+                }
+
+                // 11. Sync Business Directory
+                launch {
+                    try {
+                        val bizSnap = Tasks.await(firestore.collection("business_directory").get())
+                        val businesses = bizSnap.documents.mapNotNull { it.toBusinessListingEntity() }
+                        if (businesses.isNotEmpty()) {
+                            businessDirectoryDao.insertBusinesses(businesses)
+                        }
+                    } catch (e: Exception) {
+                        Log.w("FirebaseSync", "Business directory sync error: ${e.message}")
                     }
                 }
             }
@@ -1237,7 +1251,11 @@ class MandalRepository(context: Context) {
     suspend fun createPost(
         content: String,
         imageUrl: String?,
-        videoUrl: String?
+        videoUrl: String?,
+        isSponsored: Boolean = false,
+        sponsorBusinessName: String? = null,
+        sponsorContactNumber: String? = null,
+        sponsorCtaText: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("कृपया प्रथम लॉगिन करा"))
         if (user.status == "BLOCKED") {
@@ -1254,7 +1272,11 @@ class MandalRepository(context: Context) {
             videoUrl = videoUrl,
             likedUserIdsJson = "",
             commentsCount = 0,
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            isSponsored = isSponsored,
+            sponsorBusinessName = sponsorBusinessName?.trim()?.ifBlank { null },
+            sponsorContactNumber = sponsorContactNumber?.trim()?.ifBlank { null },
+            sponsorCtaText = sponsorCtaText?.trim()?.ifBlank { null }
         )
         postDao.insertPost(newPost)
 
@@ -1330,16 +1352,36 @@ class MandalRepository(context: Context) {
         postId: String,
         content: String,
         imageUrl: String?,
-        videoUrl: String?
+        videoUrl: String?,
+        isSponsored: Boolean = false,
+        sponsorBusinessName: String? = null,
+        sponsorContactNumber: String? = null,
+        sponsorCtaText: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val cleanContent = content.trim()
         val cleanImage = imageUrl ?: ""
-        postDao.updatePostContent(postId, cleanContent, cleanImage, videoUrl)
+        val cleanBizName = sponsorBusinessName?.trim()?.ifBlank { null }
+        val cleanContact = sponsorContactNumber?.trim()?.ifBlank { null }
+        val cleanCta = sponsorCtaText?.trim()?.ifBlank { null }
+        postDao.updatePostContent(
+            postId = postId,
+            content = cleanContent,
+            imageUrls = cleanImage,
+            videoUrl = videoUrl,
+            isSponsored = isSponsored,
+            sponsorBusinessName = cleanBizName,
+            sponsorContactNumber = cleanContact,
+            sponsorCtaText = cleanCta
+        )
         try {
             val updateMap = mutableMapOf<String, Any?>(
                 "content" to cleanContent,
                 "imageUrlsJson" to cleanImage,
-                "videoUrl" to videoUrl
+                "videoUrl" to videoUrl,
+                "isSponsored" to isSponsored,
+                "sponsorBusinessName" to cleanBizName,
+                "sponsorContactNumber" to cleanContact,
+                "sponsorCtaText" to cleanCta
             )
             firestore.collection("posts").document(postId).set(updateMap, SetOptions.merge())
         } catch (e: Exception) {
@@ -1810,6 +1852,28 @@ class MandalRepository(context: Context) {
             firestore.collection("photos").document(photoId).update("caption", caption.trim())
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error updating photo caption on Firestore", e)
+        }
+    }
+
+    suspend fun incrementPhotoViewCount(photoId: String) = withContext(Dispatchers.IO) {
+        if (photoId.isBlank()) return@withContext
+        galleryDao.incrementPhotoViewCount(photoId)
+        try {
+            firestore.collection("photos").document(photoId)
+                .update("viewCount", com.google.firebase.firestore.FieldValue.increment(1))
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error incrementing photo view count on Firestore", e)
+        }
+    }
+
+    suspend fun incrementVideoViewCount(videoId: String) = withContext(Dispatchers.IO) {
+        if (videoId.isBlank()) return@withContext
+        galleryDao.incrementVideoViewCount(videoId)
+        try {
+            firestore.collection("videos").document(videoId)
+                .update("viewCount", com.google.firebase.firestore.FieldValue.increment(1))
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error incrementing video view count on Firestore", e)
         }
     }
 
@@ -3140,6 +3204,87 @@ class MandalRepository(context: Context) {
         }
     }
 
+    // BUSINESS DIRECTORY (Local Yellow Pages)
+    fun getAllBusinesses(): Flow<List<BusinessListing>> {
+        return businessDirectoryDao.getAllBusinesses().map { list -> list.map { it.toDomain() } }
+    }
+
+    suspend fun addBusiness(
+        businessName: String,
+        ownerName: String,
+        category: String,
+        description: String,
+        contactNumber: String,
+        whatsappNumber: String,
+        address: String,
+        photoUrl: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val bizId = "biz_" + UUID.randomUUID().toString().take(8)
+        val entity = BusinessListingEntity(
+            id = bizId,
+            businessName = businessName.trim(),
+            ownerName = ownerName.trim(),
+            category = category.trim().ifBlank { "इतर" },
+            description = description.trim(),
+            contactNumber = contactNumber.trim(),
+            whatsappNumber = whatsappNumber.trim().ifBlank { contactNumber.trim() },
+            address = address.trim().ifBlank { "अर्जुनवाड" },
+            photoUrl = photoUrl.trim(),
+            isVerified = true,
+            timestamp = System.currentTimeMillis()
+        )
+        businessDirectoryDao.insertBusiness(entity)
+        try {
+            firestore.collection("business_directory").document(bizId).set(entity.toMap(), SetOptions.merge())
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error saving business to firestore: ${e.message}")
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun updateBusiness(
+        id: String,
+        businessName: String,
+        ownerName: String,
+        category: String,
+        description: String,
+        contactNumber: String,
+        whatsappNumber: String,
+        address: String,
+        photoUrl: String
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val entity = BusinessListingEntity(
+            id = id,
+            businessName = businessName.trim(),
+            ownerName = ownerName.trim(),
+            category = category.trim().ifBlank { "इतर" },
+            description = description.trim(),
+            contactNumber = contactNumber.trim(),
+            whatsappNumber = whatsappNumber.trim().ifBlank { contactNumber.trim() },
+            address = address.trim().ifBlank { "अर्जुनवाड" },
+            photoUrl = photoUrl.trim(),
+            isVerified = true,
+            timestamp = System.currentTimeMillis()
+        )
+        businessDirectoryDao.insertBusiness(entity)
+        try {
+            firestore.collection("business_directory").document(id).set(entity.toMap(), SetOptions.merge())
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating business on firestore: ${e.message}")
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun deleteBusiness(id: String): Result<Unit> = withContext(Dispatchers.IO) {
+        businessDirectoryDao.deleteBusiness(id)
+        try {
+            firestore.collection("business_directory").document(id).delete()
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error deleting business on firestore: ${e.message}")
+        }
+        Result.success(Unit)
+    }
+
     suspend fun saveFcmToken(token: String) = withContext(Dispatchers.IO) {
         try {
             val user = _currentUser.value
@@ -3216,7 +3361,11 @@ fun PostEntity.toDomain() = Post(
     videoUrl = videoUrl,
     likedUserIds = if (likedUserIdsJson.isNotBlank()) likedUserIdsJson.split(",").filter { it.isNotBlank() } else emptyList(),
     commentsCount = commentsCount,
-    timestamp = timestamp
+    timestamp = timestamp,
+    isSponsored = isSponsored,
+    sponsorBusinessName = sponsorBusinessName,
+    sponsorContactNumber = sponsorContactNumber,
+    sponsorCtaText = sponsorCtaText
 )
 
 fun CommentEntity.toDomain() = Comment(
@@ -3267,6 +3416,7 @@ fun PhotoEntity.toDomain() = GalleryPhoto(
     albumId = albumId,
     imageUrl = imageUrl,
     caption = caption,
+    viewCount = viewCount,
     uploadedAt = uploadedAt
 )
 
@@ -3279,6 +3429,7 @@ fun VideoEntity.toDomain() = VideoItem(
     videoUrl = videoUrl,
     thumbnailUrl = thumbnailUrl,
     duration = duration,
+    viewCount = viewCount,
     uploadedAt = uploadedAt
 )
 
@@ -3417,7 +3568,11 @@ fun PostEntity.toMap(): Map<String, Any?> = mapOf(
     "videoUrl" to videoUrl,
     "likedUserIdsJson" to likedUserIdsJson,
     "commentsCount" to commentsCount,
-    "timestamp" to timestamp
+    "timestamp" to timestamp,
+    "isSponsored" to isSponsored,
+    "sponsorBusinessName" to sponsorBusinessName,
+    "sponsorContactNumber" to sponsorContactNumber,
+    "sponsorCtaText" to sponsorCtaText
 )
 
 fun DocumentSnapshot.toPostEntity(): PostEntity? {
@@ -3447,7 +3602,11 @@ fun DocumentSnapshot.toPostEntity(): PostEntity? {
         videoUrl = getString("videoUrl"),
         likedUserIdsJson = getString("likedUserIdsJson") ?: "",
         commentsCount = (getLong("commentsCount") ?: 0L).toInt(),
-        timestamp = postTs
+        timestamp = postTs,
+        isSponsored = getBoolean("isSponsored") ?: false,
+        sponsorBusinessName = getString("sponsorBusinessName"),
+        sponsorContactNumber = getString("sponsorContactNumber"),
+        sponsorCtaText = getString("sponsorCtaText")
     )
 }
 
@@ -3554,6 +3713,7 @@ fun PhotoEntity.toMap(): Map<String, Any?> = mapOf(
     "albumId" to albumId,
     "imageUrl" to imageUrl,
     "caption" to caption,
+    "viewCount" to viewCount,
     "uploadedAt" to uploadedAt
 )
 
@@ -3565,6 +3725,7 @@ fun DocumentSnapshot.toPhotoEntity(): PhotoEntity? {
         albumId = albumId,
         imageUrl = getString("imageUrl") ?: "",
         caption = getString("caption") ?: "",
+        viewCount = (getLong("viewCount") ?: 0L).toInt(),
         uploadedAt = getLong("uploadedAt") ?: System.currentTimeMillis()
     )
 }
@@ -3578,6 +3739,7 @@ fun VideoEntity.toMap(): Map<String, Any?> = mapOf(
     "videoUrl" to videoUrl,
     "thumbnailUrl" to thumbnailUrl,
     "duration" to duration,
+    "viewCount" to viewCount,
     "uploadedAt" to uploadedAt
 )
 
@@ -3593,6 +3755,7 @@ fun DocumentSnapshot.toVideoEntity(): VideoEntity? {
         videoUrl = getString("videoUrl") ?: "",
         thumbnailUrl = getString("thumbnailUrl") ?: "",
         duration = getString("duration") ?: "03:45",
+        viewCount = (getLong("viewCount") ?: 0L).toInt(),
         uploadedAt = getLong("uploadedAt") ?: System.currentTimeMillis()
     )
 }
@@ -3769,5 +3932,51 @@ fun DocumentSnapshot.toMandalInfoEntity(): MandalInfoEntity? {
         showFestiveBanner = getBoolean("showFestiveBanner") ?: true,
         manualFestivalId = getString("manualFestivalId") ?: "",
         updatedAt = getLong("updatedAt") ?: System.currentTimeMillis()
+    )
+}
+
+fun BusinessListingEntity.toDomain() = BusinessListing(
+    id = id,
+    businessName = businessName,
+    ownerName = ownerName,
+    category = category,
+    description = description,
+    contactNumber = contactNumber,
+    whatsappNumber = whatsappNumber,
+    address = address,
+    photoUrl = photoUrl,
+    isVerified = isVerified,
+    timestamp = timestamp
+)
+
+fun BusinessListingEntity.toMap(): Map<String, Any?> = mapOf(
+    "id" to id,
+    "businessName" to businessName,
+    "ownerName" to ownerName,
+    "category" to category,
+    "description" to description,
+    "contactNumber" to contactNumber,
+    "whatsappNumber" to whatsappNumber,
+    "address" to address,
+    "photoUrl" to photoUrl,
+    "isVerified" to isVerified,
+    "timestamp" to timestamp
+)
+
+fun DocumentSnapshot.toBusinessListingEntity(): BusinessListingEntity? {
+    val id = getString("id") ?: id
+    val bName = getString("businessName") ?: return null
+    return BusinessListingEntity(
+        id = id,
+        businessName = bName,
+        ownerName = getString("ownerName") ?: "",
+        category = getString("category") ?: "इतर",
+        description = getString("description") ?: "",
+        contactNumber = getString("contactNumber") ?: "",
+        whatsappNumber = getString("whatsappNumber") ?: "",
+        address = getString("address") ?: "अर्जुनवाड",
+        photoUrl = getString("photoUrl") ?: "",
+        isVerified = getBoolean("isVerified") ?: true,
+        timestamp = getLong("timestamp") ?: System.currentTimeMillis()
     )
 }

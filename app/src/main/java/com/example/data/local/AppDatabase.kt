@@ -18,9 +18,10 @@ import androidx.room.RoomDatabase
         AnnouncementEntity::class,
         NotificationEntity::class,
         BannerEntity::class,
-        MandalInfoEntity::class
+        MandalInfoEntity::class,
+        BusinessListingEntity::class
     ],
-    version = 10,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun notificationDao(): NotificationDao
     abstract fun bannerDao(): BannerDao
     abstract fun mandalInfoDao(): MandalInfoDao
+    abstract fun businessDirectoryDao(): BusinessDirectoryDao
 
     companion object {
         @Volatile

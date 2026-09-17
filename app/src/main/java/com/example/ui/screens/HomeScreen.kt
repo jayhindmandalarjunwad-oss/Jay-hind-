@@ -716,7 +716,85 @@ fun HomeScreen(
         }
 
         // ==========================================
-        // 5. अधिकृत सोशल मीडिया हँडल (4 BUTTONS ROW)
+        // 5. स्थानिक व्यावसायिक डिरेक्टरी (LOCAL BUSINESS DIRECTORY / YELLOW PAGES BANNER)
+        // ==========================================
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp)
+                    .clickable { viewModel.openBusinessDirectory() },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDFA)),
+                border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF14B8A6)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFCCFBF1),
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Storefront,
+                                contentDescription = null,
+                                tint = Color(0xFF0D9488),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "स्थानिक व्यावसायिक डिरेक्टरी",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                ),
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF0D9488)
+                            ) {
+                                Text(
+                                    text = "यलो पेजेस",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "गावातील सर्व दुकाने, कारागीर व सेवा • थेट कॉल व व्हॉट्सॲप",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = TextSecondary
+                        )
+                    }
+                    Button(
+                        onClick = { viewModel.openBusinessDirectory() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("उघडा", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 6. अधिकृत सोशल मीडिया हँडल (4 BUTTONS ROW)
         // ==========================================
         item {
             Column(modifier = Modifier.padding(horizontal = 14.dp)) {

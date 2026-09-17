@@ -168,9 +168,18 @@ fun PostsScreen(
                 currentUser = currentUser,
                 initialPost = postToEdit,
                 onDismiss = { postToEdit = null },
-                onPostCreated = { content, imageUrl, videoUrl ->
+                onPostCreated = { content, imageUrl, videoUrl, isSponsored, sponsorBusinessName, sponsorContactNumber, sponsorCtaText ->
                     postToEdit?.let { target ->
-                        viewModel.updatePost(target.id, content, imageUrl, videoUrl) {
+                        viewModel.updatePost(
+                            postId = target.id,
+                            content = content,
+                            imageUrl = imageUrl,
+                            videoUrl = videoUrl,
+                            isSponsored = isSponsored,
+                            sponsorBusinessName = sponsorBusinessName,
+                            sponsorContactNumber = sponsorContactNumber,
+                            sponsorCtaText = sponsorCtaText
+                        ) {
                             postToEdit = null
                         }
                     }

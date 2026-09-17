@@ -71,7 +71,7 @@ fun PostItemCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Official Mandal Announcement Ribbon
-            if (isOfficialPost) {
+            if (isOfficialPost && !post.isSponsored) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -89,6 +89,40 @@ fun PostItemCard(
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+                }
+            } else if (post.isSponsored) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF0D9488), Color(0xFF14B8A6))
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 5.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "✨ प्रायोजित जाहिरात (Sponsored Post)",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (!post.sponsorBusinessName.isNullOrBlank()) {
+                            Text(
+                                text = post.sponsorBusinessName,
+                                color = Color.White.copy(alpha = 0.95f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -200,6 +234,113 @@ fun PostItemCard(
                     onImageClick = onImageClick,
                     onMultiImageClick = onMultiImageClick
                 )
+            }
+
+            // Sponsored Post Action Bar (Call / WhatsApp CTA Button)
+            if (post.isSponsored && !post.sponsorContactNumber.isNullOrBlank()) {
+                val contactNum = post.sponsorContactNumber
+                val ctaTitle = post.sponsorCtaText?.ifBlank { null } ?: "संपर्क साधा / ऑर्डर द्या"
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF0FDFA),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF99F6E4))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = ctaTitle,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F766E),
+                                fontSize = 12.5.sp
+                            )
+                            Text(
+                                text = contactNum,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF115E59),
+                                fontSize = 11.5.sp
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // Call Button
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_DIAL).apply {
+                                            data = android.net.Uri.parse("tel:$contactNum")
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        // Ignore
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = "Call",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "कॉल",
+                                    color = Color.White,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // WhatsApp Button
+                            Button(
+                                onClick = {
+                                    try {
+                                        val cleanPhone = contactNum.filter { it.isDigit() }
+                                        val formattedPhone = if (cleanPhone.length == 10) "91$cleanPhone" else cleanPhone
+                                        val message = "जय हिंद ॲपवरून मी आपल्या जाहिरातीबद्दल विचारत आहे."
+                                        val url = "https://api.whatsapp.com/send?phone=$formattedPhone&text=${android.net.Uri.encode(message)}"
+                                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        // Fallback
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Send,
+                                    contentDescription = "WhatsApp",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "WhatsApp",
+                                    color = Color.White,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

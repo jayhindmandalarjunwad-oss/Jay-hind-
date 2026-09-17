@@ -24,7 +24,8 @@ enum class AppScreen {
     ANNOUNCEMENTS,
     NOTIFICATIONS,
     CHAT_DETAIL,
-    USER_POSTS
+    USER_POSTS,
+    BUSINESS_DIRECTORY
 }
 
 enum class NavigationTab {
@@ -462,7 +463,16 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // POSTS ACTIONS
-    fun createPost(content: String, imageUrl: String?, videoUrl: String?, onDone: () -> Unit) {
+    fun createPost(
+        content: String,
+        imageUrl: String?,
+        videoUrl: String?,
+        isSponsored: Boolean = false,
+        sponsorBusinessName: String? = null,
+        sponsorContactNumber: String? = null,
+        sponsorCtaText: String? = null,
+        onDone: () -> Unit
+    ) {
         val user = currentUser.value
         if (user?.status == "BLOCKED") {
             showSnackbar("आपले खाते ब्लॉक असल्याने आपण नवीन पोस्ट करू शकत नाही. ⚠️")
@@ -473,9 +483,18 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
         viewModelScope.launch {
-            val res = repository.createPost(content, imageUrl, videoUrl)
+            val res = repository.createPost(
+                content = content,
+                imageUrl = imageUrl,
+                videoUrl = videoUrl,
+                isSponsored = isSponsored,
+                sponsorBusinessName = sponsorBusinessName,
+                sponsorContactNumber = sponsorContactNumber,
+                sponsorCtaText = sponsorCtaText
+            )
             res.onSuccess {
-                showSnackbar("पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 🚩")
+                val successMsg = if (isSponsored) "स्पॉन्सर पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 📢" else "पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 🚩"
+                showSnackbar(successMsg)
                 onDone()
             }.onFailure {
                 showSnackbar(it.message ?: "पोस्ट करताना त्रुटी आली.")
@@ -582,7 +601,17 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun updatePost(postId: String, content: String, imageUrl: String?, videoUrl: String?, onDone: () -> Unit) {
+    fun updatePost(
+        postId: String,
+        content: String,
+        imageUrl: String?,
+        videoUrl: String?,
+        isSponsored: Boolean = false,
+        sponsorBusinessName: String? = null,
+        sponsorContactNumber: String? = null,
+        sponsorCtaText: String? = null,
+        onDone: () -> Unit
+    ) {
         val user = currentUser.value
         if (user?.status == "BLOCKED") {
             showSnackbar("आपले खाते ब्लॉक असल्याने आपण पोस्ट एडिट करू शकत नाही. ⚠️")
@@ -593,7 +622,16 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
         viewModelScope.launch {
-            val res = repository.updatePost(postId, content, imageUrl, videoUrl)
+            val res = repository.updatePost(
+                postId = postId,
+                content = content,
+                imageUrl = imageUrl,
+                videoUrl = videoUrl,
+                isSponsored = isSponsored,
+                sponsorBusinessName = sponsorBusinessName,
+                sponsorContactNumber = sponsorContactNumber,
+                sponsorCtaText = sponsorCtaText
+            )
             res.onSuccess {
                 showSnackbar("पोस्ट यशस्वीरित्या अपडेट झाली! ✏️")
                 onDone()
@@ -847,7 +885,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun openFullscreenPhotos(photos: List<String>, initialIndex: Int = 0, titles: List<String> = emptyList()) {
+    fun openFullscreenPhotos(
+        photos: List<String>,
+        initialIndex: Int = 0,
+        titles: List<String> = emptyList(),
+        viewCounts: List<Int> = emptyList()
+    ) {
         val valid = photos.filter { it.isNotBlank() }
         if (valid.isEmpty()) {
             _fullscreenPhotoUrl.value = null
@@ -858,8 +901,21 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             _fullscreenViewerState.value = FullscreenViewerState(
                 photos = valid,
                 initialIndex = safeIndex,
-                titles = titles
+                titles = titles,
+                viewCounts = viewCounts
             )
+        }
+    }
+
+    fun recordPhotoView(photoId: String) {
+        viewModelScope.launch {
+            repository.incrementPhotoViewCount(photoId)
+        }
+    }
+
+    fun recordVideoView(videoId: String) {
+        viewModelScope.launch {
+            repository.incrementVideoViewCount(videoId)
         }
     }
 
@@ -885,6 +941,9 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun playVideo(video: VideoItem?) {
         _playingVideo.value = video
+        if (video != null && video.id.isNotBlank()) {
+            recordVideoView(video.id)
+        }
     }
 
     // EVENTS ACTIONS
@@ -1816,6 +1875,97 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Business Directory State (स्थानिक व्यावसायिक डिरेक्टरी / Yellow Pages)
+    val businesses: StateFlow<List<BusinessListing>> = repository.getAllBusinesses()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun openBusinessDirectory() {
+        _currentScreen.value = AppScreen.BUSINESS_DIRECTORY
+    }
+
+    fun closeBusinessDirectory() {
+        _currentScreen.value = AppScreen.MAIN
+    }
+
+    fun addBusiness(
+        businessName: String,
+        ownerName: String,
+        category: String,
+        description: String,
+        contactNumber: String,
+        whatsappNumber: String,
+        address: String,
+        photoUrl: String,
+        onDone: () -> Unit
+    ) {
+        if (businessName.isBlank() || contactNumber.isBlank()) {
+            showSnackbar("कृपया दुकानाचे/व्यवसायाचे नाव आणि संपर्क क्रमांक भरा.")
+            return
+        }
+        viewModelScope.launch {
+            val res = repository.addBusiness(
+                businessName = businessName,
+                ownerName = ownerName,
+                category = category,
+                description = description,
+                contactNumber = contactNumber,
+                whatsappNumber = whatsappNumber,
+                address = address,
+                photoUrl = photoUrl
+            )
+            res.onSuccess {
+                showSnackbar("स्थानिक व्यवसाय यशस्वीरित्या जोडला गेला! 🏪✨")
+                onDone()
+            }.onFailure {
+                showSnackbar(it.message ?: "व्यवसाय जोडताना त्रुटी आली.")
+            }
+        }
+    }
+
+    fun updateBusiness(
+        id: String,
+        businessName: String,
+        ownerName: String,
+        category: String,
+        description: String,
+        contactNumber: String,
+        whatsappNumber: String,
+        address: String,
+        photoUrl: String,
+        onDone: () -> Unit
+    ) {
+        if (businessName.isBlank() || contactNumber.isBlank()) {
+            showSnackbar("कृपया दुकानाचे/व्यवसायाचे नाव आणि संपर्क क्रमांक भरा.")
+            return
+        }
+        viewModelScope.launch {
+            val res = repository.updateBusiness(
+                id = id,
+                businessName = businessName,
+                ownerName = ownerName,
+                category = category,
+                description = description,
+                contactNumber = contactNumber,
+                whatsappNumber = whatsappNumber,
+                address = address,
+                photoUrl = photoUrl
+            )
+            res.onSuccess {
+                showSnackbar("व्यवसायाची माहिती अपडेट झाली! ✅")
+                onDone()
+            }.onFailure {
+                showSnackbar(it.message ?: "माहिती अपडेट करताना त्रुटी आली.")
+            }
+        }
+    }
+
+    fun deleteBusiness(id: String) {
+        viewModelScope.launch {
+            repository.deleteBusiness(id)
+            showSnackbar("व्यवसाय डिरेक्टरीतून काढण्यात आला.")
+        }
+    }
+
     fun shareBackup(backupItem: com.example.util.BackupItem) {
         com.example.util.LocalBackupManager.shareBackup(getApplication(), backupItem.file)
     }
@@ -1824,5 +1974,6 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 data class FullscreenViewerState(
     val photos: List<String> = emptyList(),
     val initialIndex: Int = 0,
-    val titles: List<String> = emptyList()
+    val titles: List<String> = emptyList(),
+    val viewCounts: List<Int> = emptyList()
 )

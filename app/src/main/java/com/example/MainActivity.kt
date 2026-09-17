@@ -387,6 +387,13 @@ fun MandalApp(viewModel: MandalViewModel) {
                         viewModel.navigateTo(AppScreen.MAIN)
                     }
                 }
+
+                AppScreen.BUSINESS_DIRECTORY -> {
+                    BusinessDirectoryScreen(
+                        viewModel = viewModel,
+                        onBack = { viewModel.navigateTo(AppScreen.MAIN) }
+                    )
+                }
             }
             }
 
@@ -395,8 +402,16 @@ fun MandalApp(viewModel: MandalViewModel) {
                 CreatePostDialog(
                     currentUser = currentUser,
                     onDismiss = { showCreatePostDialog = false },
-                    onPostCreated = { content, img, vid ->
-                        viewModel.createPost(content, img, vid) {
+                    onPostCreated = { content, img, vid, isSpon, busName, cNum, cta ->
+                        viewModel.createPost(
+                            content = content,
+                            imageUrl = img,
+                            videoUrl = vid,
+                            isSponsored = isSpon,
+                            sponsorBusinessName = busName,
+                            sponsorContactNumber = cNum,
+                            sponsorCtaText = cta
+                        ) {
                             showCreatePostDialog = false
                         }
                     }

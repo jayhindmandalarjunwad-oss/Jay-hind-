@@ -36,7 +36,11 @@ data class PostEntity(
     val videoUrl: String? = null,
     val likedUserIdsJson: String = "", // Comma separated user IDs
     val commentsCount: Int = 0,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isSponsored: Boolean = false,
+    val sponsorBusinessName: String? = null,
+    val sponsorContactNumber: String? = null,
+    val sponsorCtaText: String? = null
 )
 
 @Entity(tableName = "comments")
@@ -91,6 +95,7 @@ data class PhotoEntity(
     val albumId: String,
     val imageUrl: String,
     val caption: String,
+    val viewCount: Int = 0,
     val uploadedAt: Long = System.currentTimeMillis()
 )
 
@@ -104,6 +109,7 @@ data class VideoEntity(
     val videoUrl: String,
     val thumbnailUrl: String,
     val duration: String = "03:45",
+    val viewCount: Int = 0,
     val uploadedAt: Long = System.currentTimeMillis()
 )
 
@@ -187,4 +193,19 @@ data class MandalInfoEntity(
     val showFestiveBanner: Boolean = true,
     val manualFestivalId: String = "",
     val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "business_directory")
+data class BusinessListingEntity(
+    @PrimaryKey val id: String,
+    val businessName: String,
+    val ownerName: String = "",
+    val category: String = "इतर",
+    val description: String = "",
+    val contactNumber: String = "",
+    val whatsappNumber: String = "",
+    val address: String = "अर्जुनवाड",
+    val photoUrl: String = "",
+    val isVerified: Boolean = true,
+    val timestamp: Long = System.currentTimeMillis()
 )

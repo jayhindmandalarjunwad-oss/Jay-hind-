@@ -45,11 +45,29 @@ data class Post(
     val videoUrl: String? = null,
     val likedUserIds: List<String> = emptyList(),
     val commentsCount: Int = 0,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isSponsored: Boolean = false,
+    val sponsorBusinessName: String? = null,
+    val sponsorContactNumber: String? = null,
+    val sponsorCtaText: String? = null
 ) {
     fun isLikedBy(userId: String): Boolean = likedUserIds.contains(userId)
     val likesCount: Int get() = likedUserIds.size
 }
+
+data class BusinessListing(
+    val id: String = "",
+    val businessName: String = "",
+    val ownerName: String = "",
+    val category: String = "इतर",
+    val description: String = "",
+    val contactNumber: String = "",
+    val whatsappNumber: String = "",
+    val address: String = "अर्जुनवाड",
+    val photoUrl: String = "",
+    val isVerified: Boolean = true,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 data class Comment(
     val id: String,
@@ -109,6 +127,7 @@ data class GalleryPhoto(
     val albumId: String,
     val imageUrl: String,
     val caption: String,
+    val viewCount: Int = 0,
     val uploadedAt: Long = System.currentTimeMillis()
 )
 
@@ -121,6 +140,7 @@ data class VideoItem(
     val videoUrl: String,
     val thumbnailUrl: String,
     val duration: String = "03:45",
+    val viewCount: Int = 0,
     val uploadedAt: Long = System.currentTimeMillis()
 )
 

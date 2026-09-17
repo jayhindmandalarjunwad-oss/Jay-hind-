@@ -285,6 +285,72 @@ fun QuickAccessScreen(
                     )
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Business Directory / Local Yellow Pages Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.openBusinessDirectory() },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDFA)),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF14B8A6))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFFCCFBF1),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Storefront,
+                                    contentDescription = null,
+                                    tint = Color(0xFF0F766E),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "स्थानिक व्यावसायिक डिरेक्टरी",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFF0D9488)
+                                ) {
+                                    Text(
+                                        text = "NEW",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "गावातील दुकाने, कारागीर व सेवांची संपर्क डायरी (यलो पेजेस)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = Color(0xFF0D9488)
+                        )
+                    }
+                }
+
                 if (currentUser?.isAnyAdmin == true) {
                     val isSuperAdmin = currentUser?.isAdmin == true
                     Spacer(modifier = Modifier.height(10.dp))

@@ -78,8 +78,17 @@ interface PostDao {
     @Query("UPDATE posts SET commentsCount = CASE WHEN commentsCount > 0 THEN commentsCount - 1 ELSE 0 END WHERE id = :postId")
     suspend fun decrementCommentsCount(postId: String)
 
-    @Query("UPDATE posts SET content = :content, imageUrlsJson = :imageUrls, videoUrl = :videoUrl WHERE id = :postId")
-    suspend fun updatePostContent(postId: String, content: String, imageUrls: String, videoUrl: String?)
+    @Query("UPDATE posts SET content = :content, imageUrlsJson = :imageUrls, videoUrl = :videoUrl, isSponsored = :isSponsored, sponsorBusinessName = :sponsorBusinessName, sponsorContactNumber = :sponsorContactNumber, sponsorCtaText = :sponsorCtaText WHERE id = :postId")
+    suspend fun updatePostContent(
+        postId: String,
+        content: String,
+        imageUrls: String,
+        videoUrl: String?,
+        isSponsored: Boolean = false,
+        sponsorBusinessName: String? = null,
+        sponsorContactNumber: String? = null,
+        sponsorCtaText: String? = null
+    )
 }
 
 @Dao
@@ -208,6 +217,9 @@ interface GalleryDao {
     @Query("UPDATE photos SET caption = :caption WHERE id = :photoId")
     suspend fun updatePhotoCaption(photoId: String, caption: String)
 
+    @Query("UPDATE photos SET viewCount = viewCount + 1 WHERE id = :photoId")
+    suspend fun incrementPhotoViewCount(photoId: String)
+
     @Query("SELECT * FROM videos ORDER BY uploadedAt DESC")
     fun getAllVideos(): Flow<List<VideoEntity>>
 
@@ -237,6 +249,9 @@ interface GalleryDao {
 
     @Query("UPDATE videos SET title = :title, description = :description, category = :category, thumbnailUrl = :thumbnailUrl WHERE id = :videoId")
     suspend fun updateVideoDetails(videoId: String, title: String, description: String, category: String, thumbnailUrl: String)
+
+    @Query("UPDATE videos SET viewCount = viewCount + 1 WHERE id = :videoId")
+    suspend fun incrementVideoViewCount(videoId: String)
 }
 
 @Dao
@@ -342,4 +357,22 @@ interface MandalInfoDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveMandalInfo(info: MandalInfoEntity)
+}
+
+@Dao
+interface BusinessDirectoryDao {
+    @Query("SELECT * FROM business_directory ORDER BY timestamp DESC")
+    fun getAllBusinesses(): Flow<List<BusinessListingEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBusiness(business: BusinessListingEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBusinesses(businesses: List<BusinessListingEntity>)
+
+    @Update
+    suspend fun updateBusiness(business: BusinessListingEntity)
+
+    @Query("DELETE FROM business_directory WHERE id = :id")
+    suspend fun deleteBusiness(id: String)
 }

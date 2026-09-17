@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,6 +54,7 @@ import kotlinx.coroutines.launch
 fun FullscreenPhotoDialog(
     photos: List<String>,
     titles: List<String> = emptyList(),
+    viewCounts: List<Int> = emptyList(),
     initialIndex: Int = 0,
     isAdmin: Boolean = false,
     allowDownload: Boolean = isAdmin,
@@ -241,6 +243,35 @@ fun FullscreenPhotoDialog(
                                 color = Color.White.copy(alpha = 0.8f),
                                 fontSize = 11.sp
                             )
+                        }
+                        // Admin Only: Photo View Count Badge
+                        if (isAdmin) {
+                            val currentCount = viewCounts.getOrNull(pagerState.currentPage) ?: 0
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.25f),
+                                border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = Color(0xFF34D399),
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "$currentCount व्ह्यूज (Viewer Count)",
+                                        color = Color(0xFF34D399),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
 
