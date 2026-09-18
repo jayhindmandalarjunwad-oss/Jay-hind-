@@ -138,7 +138,7 @@ fun PostItemCard(
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (onAuthorClick != null) {
+                            if (!post.isSponsored && onAuthorClick != null) {
                                 Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable {
@@ -148,32 +148,88 @@ fun PostItemCard(
                         ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    MemberAvatar(
-                        photoUrl = post.authorPhotoUrl,
-                        name = post.authorName,
-                        size = 44,
-                        showPinkCelebrationRing = isAuthorBirthdayToday
-                    )
+                    if (post.isSponsored) {
+                        // SPONSORED AVATAR: Official Sponsored Ad Badge instead of Admin photo
+                        Surface(
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = Color(0xFF0D9488).copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF0D9488)),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Campaign,
+                                    contentDescription = "प्रायोजित जाहिरात",
+                                    tint = Color(0xFF0D9488),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = post.authorName,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.5.sp
-                            ),
-                            color = TextPrimary
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (!post.sponsorBusinessName.isNullOrBlank()) post.sponsorBusinessName else "प्रायोजित (Sponsored)",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.5.sp
+                                    ),
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    color = Color(0xFF0D9488).copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "प्रायोजित",
+                                        color = Color(0xFF0D9488),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "प्रायोजित जाहिरात • ${formatTimestampToEnglish(post.timestamp)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF64748B),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
+                    } else {
+                        // STANDARD POST AUTHOR AVATAR & NAME
+                        MemberAvatar(
+                            photoUrl = post.authorPhotoUrl,
+                            name = post.authorName,
+                            size = 44,
+                            showPinkCelebrationRing = isAuthorBirthdayToday
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = formatTimestampToEnglish(post.timestamp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF64748B), // Clear muted slate grey for English date/time
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Normal
-                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = post.authorName,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.5.sp
+                                ),
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = formatTimestampToEnglish(post.timestamp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF64748B), // Clear muted slate grey for English date/time
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
                     }
                 }
 
