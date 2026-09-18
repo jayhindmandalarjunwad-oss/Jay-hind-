@@ -409,6 +409,36 @@ fun GalleryScreen(
                                                 }
                                             }
 
+                                            // Drive / Cloud storage indicator badge
+                                            if (photo.imageUrl.contains("googleusercontent.com") || photo.imageUrl.contains("drive.google.com")) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.BottomStart)
+                                                        .padding(horizontal = 6.dp, vertical = if (photo.caption.isNotBlank()) 26.dp else 6.dp)
+                                                        .background(
+                                                            Color(0xFF1A73E8).copy(alpha = 0.85f),
+                                                            RoundedCornerShape(5.dp)
+                                                        )
+                                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.CloudQueue,
+                                                            contentDescription = "Google Drive",
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(9.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text(
+                                                            text = "Drive",
+                                                            color = Color.White,
+                                                            fontSize = 8.5.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                            }
+
                                             if (photo.caption.isNotBlank()) {
                                                 Box(
                                                     modifier = Modifier
@@ -799,9 +829,14 @@ fun GalleryScreen(
             // ADD PHOTO DIALOG (Admin)
             if (showAddPhotoDialog) {
                 AddPhotoDialog(
+                    albumTitle = selectedAlbum?.title ?: "",
                     onDismiss = { showAddPhotoDialog = false },
                     onAdd = { url, caption ->
                         viewModel.addPhotoToActiveAlbum(url, caption)
+                        showAddPhotoDialog = false
+                    },
+                    onAddBulk = { photosList ->
+                        viewModel.addBulkPhotosToActiveAlbum(photosList)
                         showAddPhotoDialog = false
                     }
                 )
@@ -949,6 +984,36 @@ fun AlbumCard(
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
+                        }
+                    }
+
+                    // Cloud / Drive Indicator Badge
+                    if (album.coverImageUrl.contains("googleusercontent.com") || album.coverImageUrl.contains("drive.google.com")) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF1A73E8).copy(alpha = 0.85f),
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .align(Alignment.BottomStart)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudQueue,
+                                    contentDescription = "Google Drive",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "Drive Storage",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
 
@@ -1533,6 +1598,24 @@ fun CreateAlbumDialog(
                     height = 120.dp
                 )
 
+                var driveCoverInput by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = driveCoverInput,
+                    onValueChange = { input ->
+                        driveCoverInput = input
+                        if (input.isNotBlank()) {
+                            coverImage = com.example.ui.components.convertDriveUrlToDirectStreamUrl(input)
+                        }
+                    },
+                    label = { Text("किंवा Google Drive कव्हर लिंक पेस्ट करा") },
+                    placeholder = { Text("https://drive.google.com/file/d/...") },
+                    leadingIcon = {
+                        Icon(Icons.Default.CloudQueue, contentDescription = null, tint = Color(0xFF1A73E8))
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 OutlinedTextField(
                     value = desc,
                     onValueChange = { desc = it },
@@ -1627,6 +1710,24 @@ fun EditAlbumDialog(
                     height = 120.dp
                 )
 
+                var driveCoverInput by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = driveCoverInput,
+                    onValueChange = { input ->
+                        driveCoverInput = input
+                        if (input.isNotBlank()) {
+                            coverImage = com.example.ui.components.convertDriveUrlToDirectStreamUrl(input)
+                        }
+                    },
+                    label = { Text("किंवा नवीन Google Drive कव्हर लिंक पेस्ट करा") },
+                    placeholder = { Text("https://drive.google.com/file/d/...") },
+                    leadingIcon = {
+                        Icon(Icons.Default.CloudQueue, contentDescription = null, tint = Color(0xFF1A73E8))
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 OutlinedTextField(
                     value = desc,
                     onValueChange = { desc = it },
@@ -1651,14 +1752,22 @@ fun EditAlbumDialog(
     )
 }
 
-// DIALOG: ADD PHOTO
+// DIALOG: ADD PHOTO (Supports Gallery Picker, Direct Google Drive Links, and Bulk Drive Photos)
 @Composable
 fun AddPhotoDialog(
+    albumTitle: String = "",
     onDismiss: () -> Unit,
-    onAdd: (url: String, caption: String) -> Unit
+    onAdd: (url: String, caption: String) -> Unit,
+    onAddBulk: (List<Pair<String, String>>) -> Unit = {}
 ) {
+    var selectedMode by remember { mutableIntStateOf(0) } // 0: Single Photo / Drive Link, 1: Bulk Drive Links
     var photoUrl by remember { mutableStateOf<String?>("https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=800&auto=format&fit=crop&q=80") }
+    var driveLinkInput by remember { mutableStateOf("") }
     var caption by remember { mutableStateOf("") }
+
+    // Bulk Mode States
+    var bulkDriveLinksText by remember { mutableStateOf("") }
+    var bulkCommonCaption by remember { mutableStateOf("") }
 
     val presetPhotos = listOf(
         Pair("श्री गणेश उत्सव", "https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=800&auto=format&fit=crop&q=80"),
@@ -1670,75 +1779,253 @@ fun AddPhotoDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = SaffronPrimary)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("गॅलरीतून फोटो जोडा", fontWeight = FontWeight.Bold, color = TextPrimary)
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = SaffronPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("फोटो जोडा", fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+                if (albumTitle.isNotBlank()) {
+                    Text(
+                        text = "ॲल्बम: $albumTitle",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
-                Text(
-                    text = "मोबाईल गॅलरीतून फोटो निवडा:",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = TextSecondary
-                )
-
-                GalleryImagePicker(
-                    selectedImageUrl = photoUrl,
-                    onImageSelected = { photoUrl = it },
-                    label = "गॅलरीतून फोटो निवडा",
-                    helperText = "मोबाईल गॅलरी उघडण्यासाठी येथे क्लिक करा",
-                    height = 160.dp
-                )
-
-                Text(
-                    text = "किंवा नमुना फोटो निवडा:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
-                    fontSize = 11.sp
-                )
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 90.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                // Mode Switch: Single Photo vs Bulk Drive Links
+                TabRow(
+                    selectedTabIndex = selectedMode,
+                    containerColor = SurfaceVariantWarm,
+                    contentColor = SaffronPrimary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .border(0.8.dp, CardBorderColor, RoundedCornerShape(10.dp))
                 ) {
-                    items(presetPhotos) { (name, url) ->
-                        FilterChip(
-                            selected = photoUrl == url,
-                            onClick = { photoUrl = url },
-                            label = { Text(name, fontSize = 11.sp) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                    Tab(
+                        selected = selectedMode == 0,
+                        onClick = { selectedMode = 0 },
+                        text = { Text("१ फोटो / लिंक", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
+                    Tab(
+                        selected = selectedMode == 1,
+                        onClick = { selectedMode = 1 },
+                        text = { Text("⚡ अनेक Drive लिंक्स", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
                 }
 
-                OutlinedTextField(
-                    value = caption,
-                    onValueChange = { caption = it },
-                    label = { Text("फोटोचे शीर्षक / नाव (Title / Caption)") },
-                    placeholder = { Text("उदा. महाआरती सोहळा, बक्षीस वितरण") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (selectedMode == 0) {
+                    // 1. Single Photo Mode (Mobile Gallery or Direct Drive Link)
+                    Text(
+                        text = "पर्याय अ: मोबाईल गॅलरीतून फोटो निवडा:",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextSecondary
+                    )
+
+                    GalleryImagePicker(
+                        selectedImageUrl = photoUrl,
+                        onImageSelected = {
+                            photoUrl = it
+                            driveLinkInput = ""
+                        },
+                        label = "गॅलरीतून फोटो निवडा",
+                        helperText = "मोबाईल गॅलरी उघडण्यासाठी येथे क्लिक करा",
+                        height = 140.dp
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = CardBorderColor)
+
+                    Text(
+                        text = "पर्याय ब: थेट Google Drive किंवा वेब लिंक पेस्ट करा:",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = TextSecondary
+                    )
+
+                    OutlinedTextField(
+                        value = driveLinkInput,
+                        onValueChange = { input ->
+                            driveLinkInput = input
+                            if (input.isNotBlank()) {
+                                val directUrl = com.example.ui.components.convertDriveUrlToDirectStreamUrl(input)
+                                photoUrl = directUrl
+                            }
+                        },
+                        label = { Text("Google Drive / Web Image URL") },
+                        placeholder = { Text("https://drive.google.com/file/d/.../view") },
+                        leadingIcon = {
+                            Icon(Icons.Default.CloudQueue, contentDescription = null, tint = Color(0xFF1A73E8))
+                        },
+                        trailingIcon = {
+                            if (driveLinkInput.isNotBlank()) {
+                                IconButton(onClick = {
+                                    driveLinkInput = ""
+                                    photoUrl = null
+                                }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (driveLinkInput.contains("drive.google.com")) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFE8F0FE),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF1A73E8), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Google Drive हाय-स्पीड थेट इमेज लिंकमध्ये रूपांतरित केले!",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1A73E8)
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "किंवा नमुना फोटो निवडा:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted,
+                        fontSize = 11.sp
+                    )
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(presetPhotos) { (name, url) ->
+                            FilterChip(
+                                selected = photoUrl == url,
+                                onClick = {
+                                    photoUrl = url
+                                    driveLinkInput = ""
+                                },
+                                label = { Text(name, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = caption,
+                        onValueChange = { caption = it },
+                        label = { Text("फोटोचे शीर्षक / नाव (Title / Caption)") },
+                        placeholder = { Text("उदा. महाआरती सोहळा, बक्षीस वितरण") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    // 2. Bulk Drive Links Mode
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFE8F0FE),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color(0xFF1A73E8), modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "अनेक Google Drive फोटो एकाच वेळी जोडा",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF1A73E8)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "प्रत्येक ओळीवर १ Google Drive शेअरिंग लिंक टाका (कमीत कमी १, जास्तीत जास्त ५० एकाच वेळी जोडता येतील).",
+                                fontSize = 11.sp,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = bulkDriveLinksText,
+                        onValueChange = { bulkDriveLinksText = it },
+                        label = { Text("Drive लिंक्स पेस्ट करा (प्रत्येक ओळीवर एक) *") },
+                        placeholder = { Text("https://drive.google.com/file/d/1...\nhttps://drive.google.com/file/d/2...\nhttps://drive.google.com/file/d/3...") },
+                        minLines = 4,
+                        maxLines = 7,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    val detectedCount = remember(bulkDriveLinksText) {
+                        bulkDriveLinksText.split("\n", ",").filter { it.trim().isNotBlank() }.size
+                    }
+
+                    if (detectedCount > 0) {
+                        Text(
+                            text = "📸 एकूण शोधलेल्या लिंक्स: $detectedCount फोटो",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SaffronPrimary
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = bulkCommonCaption,
+                        onValueChange = { bulkCommonCaption = it },
+                        label = { Text("सर्व फोटोंसाठी सामाईक शीर्षक (पर्यायी)") },
+                        placeholder = { Text("उदा. गणेशोत्सव २०२४ क्षणचित्रे") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val url = photoUrl
-                    if (!url.isNullOrBlank()) {
-                        onAdd(url, caption)
-                    }
-                },
-                enabled = !photoUrl.isNullOrBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("फोटो जोडा", fontWeight = FontWeight.Bold)
+            if (selectedMode == 0) {
+                Button(
+                    onClick = {
+                        val url = photoUrl
+                        if (!url.isNullOrBlank()) {
+                            onAdd(url, caption)
+                        }
+                    },
+                    enabled = !photoUrl.isNullOrBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronPrimary)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("फोटो जोडा", fontWeight = FontWeight.Bold)
+                }
+            } else {
+                val lines = bulkDriveLinksText.split("\n", ",").map { it.trim() }.filter { it.isNotBlank() }
+                Button(
+                    onClick = {
+                        val list = lines.mapIndexed { idx, rawUrl ->
+                            val directUrl = com.example.ui.components.convertDriveUrlToDirectStreamUrl(rawUrl)
+                            val title = if (bulkCommonCaption.isNotBlank()) {
+                                if (lines.size > 1) "$bulkCommonCaption #${idx + 1}" else bulkCommonCaption
+                            } else ""
+                            Pair(directUrl, title)
+                        }
+                        onAddBulk(list)
+                    },
+                    enabled = lines.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))
+                ) {
+                    Icon(Icons.Default.CloudDone, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("सर्व ${lines.size} फोटो जोडा", fontWeight = FontWeight.Bold)
+                }
             }
         },
         dismissButton = {

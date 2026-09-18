@@ -17,7 +17,7 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
             .diskCache {
                 coil.disk.DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(50L * 1024 * 1024)
+                    .maxSizeBytes(150L * 1024 * 1024)
                     .build()
             }
             .crossfade(true)

@@ -32,6 +32,8 @@ fun PostsScreen(
     onOpenCreatePost: () -> Unit
 ) {
     val posts by viewModel.posts.collectAsStateWithLifecycle()
+    val isLoadingMorePosts by viewModel.isLoadingMorePosts.collectAsStateWithLifecycle()
+    val hasMorePostsToLoad by viewModel.hasMorePostsToLoad.collectAsStateWithLifecycle()
     var isInitialLoading by remember { mutableStateOf(posts.isEmpty()) }
     LaunchedEffect(posts) {
         if (posts.isNotEmpty()) {
@@ -145,6 +147,58 @@ fun PostsScreen(
                         },
                         isAuthorBirthdayToday = todayBirthdayAuthorIds.contains(post.authorId)
                     )
+                }
+
+                // Load More Posts Button / Indicator
+                if (posts.isNotEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isLoadingMorePosts) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = SaffronPrimary
+                                    )
+                                    Text(
+                                        text = "मागील जुन्या पोस्ट्स लोड होत आहेत...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
+                                }
+                            } else if (hasMorePostsToLoad) {
+                                OutlinedButton(
+                                    onClick = { viewModel.loadMoreEarlierPosts() },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = SaffronPrimary
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)),
+                                    modifier = Modifier.testTag("load_more_posts_button")
+                                ) {
+                                    Text(
+                                        text = "📜 मागील जुन्या पोस्ट्स दाखवा",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = "✨ सर्व पोस्ट्स लोड झाल्या आहेत.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

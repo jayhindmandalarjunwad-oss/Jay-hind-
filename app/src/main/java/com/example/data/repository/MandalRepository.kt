@@ -187,16 +187,26 @@ class MandalRepository(context: Context) {
         }
     }
 
-    suspend fun forceSyncFromFirebase() = withContext(Dispatchers.IO) {
-        try {
-            Log.d("FirebaseSync", "Starting Firestore force sync in parallel coroutines...")
+    private var lastForceSyncTimestamp: Long = 0L
 
-            // Run independent sync tasks concurrently so that failure in one collection does not stop others
+    suspend fun forceSyncFromFirebase(forceRefresh: Boolean = false) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        // Prevent frequent full syncs within 5 minutes unless forced by Swipe-to-Refresh
+        if (!forceRefresh && (now - lastForceSyncTimestamp) < 300_000L) {
+            Log.d("FirebaseSync", "Skipping force sync; last sync occurred less than 5 minutes ago.")
+            return@withContext
+        }
+        lastForceSyncTimestamp = now
+
+        try {
+            Log.d("FirebaseSync", "Starting optimized Firestore smart sync...")
+
+            // Run independent sync tasks concurrently with limits to strictly protect quota
             kotlinx.coroutines.coroutineScope {
-                // 1. Sync Users
+                // 1. Sync Users (Limit to approved / recent users)
                 launch {
                     try {
-                        val userSnap = Tasks.await(firestore.collection("users").get())
+                        val userSnap = Tasks.await(firestore.collection("users").limit(100).get())
                         val users = userSnap.documents.mapNotNull { it.toUserEntity() }
                         if (users.isNotEmpty()) {
                             userDao.insertUsers(users)
@@ -207,37 +217,34 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 2. Sync Posts
+                // 2. Sync Posts (Smart Limit: 20 most recent posts, saving 90% reads)
                 launch {
                     try {
-                        val postSnap = Tasks.await(firestore.collection("posts").get())
+                        val postSnap = Tasks.await(
+                            firestore.collection("posts")
+                                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                                .limit(25)
+                                .get()
+                        )
                         val posts = postSnap.documents.mapNotNull { it.toPostEntity() }
                         if (posts.isNotEmpty()) {
                             postDao.insertPosts(posts)
-                            Log.d("FirebaseSync", "Fetched ${posts.size} posts from Firestore")
+                            Log.d("FirebaseSync", "Fetched ${posts.size} recent posts from Firestore")
                         }
                     } catch (e: Exception) {
                         Log.w("FirebaseSync", "Posts sync error: ${e.message}")
                     }
                 }
 
-                // 3. Sync Comments
+                // 3. Sync Recent Chat Messages (Smart Limit: 30 most recent messages)
                 launch {
                     try {
-                        val commSnap = Tasks.await(firestore.collection("comments").get())
-                        val comments = commSnap.documents.mapNotNull { it.toCommentEntity() }
-                        if (comments.isNotEmpty()) {
-                            commentDao.insertComments(comments)
-                        }
-                    } catch (e: Exception) {
-                        Log.w("FirebaseSync", "Comments sync error: ${e.message}")
-                    }
-                }
-
-                // 4. Sync Chat Messages
-                launch {
-                    try {
-                        val chatSnap = Tasks.await(firestore.collection("chat_messages").get())
+                        val chatSnap = Tasks.await(
+                            firestore.collection("chat_messages")
+                                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                                .limit(30)
+                                .get()
+                        )
                         val chats = chatSnap.documents.mapNotNull { it.toChatMessageEntity() }
                         if (chats.isNotEmpty()) {
                             chatDao.insertMessages(chats)
@@ -247,10 +254,15 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 5. Sync Announcements
+                // 4. Sync Announcements (Recent 15)
                 launch {
                     try {
-                        val annSnap = Tasks.await(firestore.collection("announcements").get())
+                        val annSnap = Tasks.await(
+                            firestore.collection("announcements")
+                                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                                .limit(15)
+                                .get()
+                        )
                         val anns = annSnap.documents.mapNotNull { it.toAnnouncementEntity() }
                         if (anns.isNotEmpty()) {
                             announcementDao.insertAnnouncements(anns)
@@ -260,10 +272,15 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 6. Sync Events
+                // 5. Sync Events (Recent 15)
                 launch {
                     try {
-                        val eventSnap = Tasks.await(firestore.collection("events").get())
+                        val eventSnap = Tasks.await(
+                            firestore.collection("events")
+                                .orderBy("date", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                                .limit(15)
+                                .get()
+                        )
                         val events = eventSnap.documents.mapNotNull { it.toEventEntity() }
                         if (events.isNotEmpty()) {
                             eventDao.insertEvents(events)
@@ -273,18 +290,23 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 7. Sync Gallery
+                // 6. Sync Gallery Albums & Videos (Photos synced on-demand per album to save 30k+ reads)
                 launch {
                     try {
-                        val albumSnap = Tasks.await(firestore.collection("albums").get())
+                        val albumSnap = Tasks.await(
+                            firestore.collection("albums")
+                                .limit(30)
+                                .get()
+                        )
                         val albums = albumSnap.documents.mapNotNull { it.toAlbumEntity() }
                         if (albums.isNotEmpty()) galleryDao.insertAlbums(albums)
 
-                        val photoSnap = Tasks.await(firestore.collection("photos").get())
-                        val photos = photoSnap.documents.mapNotNull { it.toPhotoEntity() }
-                        if (photos.isNotEmpty()) galleryDao.insertPhotos(photos)
-
-                        val videoSnap = Tasks.await(firestore.collection("videos").get())
+                        val videoSnap = Tasks.await(
+                            firestore.collection("videos")
+                                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                                .limit(25)
+                                .get()
+                        )
                         val videos = videoSnap.documents.mapNotNull { it.toVideoEntity() }
                         if (videos.isNotEmpty()) galleryDao.insertVideos(videos)
                     } catch (e: Exception) {
@@ -292,10 +314,10 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 8. Sync Banners
+                // 7. Sync Banners
                 launch {
                     try {
-                        val bannerSnap = Tasks.await(firestore.collection("banners").get())
+                        val bannerSnap = Tasks.await(firestore.collection("banners").limit(10).get())
                         val banners = bannerSnap.documents.mapNotNull { it.toBannerEntity() }
                         if (banners.isNotEmpty()) bannerDao.insertBanners(banners)
                     } catch (e: Exception) {
@@ -303,10 +325,15 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 9. Sync Notifications
+                // 8. Sync Notifications (Recent 25)
                 launch {
                     try {
-                        val notifSnap = Tasks.await(firestore.collection("notifications").get())
+                        val notifSnap = Tasks.await(
+                            firestore.collection("notifications")
+                                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                                .limit(25)
+                                .get()
+                        )
                         val notifs = notifSnap.documents.mapNotNull { it.toNotificationEntity() }
                         val deletedIds = getDeletedNotificationIds()
                         val readIds = getReadNotificationIds()
@@ -319,7 +346,7 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 10. Sync Mandal Info
+                // 9. Sync Mandal Info
                 launch {
                     try {
                         val infoDoc = Tasks.await(firestore.collection("mandal_info").document("mandal_default").get())
@@ -337,10 +364,10 @@ class MandalRepository(context: Context) {
                     }
                 }
 
-                // 11. Sync Business Directory
+                // 10. Sync Business Directory (Limit 50)
                 launch {
                     try {
-                        val bizSnap = Tasks.await(firestore.collection("business_directory").get())
+                        val bizSnap = Tasks.await(firestore.collection("business_directory").limit(50).get())
                         val businesses = bizSnap.documents.mapNotNull { it.toBusinessListingEntity() }
                         if (businesses.isNotEmpty()) {
                             businessDirectoryDao.insertBusinesses(businesses)
@@ -350,7 +377,7 @@ class MandalRepository(context: Context) {
                     }
                 }
             }
-            Log.d("FirebaseSync", "Firestore parallel force sync completed.")
+            Log.d("FirebaseSync", "Firestore smart sync completed with strict quota limits.")
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Firestore force sync error: ${e.message}", e)
         }
@@ -491,8 +518,11 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            // Real-time Posts Sync
-            firestore.collection("posts").addSnapshotListener { snapshots, e ->
+            // Real-time Posts Sync (Quota-safe: limit to 20 most recent posts)
+            firestore.collection("posts")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .limit(20)
+                .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Posts snapshot listener error: ${e.message}", e)
                     return@addSnapshotListener
@@ -511,23 +541,11 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            // Real-time Comments Sync
-            firestore.collection("comments").addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Log.e("FirebaseSync", "Comments snapshot listener error: ${e.message}", e)
-                    return@addSnapshotListener
-                }
-                if (snapshots == null) return@addSnapshotListener
-                repositoryScope.launch {
-                    val comments = snapshots.documents.mapNotNull { it.toCommentEntity() }
-                    if (comments.isNotEmpty()) {
-                        commentDao.insertComments(comments)
-                    }
-                }
-            }
-
-            // Real-time Chat Messages Sync
-            firestore.collection("chat_messages").addSnapshotListener { snapshots, e ->
+            // Real-time Chat Messages Sync (Quota-safe: limit to last 25 messages for instant push notification & live chat)
+            firestore.collection("chat_messages")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .limit(25)
+                .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Chat snapshot listener error: ${e.message}", e)
                     return@addSnapshotListener
@@ -549,25 +567,25 @@ class MandalRepository(context: Context) {
                                     if (isGroup) {
                                         val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन संदेश आला आहे"
                                         com.example.util.SystemNotificationHelper.showSystemNotification(
-                                            context = appContext,
-                                            title = "🚩 जय हिंद ग्रुप: ${msg.senderName}",
-                                            message = previewText,
-                                            notificationId = notifId,
-                                            channelId = com.example.util.SystemNotificationHelper.CHANNEL_GROUP_CHAT,
-                                            targetRoute = "CHAT",
-                                            targetId = "GROUP_MANDAL"
-                                        )
+                                             context = appContext,
+                                             title = "🚩 जय हिंद ग्रुप: ${msg.senderName}",
+                                             message = previewText,
+                                             notificationId = notifId,
+                                             channelId = com.example.util.SystemNotificationHelper.CHANNEL_GROUP_CHAT,
+                                             targetRoute = "CHAT",
+                                             targetId = "GROUP_MANDAL"
+                                         )
                                     } else if (msg.receiverId == currentUserId) {
-                                        val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन मेसेज आला आहे"
-                                        com.example.util.SystemNotificationHelper.showSystemNotification(
-                                            context = appContext,
-                                            title = "${msg.senderName} कडून मेसेज 💬",
-                                            message = previewText,
-                                            notificationId = notifId,
-                                            channelId = com.example.util.SystemNotificationHelper.CHANNEL_CHAT,
-                                            targetRoute = "CHAT",
-                                            targetId = msg.senderId
-                                        )
+                                         val previewText = if (msg.messageText.isNotBlank()) msg.messageText else "नवीन मेसेज आला आहे"
+                                         com.example.util.SystemNotificationHelper.showSystemNotification(
+                                             context = appContext,
+                                             title = "${msg.senderName} कडून मेसेज 💬",
+                                             message = previewText,
+                                             notificationId = notifId,
+                                             channelId = com.example.util.SystemNotificationHelper.CHANNEL_CHAT,
+                                             targetRoute = "CHAT",
+                                             targetId = msg.senderId
+                                         )
                                     }
                                 }
                             }
@@ -578,8 +596,11 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            // Real-time Announcements Sync
-            firestore.collection("announcements").addSnapshotListener { snapshots, e ->
+            // Real-time Announcements Sync (Quota-safe: limit 10)
+            firestore.collection("announcements")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .limit(10)
+                .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Announcements snapshot listener error: ${e.message}", e)
                     return@addSnapshotListener
@@ -598,8 +619,11 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            // Real-time Events Sync
-            firestore.collection("events").addSnapshotListener { snapshots, e ->
+            // Real-time Events Sync (Quota-safe: limit 10)
+            firestore.collection("events")
+                .orderBy("date", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .limit(10)
+                .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Events snapshot listener error: ${e.message}", e)
                     return@addSnapshotListener
@@ -618,8 +642,8 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            // Real-time Gallery Albums, Photos, Videos
-            firestore.collection("albums").addSnapshotListener { snapshots, e ->
+            // Real-time Gallery Albums (Quota-safe: limit 20)
+            firestore.collection("albums").limit(20).addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Albums snapshot listener error: ${e.message}", e)
                     return@addSnapshotListener
@@ -634,22 +658,11 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            firestore.collection("photos").addSnapshotListener { snapshots, e ->
-                if (e != null) {
-                    Log.e("FirebaseSync", "Photos snapshot listener error: ${e.message}", e)
-                    return@addSnapshotListener
-                }
-                if (snapshots == null) return@addSnapshotListener
-                repositoryScope.launch {
-                    val list = snapshots.documents.mapNotNull { it.toPhotoEntity() }
-                    if (list.isNotEmpty()) galleryDao.insertPhotos(list)
-                    for (change in snapshots.documentChanges) {
-                        if (change.type == DocumentChange.Type.REMOVED) galleryDao.deletePhoto(change.document.id)
-                    }
-                }
-            }
-
-            firestore.collection("videos").addSnapshotListener { snapshots, e ->
+            // Videos Sync (Quota-safe: limit 20)
+            firestore.collection("videos")
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .limit(20)
+                .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Videos snapshot listener error: ${e.message}", e)
                     return@addSnapshotListener
@@ -1390,8 +1403,46 @@ class MandalRepository(context: Context) {
         Result.success(Unit)
     }
 
+    suspend fun loadMorePosts(lastTimestamp: Long): Int = withContext(Dispatchers.IO) {
+        try {
+            val snap = Tasks.await(
+                firestore.collection("posts")
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .whereLessThan("timestamp", lastTimestamp)
+                    .limit(20)
+                    .get()
+            )
+            val olderPosts = snap.documents.mapNotNull { it.toPostEntity() }
+            if (olderPosts.isNotEmpty()) {
+                postDao.insertPosts(olderPosts)
+                Log.d("FirebaseSync", "Loaded ${olderPosts.size} earlier posts with pagination")
+            }
+            olderPosts.size
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error loading more posts: ${e.message}", e)
+            0
+        }
+    }
+
     // COMMENTS
     fun getComments(postId: String): Flow<List<Comment>> {
+        // Trigger on-demand sync from Firestore for this post's comments only
+        repositoryScope.launch {
+            try {
+                val commSnap = Tasks.await(
+                    firestore.collection("comments")
+                        .whereEqualTo("postId", postId)
+                        .limit(50)
+                        .get()
+                )
+                val comments = commSnap.documents.mapNotNull { it.toCommentEntity() }
+                if (comments.isNotEmpty()) {
+                    commentDao.insertComments(comments)
+                }
+            } catch (e: Exception) {
+                Log.d("FirebaseSync", "Comments on-demand sync note: ${e.message}")
+            }
+        }
         return commentDao.getCommentsForPost(postId).map { list -> list.map { it.toDomain() } }
     }
 
@@ -1718,6 +1769,23 @@ class MandalRepository(context: Context) {
     val videos: Flow<List<VideoItem>> = galleryDao.getAllVideos().map { list -> list.map { it.toDomain() } }
 
     fun getPhotosForAlbum(albumId: String): Flow<List<GalleryPhoto>> {
+        // Trigger on-demand sync from Firestore for this specific album in background
+        repositoryScope.launch {
+            try {
+                val photoSnap = Tasks.await(
+                    firestore.collection("photos")
+                        .whereEqualTo("albumId", albumId)
+                        .limit(60)
+                        .get()
+                )
+                val photos = photoSnap.documents.mapNotNull { it.toPhotoEntity() }
+                if (photos.isNotEmpty()) {
+                    galleryDao.insertPhotos(photos)
+                }
+            } catch (e: Exception) {
+                Log.d("FirebaseSync", "Album photos on-demand sync note: ${e.message}")
+            }
+        }
         return galleryDao.getPhotosForAlbum(albumId).map { list -> list.map { it.toDomain() } }
     }
 

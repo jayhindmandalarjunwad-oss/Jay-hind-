@@ -165,19 +165,26 @@ fun UniversalAsyncImage(
 }
 
 /**
- * Converts Google Drive shareable URLs or uc?id= into direct image stream links for Coil.
+ * Converts Google Drive shareable URLs or uc?id= into direct high-speed image stream links for Coil.
+ * Supports Google Drive view links, sharing links, thumbnail links and lh3.googleusercontent.com
  */
 fun convertDriveUrlToDirectStreamUrl(url: String): String {
-    if (!url.contains("drive.google.com")) return url
+    val trimmed = url.trim()
+    if (!trimmed.contains("drive.google.com") && !trimmed.contains("docs.google.com")) return trimmed
+
     val fileId = when {
-        url.contains("/file/d/") -> url.substringAfter("/file/d/").substringBefore("/")
-        url.contains("id=") -> url.substringAfter("id=").substringBefore("&")
+        trimmed.contains("/file/d/") -> trimmed.substringAfter("/file/d/").substringBefore("/").substringBefore("?").substringBefore("&")
+        trimmed.contains("id=") -> trimmed.substringAfter("id=").substringBefore("&").substringBefore("#")
+        trimmed.contains("/open?id=") -> trimmed.substringAfter("/open?id=").substringBefore("&")
+        trimmed.contains("/uc?id=") -> trimmed.substringAfter("/uc?id=").substringBefore("&")
         else -> null
     }
-    return if (fileId != null && fileId.isNotBlank()) {
-        "https://drive.google.com/uc?export=view&id=$fileId"
+
+    return if (!fileId.isNullOrBlank() && fileId.length >= 15) {
+        // lh3.googleusercontent.com provides direct, highly reliable high-speed CDN image streaming for Drive public images
+        "https://lh3.googleusercontent.com/d/$fileId=s1600"
     } else {
-        url
+        trimmed
     }
 }
 

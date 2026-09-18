@@ -58,6 +58,10 @@ fun HomeScreen(
     val todayBirthdays by viewModel.todayBirthdays.collectAsStateWithLifecycle()
     val announcements by viewModel.announcements.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
+    val posts by viewModel.posts.collectAsStateWithLifecycle()
+    val isLoadingMorePosts by viewModel.isLoadingMorePosts.collectAsStateWithLifecycle()
+    val hasMorePostsToLoad by viewModel.hasMorePostsToLoad.collectAsStateWithLifecycle()
+    val todayBirthdayAuthorIds = remember(todayBirthdays) { todayBirthdays.map { it.id }.toSet() }
     val unreadNotifs by viewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
     val activeBloodAlert by viewModel.activeBloodAlert.collectAsStateWithLifecycle()
     
@@ -707,6 +711,145 @@ fun HomeScreen(
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (todayBirthdays.isNotEmpty()) BirthdayPinkDark else TextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 4.5 मंडळाचे ताजे फीड व पोस्ट्स (MANDAL POSTS FEED ON HOME)
+        // ==========================================
+        item {
+            Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFEF3C7)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DynamicFeed,
+                                contentDescription = null,
+                                tint = SaffronPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "मंडळाचे फीड आणि पोस्ट्स",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            ),
+                            color = TextPrimary
+                        )
+                    }
+
+                    TextButton(onClick = { viewModel.setNavigationTab(NavigationTab.POSTS) }) {
+                        Text(
+                            text = "सर्व पोस्ट्स (${posts.size}) >",
+                            color = SaffronPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        if (posts.isNotEmpty()) {
+            val homeDisplayPosts = posts.take(3)
+            items(homeDisplayPosts, key = { "home_post_${it.id}" }) { post ->
+                Box(modifier = Modifier.padding(horizontal = 14.dp)) {
+                    PostItemCard(
+                        post = post,
+                        currentUser = currentUser,
+                        onLikeClick = { viewModel.toggleLike(post.id) },
+                        onCommentClick = { viewModel.openComments(post) },
+                        onDeleteClick = { viewModel.deletePost(post.id) },
+                        onEditClick = { /* Handled in Posts tab */ },
+                        onImageClick = { viewModel.openFullscreenPhoto(it) },
+                        onMultiImageClick = { images, idx -> viewModel.openFullscreenPhotos(images, idx) },
+                        onAuthorClick = { authorId, authorName, authorPhoto ->
+                            viewModel.openUserPosts(authorId, authorName, authorPhoto)
+                        },
+                        onLikesCountClick = {
+                            viewModel.setNavigationTab(NavigationTab.POSTS)
+                        },
+                        isAuthorBirthdayToday = todayBirthdayAuthorIds.contains(post.authorId)
+                    )
+                }
+            }
+
+            // Load more earlier posts or view all posts CTA
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isLoadingMorePosts) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = SaffronPrimary
+                            )
+                            Text(
+                                text = "मागील जुन्या पोस्ट्स लोड होत आहेत...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    } else {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (hasMorePostsToLoad) {
+                                OutlinedButton(
+                                    onClick = { viewModel.loadMoreEarlierPosts() },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = SaffronPrimary
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)),
+                                    modifier = Modifier.testTag("home_load_more_posts_btn")
+                                ) {
+                                    Text(
+                                        text = "📜 मागील पोस्ट्स लोड करा",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                            Button(
+                                onClick = { viewModel.setNavigationTab(NavigationTab.POSTS) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SaffronPrimary
+                                ),
+                                modifier = Modifier.testTag("home_view_all_posts_btn")
+                            ) {
+                                Text(
+                                    text = "सर्व पोस्ट्स पहा >",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color.White
                                 )
                             }
                         }

@@ -594,6 +594,33 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Loading more earlier posts state
+    private val _isLoadingMorePosts = MutableStateFlow(false)
+    val isLoadingMorePosts: StateFlow<Boolean> = _isLoadingMorePosts.asStateFlow()
+
+    private val _hasMorePostsToLoad = MutableStateFlow(true)
+    val hasMorePostsToLoad: StateFlow<Boolean> = _hasMorePostsToLoad.asStateFlow()
+
+    fun loadMoreEarlierPosts() {
+        if (_isLoadingMorePosts.value || !_hasMorePostsToLoad.value) return
+        val currentPostsList = posts.value
+        val oldestTimestamp = currentPostsList.minOfOrNull { it.timestamp } ?: return
+
+        viewModelScope.launch {
+            _isLoadingMorePosts.value = true
+            val count = repository.loadMorePosts(oldestTimestamp)
+            _isLoadingMorePosts.value = false
+            if (count < 20) {
+                _hasMorePostsToLoad.value = false
+            }
+            if (count > 0) {
+                showSnackbar("$count मागील जुन्या पोस्ट्स लोड झाल्या! 📜")
+            } else if (!_hasMorePostsToLoad.value) {
+                showSnackbar("सर्व जुन्या पोस्ट्स लोड झाल्या आहेत.")
+            }
+        }
+    }
+
     fun deletePost(postId: String) {
         viewModelScope.launch {
             repository.deletePost(postId)
@@ -830,6 +857,21 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.addPhotoToAlbum(album.id, imageUrl, caption)
             showSnackbar("फोटो ॲल्बममध्ये जोडला गेला!")
+        }
+    }
+
+    fun addBulkPhotosToActiveAlbum(photosList: List<Pair<String, String>>) {
+        val album = _selectedAlbum.value ?: return
+        if (photosList.isEmpty()) return
+        viewModelScope.launch {
+            var addedCount = 0
+            for ((url, cap) in photosList) {
+                if (url.isNotBlank()) {
+                    repository.addPhotoToAlbum(album.id, url, cap)
+                    addedCount++
+                }
+            }
+            showSnackbar("$addedCount फोटो ॲल्बममध्ये यशस्वीरित्या जोडले गेले! 📸✨")
         }
     }
 
