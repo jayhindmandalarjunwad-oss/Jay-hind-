@@ -202,7 +202,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             )
         } else {
             albums.map { album ->
-                val count = allVideos.count { it.albumId == album.id || (album.id == "default_video_album" && it.albumId.isBlank()) }
+                val isLiveAlbum = album.id == "album_live_videos" || album.title.contains("LIVE VIDEO", ignoreCase = true)
+                val count = allVideos.count { video ->
+                    video.albumId == album.id ||
+                    (album.id == "default_video_album" && video.albumId.isBlank()) ||
+                    (isLiveAlbum && (video.category.contains("Live", ignoreCase = true) || video.category.contains("थेट") || video.title.contains("थेट")))
+                }
                 album.copy(photoCount = count)
             }
         }
@@ -227,7 +232,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         if (album == null || album.id.isBlank()) {
             emptyList()
         } else {
-            allVideos.filter { it.albumId == album.id || (album.id == "default_video_album" && it.albumId.isBlank()) }
+            val isLiveAlbum = album.id == "album_live_videos" || album.title.contains("LIVE VIDEO", ignoreCase = true)
+            allVideos.filter { video ->
+                video.albumId == album.id ||
+                (album.id == "default_video_album" && video.albumId.isBlank()) ||
+                (isLiveAlbum && (video.category.contains("Live", ignoreCase = true) || video.category.contains("थेट") || video.title.contains("थेट")))
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -855,6 +865,11 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openVideoAlbum(album: Album?) {
         _selectedVideoAlbum.value = album
+        if (album != null) {
+            viewModelScope.launch {
+                repository.syncVideosForAlbum(album.id)
+            }
+        }
     }
 
     fun closeVideoAlbum() {

@@ -144,6 +144,7 @@ class MandalRepository(context: Context) {
 
     private val processedChatNotificationIds = java.util.Collections.synchronizedSet(java.util.LinkedHashSet<String>())
     private val processedNotificationIds = java.util.Collections.synchronizedSet(java.util.LinkedHashSet<String>())
+    private val videoAlbumSyncTimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     private var livePresenceHeartbeatJob: Job? = null
     private var currentLivePresenceSessionId: String? = null
@@ -303,8 +304,7 @@ class MandalRepository(context: Context) {
 
                         val videoSnap = Tasks.await(
                             firestore.collection("videos")
-                                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                                .limit(25)
+                                .limit(30)
                                 .get()
                         )
                         val videos = videoSnap.documents.mapNotNull { it.toVideoEntity() }
@@ -658,10 +658,9 @@ class MandalRepository(context: Context) {
                 }
             }
 
-            // Videos Sync (Quota-safe: limit 20)
+            // Videos Sync (Quota-safe: limit 25)
             firestore.collection("videos")
-                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .limit(20)
+                .limit(25)
                 .addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Videos snapshot listener error: ${e.message}", e)
@@ -2226,6 +2225,42 @@ class MandalRepository(context: Context) {
             firestore.collection("videos").document(videoId).delete()
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error deleting video on Firestore", e)
+        }
+    }
+
+    // ON-DEMAND QUOTA-SAFE VIDEO ALBUM SYNC (Throttled to 5 minutes to prevent redundant reads)
+    suspend fun syncVideosForAlbum(albumId: String, force: Boolean = false): Result<Int> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val lastSync = videoAlbumSyncTimes[albumId] ?: 0L
+        if (!force && (now - lastSync) < 300_000L) {
+            return@withContext Result.success(0)
+        }
+        videoAlbumSyncTimes[albumId] = now
+
+        try {
+            val isLiveAlbum = albumId == "album_live_videos" || albumId.contains("live", ignoreCase = true)
+            val snap = Tasks.await(
+                firestore.collection("videos")
+                    .limit(30)
+                    .get()
+            )
+            val allRemoteVideos = snap.documents.mapNotNull { it.toVideoEntity() }
+            if (allRemoteVideos.isNotEmpty()) {
+                val videosToSave = allRemoteVideos.map { video ->
+                    if (isLiveAlbum && (video.albumId.isBlank() || video.albumId == "default_video_album") &&
+                        (video.category.contains("Live", ignoreCase = true) || video.category.contains("थेट") || video.title.contains("थेट"))
+                    ) {
+                        video.copy(albumId = albumId)
+                    } else {
+                        video
+                    }
+                }
+                galleryDao.insertVideos(videosToSave)
+            }
+            Result.success(allRemoteVideos.size)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error syncing videos for album $albumId: ${e.message}", e)
+            Result.failure(e)
         }
     }
 
@@ -3971,12 +4006,14 @@ fun VideoEntity.toMap(): Map<String, Any?> = mapOf(
     "thumbnailUrl" to thumbnailUrl,
     "duration" to duration,
     "viewCount" to viewCount,
-    "uploadedAt" to uploadedAt
+    "uploadedAt" to uploadedAt,
+    "timestamp" to uploadedAt
 )
 
 fun DocumentSnapshot.toVideoEntity(): VideoEntity? {
     val id = getString("id") ?: id
     val title = getString("title") ?: return null
+    val uploaded = getLong("uploadedAt") ?: getLong("timestamp") ?: System.currentTimeMillis()
     return VideoEntity(
         id = id,
         albumId = getString("albumId") ?: "",
@@ -3987,7 +4024,7 @@ fun DocumentSnapshot.toVideoEntity(): VideoEntity? {
         thumbnailUrl = getString("thumbnailUrl") ?: "",
         duration = getString("duration") ?: "03:45",
         viewCount = (getLong("viewCount") ?: 0L).toInt(),
-        uploadedAt = getLong("uploadedAt") ?: System.currentTimeMillis()
+        uploadedAt = uploaded
     )
 }
 
