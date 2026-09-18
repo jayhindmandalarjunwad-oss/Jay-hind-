@@ -142,7 +142,7 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE conversationId = :convId OR (senderId = :userA AND receiverId = :userB) OR (senderId = :userB AND receiverId = :userA) ORDER BY timestamp ASC")
     fun getMessagesBetweenUsers(convId: String, userA: String, userB: String): Flow<List<ChatMessageEntity>>
 
-    @Query("SELECT * FROM chat_messages WHERE conversationId = :convId ORDER BY timestamp ASC")
+    @Query("SELECT * FROM chat_messages WHERE conversationId = :convId OR (:convId = 'conv_mandal_group' AND (receiverId = 'GROUP_MANDAL' OR conversationId = 'conv_mandal_group')) ORDER BY timestamp ASC")
     fun getMessagesForConversation(convId: String): Flow<List<ChatMessageEntity>>
 
     @Query("SELECT * FROM chat_messages WHERE senderId = :userId OR receiverId = :userId OR conversationId = 'conv_mandal_group' OR receiverId = 'GROUP_MANDAL' ORDER BY timestamp DESC")

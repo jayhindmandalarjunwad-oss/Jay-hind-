@@ -1757,15 +1757,30 @@ class MandalRepository(context: Context) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
         try {
             if (isGroup) {
-                // Group Chat: Query last 15 group messages
-                val snap = Tasks.await(
+                // Group Chat: Query last 15 group messages (checking both receiverId and conversationId)
+                val snap1 = Tasks.await(
                     firestore.collection("chat_messages")
                         .whereEqualTo("receiverId", "GROUP_MANDAL")
                         .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                         .limit(15)
                         .get()
                 )
-                val entities = snap.documents.mapNotNull { it.toChatMessageEntity() }
+                val entities1 = snap1.documents.mapNotNull { it.toChatMessageEntity() }
+                val entities = if (entities1.size < 15) {
+                    val snap2 = Tasks.await(
+                        firestore.collection("chat_messages")
+                            .whereEqualTo("conversationId", "conv_mandal_group")
+                            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                            .limit(15)
+                            .get()
+                    )
+                    (entities1 + snap2.documents.mapNotNull { it.toChatMessageEntity() })
+                        .distinctBy { it.id }
+                        .sortedByDescending { it.timestamp }
+                        .take(15)
+                } else {
+                    entities1
+                }
                 if (entities.isNotEmpty()) {
                     chatDao.insertMessages(entities)
                 }
@@ -1780,10 +1795,10 @@ class MandalRepository(context: Context) {
                         .get()
                 )
                 val entities = snap.documents.mapNotNull { it.toChatMessageEntity() }
-                if (entities.isNotEmpty()) {
+                if (entities.size >= 15) {
                     chatDao.insertMessages(entities)
                 } else {
-                    // Fallback query by sender/receiver if conversationId was legacy
+                    // Fallback query by sender/receiver if legacy messages didn't have conversationId
                     val snapSent = Tasks.await(
                         firestore.collection("chat_messages")
                             .whereEqualTo("senderId", user.id)
@@ -1800,9 +1815,10 @@ class MandalRepository(context: Context) {
                             .limit(15)
                             .get()
                     )
-                    val fallbackEntities = (snapSent.documents + snapReceived.documents)
-                        .mapNotNull { it.toChatMessageEntity() }
+                    val fallbackEntities = (entities + snapSent.documents.mapNotNull { it.toChatMessageEntity() } + snapReceived.documents.mapNotNull { it.toChatMessageEntity() })
                         .distinctBy { it.id }
+                        .sortedByDescending { it.timestamp }
+                        .take(15)
                     if (fallbackEntities.isNotEmpty()) {
                         chatDao.insertMessages(fallbackEntities)
                     }
@@ -1832,7 +1848,22 @@ class MandalRepository(context: Context) {
                         .limit(15)
                         .get()
                 )
-                snap.documents.mapNotNull { it.toChatMessageEntity() }
+                var list = snap.documents.mapNotNull { it.toChatMessageEntity() }
+                if (list.size < 15) {
+                    val snap2 = Tasks.await(
+                        firestore.collection("chat_messages")
+                            .whereEqualTo("conversationId", "conv_mandal_group")
+                            .whereLessThan("timestamp", oldestTimestamp)
+                            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                            .limit(15)
+                            .get()
+                    )
+                    list = (list + snap2.documents.mapNotNull { it.toChatMessageEntity() })
+                        .distinctBy { it.id }
+                        .sortedByDescending { it.timestamp }
+                        .take(15)
+                }
+                list
             } else if (!targetUserId.isNullOrBlank()) {
                 val convId = getConversationId(user.id, targetUserId)
                 val snap = Tasks.await(
@@ -1844,7 +1875,7 @@ class MandalRepository(context: Context) {
                         .get()
                 )
                 var list = snap.documents.mapNotNull { it.toChatMessageEntity() }
-                if (list.isEmpty()) {
+                if (list.size < 15) {
                     val snapSent = Tasks.await(
                         firestore.collection("chat_messages")
                             .whereEqualTo("senderId", user.id)
@@ -1863,8 +1894,7 @@ class MandalRepository(context: Context) {
                             .limit(15)
                             .get()
                     )
-                    list = (snapSent.documents + snapReceived.documents)
-                        .mapNotNull { it.toChatMessageEntity() }
+                    list = (list + snapSent.documents.mapNotNull { it.toChatMessageEntity() } + snapReceived.documents.mapNotNull { it.toChatMessageEntity() })
                         .distinctBy { it.id }
                         .sortedByDescending { it.timestamp }
                         .take(15)
@@ -1887,22 +1917,29 @@ class MandalRepository(context: Context) {
     suspend fun syncRecentPersonalConversations(currentUserId: String): Result<Unit> = withContext(Dispatchers.IO) {
         if (currentUserId.isBlank()) return@withContext Result.success(Unit)
         try {
-            // Restore recent 1-on-1 chats for newly installed app (quota-safe limit 15 for sent and received)
+            // Restore recent chats for all active conversations (quota-safe limit 35)
             val receivedSnap = Tasks.await(
                 firestore.collection("chat_messages")
                     .whereEqualTo("receiverId", currentUserId)
                     .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                    .limit(15)
+                    .limit(35)
                     .get()
             )
             val sentSnap = Tasks.await(
                 firestore.collection("chat_messages")
                     .whereEqualTo("senderId", currentUserId)
                     .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .limit(35)
+                    .get()
+            )
+            val groupSnap = Tasks.await(
+                firestore.collection("chat_messages")
+                    .whereEqualTo("receiverId", "GROUP_MANDAL")
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                     .limit(15)
                     .get()
             )
-            val allRecent = (receivedSnap.documents + sentSnap.documents)
+            val allRecent = (receivedSnap.documents + sentSnap.documents + groupSnap.documents)
                 .mapNotNull { it.toChatMessageEntity() }
                 .distinctBy { it.id }
             if (allRecent.isNotEmpty()) {
@@ -3929,12 +3966,25 @@ fun ChatMessageEntity.toMap(): Map<String, Any?> = mapOf(
 
 fun DocumentSnapshot.toChatMessageEntity(): ChatMessageEntity? {
     val id = getString("id") ?: id
-    val conversationId = getString("conversationId") ?: return null
+    val senderId = getString("senderId") ?: ""
+    val receiverId = getString("receiverId") ?: ""
+    val isGroup = receiverId == "GROUP_MANDAL" || receiverId == "conv_mandal_group"
+    
+    val conversationId = getString("conversationId")
+        ?.takeIf { it.isNotBlank() }
+        ?: if (isGroup) {
+            "conv_mandal_group"
+        } else if (senderId.isNotBlank() && receiverId.isNotBlank()) {
+            if (senderId < receiverId) "conv_${senderId}_${receiverId}" else "conv_${receiverId}_${senderId}"
+        } else {
+            "conv_general"
+        }
+
     return ChatMessageEntity(
         id = id,
         conversationId = conversationId,
-        senderId = getString("senderId") ?: "",
-        receiverId = getString("receiverId") ?: "",
+        senderId = senderId,
+        receiverId = receiverId,
         senderName = getString("senderName") ?: "",
         senderPhotoUrl = getString("senderPhotoUrl") ?: "",
         messageText = getString("messageText") ?: "",
