@@ -279,6 +279,14 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         if (tab == NavigationTab.POSTS || tab == NavigationTab.MEMBERS || tab == NavigationTab.CHAT) {
             refreshAllData(silent = true)
         }
+        if (tab == NavigationTab.CHAT) {
+            val user = currentUser.value
+            if (user != null && user.id.isNotBlank()) {
+                viewModelScope.launch {
+                    repository.syncRecentPersonalConversations(user.id)
+                }
+            }
+        }
     }
 
     private var lastSilentSyncTime = 0L
@@ -680,21 +688,59 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         profilePhotoUrl = "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&auto=format&fit=crop&q=80"
     )
 
+    // Loading earlier chat messages state
+    private val _isLoadingEarlierMessages = MutableStateFlow(false)
+    val isLoadingEarlierMessages: StateFlow<Boolean> = _isLoadingEarlierMessages.asStateFlow()
+
+    private val _hasMoreEarlierMessages = MutableStateFlow(true)
+    val hasMoreEarlierMessages: StateFlow<Boolean> = _hasMoreEarlierMessages.asStateFlow()
+
     fun openGroupChat() {
         _activeChatPartner.value = MANDAL_GROUP_USER
+        _hasMoreEarlierMessages.value = true
         _currentScreen.value = AppScreen.CHAT_DETAIL
+        viewModelScope.launch {
+            repository.syncConversationMessages(targetUserId = null, isGroup = true)
+        }
     }
 
     fun openChatWith(partner: User) {
         _activeChatPartner.value = partner
+        _hasMoreEarlierMessages.value = true
         val user = currentUser.value
         if (user != null) {
             val convId = if (partner.id == "GROUP_MANDAL") "conv_mandal_group" else repository.getConversationId(user.id, partner.id)
             viewModelScope.launch {
                 repository.markChatAsRead(convId, user.id, partner.id)
+                repository.syncConversationMessages(targetUserId = partner.id, isGroup = (partner.id == "GROUP_MANDAL"))
             }
         }
         _currentScreen.value = AppScreen.CHAT_DETAIL
+    }
+
+    fun loadMoreEarlierMessages() {
+        if (_isLoadingEarlierMessages.value || !_hasMoreEarlierMessages.value) return
+        val partner = _activeChatPartner.value ?: return
+        val currentList = activeConversationMessages.value
+        val oldestTimestamp = currentList.minOfOrNull { it.timestamp } ?: return
+
+        viewModelScope.launch {
+            _isLoadingEarlierMessages.value = true
+            val count = repository.loadEarlierConversationMessages(
+                targetUserId = if (partner.id == "GROUP_MANDAL") null else partner.id,
+                isGroup = (partner.id == "GROUP_MANDAL"),
+                oldestTimestamp = oldestTimestamp
+            ).getOrDefault(0)
+            _isLoadingEarlierMessages.value = false
+            if (count < 15) {
+                _hasMoreEarlierMessages.value = false
+            }
+            if (count > 0) {
+                showSnackbar("$count मागील मेसेजेस लोड झाले! 📜")
+            } else {
+                showSnackbar("संभाषणातील सर्व जुने मेसेजेस लोड झाले आहेत.")
+            }
+        }
     }
 
     fun closeChat() {

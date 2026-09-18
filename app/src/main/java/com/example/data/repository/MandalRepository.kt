@@ -1753,6 +1753,169 @@ class MandalRepository(context: Context) {
         }
     }
 
+    // ON-DEMAND QUOTA-SAFE 15-MESSAGES SYNC & PAGINATION
+    suspend fun syncConversationMessages(targetUserId: String?, isGroup: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
+        try {
+            if (isGroup) {
+                // Group Chat: Query last 15 group messages
+                val snap = Tasks.await(
+                    firestore.collection("chat_messages")
+                        .whereEqualTo("receiverId", "GROUP_MANDAL")
+                        .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                        .limit(15)
+                        .get()
+                )
+                val entities = snap.documents.mapNotNull { it.toChatMessageEntity() }
+                if (entities.isNotEmpty()) {
+                    chatDao.insertMessages(entities)
+                }
+            } else if (!targetUserId.isNullOrBlank()) {
+                // 1-on-1: Query messages using conversationId
+                val convId = getConversationId(user.id, targetUserId)
+                val snap = Tasks.await(
+                    firestore.collection("chat_messages")
+                        .whereEqualTo("conversationId", convId)
+                        .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                        .limit(15)
+                        .get()
+                )
+                val entities = snap.documents.mapNotNull { it.toChatMessageEntity() }
+                if (entities.isNotEmpty()) {
+                    chatDao.insertMessages(entities)
+                } else {
+                    // Fallback query by sender/receiver if conversationId was legacy
+                    val snapSent = Tasks.await(
+                        firestore.collection("chat_messages")
+                            .whereEqualTo("senderId", user.id)
+                            .whereEqualTo("receiverId", targetUserId)
+                            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                            .limit(15)
+                            .get()
+                    )
+                    val snapReceived = Tasks.await(
+                        firestore.collection("chat_messages")
+                            .whereEqualTo("senderId", targetUserId)
+                            .whereEqualTo("receiverId", user.id)
+                            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                            .limit(15)
+                            .get()
+                    )
+                    val fallbackEntities = (snapSent.documents + snapReceived.documents)
+                        .mapNotNull { it.toChatMessageEntity() }
+                        .distinctBy { it.id }
+                    if (fallbackEntities.isNotEmpty()) {
+                        chatDao.insertMessages(fallbackEntities)
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error syncing conversation messages (15 limit): ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun loadEarlierConversationMessages(
+        targetUserId: String?,
+        isGroup: Boolean,
+        oldestTimestamp: Long
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("लॉगिन आवश्यक आहे"))
+        if (oldestTimestamp <= 0) return@withContext Result.success(0)
+        try {
+            val entities = if (isGroup) {
+                val snap = Tasks.await(
+                    firestore.collection("chat_messages")
+                        .whereEqualTo("receiverId", "GROUP_MANDAL")
+                        .whereLessThan("timestamp", oldestTimestamp)
+                        .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                        .limit(15)
+                        .get()
+                )
+                snap.documents.mapNotNull { it.toChatMessageEntity() }
+            } else if (!targetUserId.isNullOrBlank()) {
+                val convId = getConversationId(user.id, targetUserId)
+                val snap = Tasks.await(
+                    firestore.collection("chat_messages")
+                        .whereEqualTo("conversationId", convId)
+                        .whereLessThan("timestamp", oldestTimestamp)
+                        .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                        .limit(15)
+                        .get()
+                )
+                var list = snap.documents.mapNotNull { it.toChatMessageEntity() }
+                if (list.isEmpty()) {
+                    val snapSent = Tasks.await(
+                        firestore.collection("chat_messages")
+                            .whereEqualTo("senderId", user.id)
+                            .whereEqualTo("receiverId", targetUserId)
+                            .whereLessThan("timestamp", oldestTimestamp)
+                            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                            .limit(15)
+                            .get()
+                    )
+                    val snapReceived = Tasks.await(
+                        firestore.collection("chat_messages")
+                            .whereEqualTo("senderId", targetUserId)
+                            .whereEqualTo("receiverId", user.id)
+                            .whereLessThan("timestamp", oldestTimestamp)
+                            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                            .limit(15)
+                            .get()
+                    )
+                    list = (snapSent.documents + snapReceived.documents)
+                        .mapNotNull { it.toChatMessageEntity() }
+                        .distinctBy { it.id }
+                        .sortedByDescending { it.timestamp }
+                        .take(15)
+                }
+                list
+            } else {
+                emptyList()
+            }
+
+            if (entities.isNotEmpty()) {
+                chatDao.insertMessages(entities)
+            }
+            Result.success(entities.size)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error loading earlier conversation messages: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncRecentPersonalConversations(currentUserId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        if (currentUserId.isBlank()) return@withContext Result.success(Unit)
+        try {
+            // Restore recent 1-on-1 chats for newly installed app (quota-safe limit 15 for sent and received)
+            val receivedSnap = Tasks.await(
+                firestore.collection("chat_messages")
+                    .whereEqualTo("receiverId", currentUserId)
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .limit(15)
+                    .get()
+            )
+            val sentSnap = Tasks.await(
+                firestore.collection("chat_messages")
+                    .whereEqualTo("senderId", currentUserId)
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .limit(15)
+                    .get()
+            )
+            val allRecent = (receivedSnap.documents + sentSnap.documents)
+                .mapNotNull { it.toChatMessageEntity() }
+                .distinctBy { it.id }
+            if (allRecent.isNotEmpty()) {
+                chatDao.insertMessages(allRecent)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error syncing recent personal conversations: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val unreadChatCount: Flow<Int> = _currentUser.flatMapLatest { user ->
         if (user != null) chatDao.getUnreadChatCount(user.id) else kotlinx.coroutines.flow.flowOf(0)

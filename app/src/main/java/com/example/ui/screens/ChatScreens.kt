@@ -826,6 +826,8 @@ fun ChatDetailScreen(
     val messages by viewModel.activeConversationMessages.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val approvedMembers by viewModel.approvedMembers.collectAsStateWithLifecycle()
+    val isLoadingEarlier by viewModel.isLoadingEarlierMessages.collectAsStateWithLifecycle()
+    val hasMoreEarlier by viewModel.hasMoreEarlierMessages.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1374,6 +1376,71 @@ fun ChatDetailScreen(
                         .padding(horizontal = 6.dp),
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
+                    // Quota-safe 15-message pagination button at top of chat
+                    item(key = "earlier_messages_loader") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isLoadingEarlier) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(8.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = SaffronPrimary
+                                    )
+                                    Text(
+                                        text = "मागील १५ मेसेजेस लोड होत आहेत...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
+                                }
+                            } else if (hasMoreEarlier && distinctMessages.size >= 15) {
+                                OutlinedButton(
+                                    onClick = { viewModel.loadMoreEarlierMessages() },
+                                    shape = RoundedCornerShape(20.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = SaffronDark
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SaffronPrimary.copy(alpha = 0.5f)),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = null,
+                                        tint = SaffronDark,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "📜 मागील १५ मेसेजेस लोड करा",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            } else if (distinctMessages.isNotEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFFF1F5F9).copy(alpha = 0.8f)
+                                ) {
+                                    Text(
+                                        text = "✨ संभाषणाची सुरुवात",
+                                        fontSize = 11.sp,
+                                        color = TextMuted,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     itemsIndexed(distinctMessages, key = { _, msg -> msg.id }) { index, msg ->
                         // WhatsApp-style Date Separator: Check if date changed compared to previous message
                         val showDateSeparator = if (index == 0) {
