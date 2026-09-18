@@ -64,7 +64,8 @@ enum class AdminTab(val title: String) {
     POSTS_MODERATION("पोस्ट्स नियंत्रण"),
     MEMBER_FEEDBACK("सभासद अभिप्राय"),
     DATABASE_BACKUP("💾 बॅकअप व डेटा सुरक्षा"),
-    CLOUD_MEMORY("📊 क्लाऊड मेमरी स्टेटस")
+    CLOUD_MEMORY("📊 क्लाऊड मेमरी स्टेटस"),
+    FIREBASE_QUOTA("⚡ फायरबेस कोटा व ॲक्टिव्हिटी")
 }
 
 @Composable
@@ -234,6 +235,7 @@ fun AdminPanelScreen(
                 AdminTab.MEMBER_FEEDBACK -> MemberFeedbacksAdminTab(feedbacks, viewModel)
                 AdminTab.DATABASE_BACKUP -> DatabaseBackupAdminTab(viewModel)
                 AdminTab.CLOUD_MEMORY -> CloudMemoryAdminTab(viewModel)
+                AdminTab.FIREBASE_QUOTA -> FirebaseQuotaAdminTab(viewModel)
             }
         }
     }

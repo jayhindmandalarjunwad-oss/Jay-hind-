@@ -273,3 +273,14 @@ data class EmergencyBloodAlert(
     val timestamp: Long = System.currentTimeMillis(),
     val isActive: Boolean = true
 )
+
+data class MemberActivityUsage(
+    val user: User,
+    val todayMessages: Int = 0,
+    val todayPosts: Int = 0,
+    val estimatedReadsToday: Long = 0L,
+    val estimatedWritesToday: Long = 0L,
+    val isOnline: Boolean = false,
+    val lastSeen: Long = 0L
+)
+

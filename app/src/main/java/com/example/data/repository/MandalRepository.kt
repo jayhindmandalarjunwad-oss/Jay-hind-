@@ -169,6 +169,7 @@ class MandalRepository(context: Context) {
         } catch (e: Exception) {
             Log.e("FirebaseSync", "FirebaseApp init error: ${e.message}")
         }
+        com.example.util.FirebaseQuotaTracker.init(appContext)
         // Start real-time Firestore synchronization immediately
         startFirestoreSync()
 
@@ -1960,6 +1961,44 @@ class MandalRepository(context: Context) {
     fun getConversationId(userA: String, userB: String): String {
         return if (userA < userB) "conv_${userA}_${userB}" else "conv_${userB}_${userA}"
     }
+
+    suspend fun getMemberActivityUsageList(): List<MemberActivityUsage> = withContext(Dispatchers.IO) {
+        try {
+            val members = userDao.getAllUsersDirect().map { it.toDomain() }
+            val calendar = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val startOfDay = calendar.timeInMillis
+            members.map { member ->
+                val msgCount = chatDao.getMemberChatCountSince(member.id, startOfDay)
+                val postCount = postDao.getMemberPostCountSince(member.id, startOfDay)
+                val baseReads = if (member.isOnline || member.lastSeen >= startOfDay) 20L else 0L
+                val chatReads = (msgCount * 2L)
+                val estimatedReads = baseReads + chatReads
+                val estimatedWrites = (msgCount + postCount).toLong()
+                MemberActivityUsage(
+                    user = member,
+                    todayMessages = msgCount,
+                    todayPosts = postCount,
+                    estimatedReadsToday = estimatedReads,
+                    estimatedWritesToday = estimatedWrites,
+                    isOnline = member.isOnline,
+                    lastSeen = member.lastSeen
+                )
+            }.sortedWith(
+                compareByDescending<MemberActivityUsage> { it.isOnline }
+                    .thenByDescending { it.todayMessages + it.todayPosts }
+                    .thenByDescending { it.lastSeen }
+            )
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error getting member activity usage list: ${e.message}")
+            emptyList()
+        }
+    }
+
 
     // GALLERY (ALBUMS, PHOTOS, VIDEOS)
     val photoAlbums: Flow<List<Album>> = galleryDao.getPhotoAlbums().map { list -> list.map { it.toDomain() } }

@@ -51,6 +51,9 @@ interface PostDao {
     @Query("SELECT * FROM posts ORDER BY timestamp DESC")
     suspend fun getAllPostsDirect(): List<PostEntity>
 
+    @Query("SELECT COUNT(*) FROM posts WHERE authorId = :userId AND timestamp >= :sinceTimestamp")
+    suspend fun getMemberPostCountSince(userId: String, sinceTimestamp: Long): Int
+
     @Query("SELECT * FROM posts WHERE id = :postId LIMIT 1")
     suspend fun getPostById(postId: String): PostEntity?
 
@@ -171,6 +174,9 @@ interface ChatDao {
 
     @Query("DELETE FROM chat_messages WHERE id = :messageId")
     suspend fun deleteMessage(messageId: String)
+
+    @Query("SELECT COUNT(*) FROM chat_messages WHERE senderId = :userId AND timestamp >= :sinceTimestamp")
+    suspend fun getMemberChatCountSince(userId: String, sinceTimestamp: Long): Int
 }
 
 @Dao

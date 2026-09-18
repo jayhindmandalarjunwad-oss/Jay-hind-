@@ -1791,6 +1791,31 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // FIREBASE QUOTA & MEMBER ACTIVITY MONITOR
+    val firebaseQuotaUsage: StateFlow<com.example.util.FirebaseQuotaUsage> = com.example.util.FirebaseQuotaTracker.quotaUsage
+    val activeSnapshotListeners: StateFlow<List<com.example.util.ListenerStatus>> = com.example.util.FirebaseQuotaTracker.listeners
+
+    val activeOnlineMembers: StateFlow<List<User>> = allMembers.map { members ->
+        members.filter { it.isOnline }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _memberActivityUsageList = MutableStateFlow<List<MemberActivityUsage>>(emptyList())
+    val memberActivityUsageList: StateFlow<List<MemberActivityUsage>> = _memberActivityUsageList.asStateFlow()
+
+    private val _isLoadingMemberUsage = MutableStateFlow(false)
+    val isLoadingMemberUsage: StateFlow<Boolean> = _isLoadingMemberUsage.asStateFlow()
+
+    fun refreshMemberActivityUsage() {
+        if (_isLoadingMemberUsage.value) return
+        _isLoadingMemberUsage.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = repository.getMemberActivityUsageList()
+            _memberActivityUsageList.value = list
+            _isLoadingMemberUsage.value = false
+        }
+    }
+
+
     fun triggerManualBackup(onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
         if (_isBackupOperationRunning.value) return
         _isBackupOperationRunning.value = true
