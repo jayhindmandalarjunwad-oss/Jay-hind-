@@ -159,11 +159,12 @@ object GoogleDriveMediaBackupManager {
 
     /**
      * Finds an existing subfolder inside a DocumentFile or creates it if it doesn't exist.
-     * Prevents duplicate folders on Google Drive by:
-     * 1. Checking local SharedPreferences cache for the exact folder tree URI.
-     * 2. Inspecting parent's existing children using case-insensitive name matching and handling
-     *    both standard Android and Google Drive custom MIME types.
-     * 3. Reusing existing folder if found, only creating if truly absent.
+     * Strictly enforces "Check Existing Before Create" to eliminate duplicate folders on Google Drive:
+     * 1. Checks parent's direct findFile (native SAF lookup).
+     * 2. Checks local persistent cache (supporting both Tree and Single document URIs).
+     * 3. Inspects parent's children with case-insensitive and prefix matching to catch existing folders.
+     * 4. If multiple matching folders already exist, reuses the first one without creating any new duplicate.
+     * 5. Only creates a new folder when it is 100% verified not to exist.
      */
     private fun findOrCreateSubFolder(
         context: Context,
@@ -174,13 +175,34 @@ object GoogleDriveMediaBackupManager {
         val cleanName = subFolderName.trim()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        // 1. Try resolving from cached URI if available
+        // 1. Direct SAF search on parent (Fastest & most reliable native query)
+        try {
+            val directDoc = parent.findFile(cleanName)
+            if (directDoc != null && directDoc.exists() && isFolderOrDirectory(directDoc) && directDoc.canWrite()) {
+                if (pathKey.isNotBlank()) {
+                    prefs.edit().putString("cached_folder_uri_$pathKey", directDoc.uri.toString()).apply()
+                }
+                return directDoc
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Direct findFile check skipped: ${e.message}")
+        }
+
+        // 2. Try resolving from cached URI if available (supports both TreeUri and SingleUri)
         if (pathKey.isNotBlank()) {
             val cachedUriStr = prefs.getString("cached_folder_uri_$pathKey", null)
             if (!cachedUriStr.isNullOrBlank()) {
                 try {
                     val cachedUri = Uri.parse(cachedUriStr)
-                    val cachedDoc = DocumentFile.fromTreeUri(context, cachedUri)
+                    val cachedDoc = try {
+                        DocumentFile.fromTreeUri(context, cachedUri)
+                    } catch (e: Exception) {
+                        null
+                    } ?: try {
+                        DocumentFile.fromSingleUri(context, cachedUri)
+                    } catch (e: Exception) {
+                        null
+                    }
                     if (cachedDoc != null && cachedDoc.exists() && isFolderOrDirectory(cachedDoc) && cachedDoc.canWrite()) {
                         return cachedDoc
                     }
@@ -190,7 +212,7 @@ object GoogleDriveMediaBackupManager {
             }
         }
 
-        // 2. Query parent's children to find any existing folder with same name (case-insensitive)
+        // 3. Query parent's children to find any existing folder with same or equivalent name
         val children = try {
             parent.listFiles()
         } catch (e: Exception) {
@@ -200,12 +222,14 @@ object GoogleDriveMediaBackupManager {
 
         val matchingFolders = children.filter { child ->
             val name = child.name?.trim() ?: ""
-            name.equals(cleanName, ignoreCase = true) && isFolderOrDirectory(child)
+            (name.equals(cleanName, ignoreCase = true) ||
+             name.startsWith(cleanName, ignoreCase = true) ||
+             cleanName.startsWith(name, ignoreCase = true)) && isFolderOrDirectory(child)
         }
 
         val existingFolder = if (matchingFolders.isNotEmpty()) {
-            // If multiple folders exist from earlier syncs, pick the newest/most populated one
-            matchingFolders.maxByOrNull { it.lastModified() } ?: matchingFolders.first()
+            // If duplicate folders already exist from previous runs, ALWAYS reuse the first one
+            matchingFolders.first()
         } else {
             children.firstOrNull { child ->
                 val name = child.name?.trim() ?: ""
@@ -220,7 +244,7 @@ object GoogleDriveMediaBackupManager {
             return existingFolder
         }
 
-        // 3. Truly doesn't exist, create it
+        // 4. Truly doesn't exist, create it once and cache immediately
         val created = parent.createDirectory(cleanName)
         if (created != null && pathKey.isNotBlank()) {
             prefs.edit().putString("cached_folder_uri_$pathKey", created.uri.toString()).apply()
@@ -388,7 +412,12 @@ object GoogleDriveMediaBackupManager {
             val oneToOneChatVoiceFolder = findOrCreateSubFolder(context, voiceRootFolder, "One to One Chat", "${voiceKey}_OneToOneChat") ?: voiceRootFolder
 
             // Fetch Items from Database
-            val allPhotos = db.galleryDao().getAllPhotosDirect()
+            // Photos already safely on Google Drive / Cloud are strictly skipped to prevent redundant downloads & uploads
+            val allPhotos = db.galleryDao().getAllPhotosDirect().filter { photo ->
+                photo.imageUrl.isNotBlank() &&
+                !photo.imageUrl.contains("googleusercontent.com") &&
+                !photo.imageUrl.contains("drive.google.com")
+            }
             val allPosts = db.postDao().getAllPostsDirect().filter { 
                 val json = it.imageUrlsJson?.trim() ?: ""
                 json.isNotBlank() && json != "[]" && json != "null"
@@ -412,10 +441,10 @@ object GoogleDriveMediaBackupManager {
             var skippedCount = 0
             var failCount = 0
 
-            // 1. Upload Gallery Photos
+            // 1. Upload Gallery Photos (Only new unbacked photos, existing Drive photos skipped)
             for (photo in allPhotos) {
                 val key = "gallery_${photo.id}"
-                if (uploadedSet.contains(key)) {
+                if (uploadedSet.contains(key) || photo.imageUrl.contains("googleusercontent.com") || photo.imageUrl.contains("drive.google.com")) {
                     skippedCount++
                     continue
                 }

@@ -409,34 +409,15 @@ fun GalleryScreen(
                                                 }
                                             }
 
-                                            // Drive / Cloud storage indicator badge
+                                            // Discreet synced status indicator dot (No text or Drive branding)
                                             if (photo.imageUrl.contains("googleusercontent.com") || photo.imageUrl.contains("drive.google.com")) {
                                                 Box(
                                                     modifier = Modifier
                                                         .align(Alignment.BottomStart)
                                                         .padding(horizontal = 6.dp, vertical = if (photo.caption.isNotBlank()) 26.dp else 6.dp)
-                                                        .background(
-                                                            Color(0xFF1A73E8).copy(alpha = 0.85f),
-                                                            RoundedCornerShape(5.dp)
-                                                        )
-                                                        .padding(horizontal = 5.dp, vertical = 2.dp)
-                                                ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.CloudQueue,
-                                                            contentDescription = "Google Drive",
-                                                            tint = Color.White,
-                                                            modifier = Modifier.size(9.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(3.dp))
-                                                        Text(
-                                                            text = "Drive",
-                                                            color = Color.White,
-                                                            fontSize = 8.5.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-                                                }
+                                                        .size(7.dp)
+                                                        .background(Color(0xFF43A047), CircleShape)
+                                                )
                                             }
 
                                             if (photo.caption.isNotBlank()) {
@@ -987,34 +968,15 @@ fun AlbumCard(
                         }
                     }
 
-                    // Cloud / Drive Indicator Badge
+                    // Discreet synced status indicator dot (No text or Drive branding)
                     if (album.coverImageUrl.contains("googleusercontent.com") || album.coverImageUrl.contains("drive.google.com")) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF1A73E8).copy(alpha = 0.85f),
+                        Box(
                             modifier = Modifier
                                 .padding(8.dp)
                                 .align(Alignment.BottomStart)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CloudQueue,
-                                    contentDescription = "Google Drive",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "Drive Storage",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
+                                .size(8.dp)
+                                .background(Color(0xFF43A047), CircleShape)
+                        )
                     }
 
                     if (isAdmin) {
