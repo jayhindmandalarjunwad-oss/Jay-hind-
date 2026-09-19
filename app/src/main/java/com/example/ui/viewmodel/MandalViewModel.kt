@@ -2007,6 +2007,23 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     val businesses: StateFlow<List<BusinessListing>> = repository.getAllBusinesses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val businessLeadClicks: StateFlow<List<BusinessLeadClick>> = repository.getAllLeadClicks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun recordBusinessLeadClick(business: BusinessListing, clickType: String) {
+        viewModelScope.launch {
+            repository.recordLeadClick(business, clickType)
+        }
+    }
+
+    suspend fun getAvailableReportMonths(): List<String> {
+        return repository.getAvailableReportMonths()
+    }
+
+    suspend fun getLeadClicksForMonth(monthYear: String): List<BusinessLeadClick> {
+        return repository.getLeadClicksForMonth(monthYear)
+    }
+
     fun openBusinessDirectory() {
         _currentScreen.value = AppScreen.BUSINESS_DIRECTORY
     }
@@ -2024,6 +2041,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         whatsappNumber: String,
         address: String,
         photoUrl: String,
+        photosJson: String = "[]",
         onDone: () -> Unit
     ) {
         if (businessName.isBlank() || contactNumber.isBlank()) {
@@ -2039,7 +2057,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 contactNumber = contactNumber,
                 whatsappNumber = whatsappNumber,
                 address = address,
-                photoUrl = photoUrl
+                photoUrl = photoUrl,
+                photosJson = photosJson
             )
             res.onSuccess {
                 showSnackbar("स्थानिक व्यवसाय यशस्वीरित्या जोडला गेला! 🏪✨")
@@ -2060,6 +2079,7 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         whatsappNumber: String,
         address: String,
         photoUrl: String,
+        photosJson: String = "[]",
         onDone: () -> Unit
     ) {
         if (businessName.isBlank() || contactNumber.isBlank()) {
@@ -2076,7 +2096,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 contactNumber = contactNumber,
                 whatsappNumber = whatsappNumber,
                 address = address,
-                photoUrl = photoUrl
+                photoUrl = photoUrl,
+                photosJson = photosJson
             )
             res.onSuccess {
                 showSnackbar("व्यवसायाची माहिती अपडेट झाली! ✅")
@@ -2091,6 +2112,58 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.deleteBusiness(id)
             showSnackbar("व्यवसाय डिरेक्टरीतून काढण्यात आला.")
+        }
+    }
+
+    /**
+     * Reorders a business item UP in the current display list:
+     * - If in "सर्व" mode, swaps globalOrder
+     * - If in specific category mode, swaps categoryOrder and updates globalOrder
+     */
+    fun moveBusinessUp(
+        business: BusinessListing,
+        currentList: List<BusinessListing>,
+        isCategoryMode: Boolean
+    ) {
+        val currentIndex = currentList.indexOfFirst { it.id == business.id }
+        if (currentIndex <= 0) {
+            showSnackbar("हा व्यवसाय आधीच यादीत सर्वात वरती (#1) आहे.")
+            return
+        }
+        val targetAbove = currentList[currentIndex - 1]
+        viewModelScope.launch {
+            val res = repository.swapBusinessPositions(business, targetAbove, isCategoryMode)
+            res.onSuccess {
+                showSnackbar("✅ '${business.businessName}' चे स्थान वर हलवले!")
+            }.onFailure {
+                showSnackbar("स्थान बदलताना त्रुटी आली: ${it.message}")
+            }
+        }
+    }
+
+    /**
+     * Reorders a business item DOWN in the current display list:
+     * - If in "सर्व" mode, swaps globalOrder
+     * - If in specific category mode, swaps categoryOrder and updates globalOrder
+     */
+    fun moveBusinessDown(
+        business: BusinessListing,
+        currentList: List<BusinessListing>,
+        isCategoryMode: Boolean
+    ) {
+        val currentIndex = currentList.indexOfFirst { it.id == business.id }
+        if (currentIndex < 0 || currentIndex >= currentList.size - 1) {
+            showSnackbar("हा व्यवसाय आधीच यादीत सर्वात शेवटी आहे.")
+            return
+        }
+        val targetBelow = currentList[currentIndex + 1]
+        viewModelScope.launch {
+            val res = repository.swapBusinessPositions(business, targetBelow, isCategoryMode)
+            res.onSuccess {
+                showSnackbar("✅ '${business.businessName}' चे स्थान खाली हलवले!")
+            }.onFailure {
+                showSnackbar("स्थान बदलताना त्रुटी आली: ${it.message}")
+            }
         }
     }
 

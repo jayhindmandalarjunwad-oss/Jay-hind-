@@ -367,8 +367,14 @@ interface MandalInfoDao {
 
 @Dao
 interface BusinessDirectoryDao {
-    @Query("SELECT * FROM business_directory ORDER BY timestamp DESC")
+    @Query("SELECT * FROM business_directory ORDER BY globalOrder ASC, timestamp DESC")
     fun getAllBusinesses(): Flow<List<BusinessListingEntity>>
+
+    @Query("SELECT * FROM business_directory ORDER BY globalOrder ASC, timestamp DESC")
+    suspend fun getAllBusinessesDirect(): List<BusinessListingEntity>
+
+    @Query("SELECT * FROM business_directory WHERE category = :category ORDER BY categoryOrder ASC, timestamp DESC")
+    suspend fun getBusinessesByCategoryDirect(category: String): List<BusinessListingEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBusiness(business: BusinessListingEntity)
@@ -378,6 +384,33 @@ interface BusinessDirectoryDao {
 
     @Update
     suspend fun updateBusiness(business: BusinessListingEntity)
+
+    @Query("UPDATE business_directory SET globalOrder = :order WHERE id = :id")
+    suspend fun updateGlobalOrder(id: String, order: Int)
+
+    @Query("UPDATE business_directory SET categoryOrder = :order WHERE id = :id")
+    suspend fun updateCategoryOrder(id: String, order: Int)
+
+    @Query("UPDATE business_directory SET callClicks = callClicks + 1 WHERE id = :id")
+    suspend fun incrementCallClicks(id: String)
+
+    @Query("UPDATE business_directory SET whatsappClicks = whatsappClicks + 1 WHERE id = :id")
+    suspend fun incrementWhatsAppClicks(id: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLeadClick(click: BusinessLeadClickEntity)
+
+    @Query("SELECT * FROM business_lead_clicks ORDER BY timestamp DESC")
+    fun getAllLeadClicks(): Flow<List<BusinessLeadClickEntity>>
+
+    @Query("SELECT * FROM business_lead_clicks ORDER BY timestamp DESC")
+    suspend fun getAllLeadClicksDirect(): List<BusinessLeadClickEntity>
+
+    @Query("SELECT * FROM business_lead_clicks WHERE monthYear = :monthYear ORDER BY timestamp DESC")
+    suspend fun getLeadClicksForMonth(monthYear: String): List<BusinessLeadClickEntity>
+
+    @Query("SELECT DISTINCT monthYear FROM business_lead_clicks WHERE monthYear != '' ORDER BY monthYear DESC")
+    suspend fun getAvailableMonths(): List<String>
 
     @Query("DELETE FROM business_directory WHERE id = :id")
     suspend fun deleteBusiness(id: String)

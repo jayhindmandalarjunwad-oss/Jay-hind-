@@ -66,7 +66,46 @@ data class BusinessListing(
     val address: String = "अर्जुनवाड",
     val photoUrl: String = "",
     val isVerified: Boolean = true,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val globalOrder: Int = 0,
+    val categoryOrder: Int = 0,
+    val photosJson: String = "[]",
+    val callClicks: Int = 0,
+    val whatsappClicks: Int = 0
+) {
+    val totalClicks: Int get() = callClicks + whatsappClicks
+
+    val photosList: List<String>
+        get() {
+            val list = mutableListOf<String>()
+            try {
+                if (photosJson.isNotBlank() && photosJson != "[]") {
+                    val array = org.json.JSONArray(photosJson)
+                    for (i in 0 until array.length()) {
+                        val url = array.optString(i)
+                        if (url.isNotBlank()) list.add(url)
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore parse errors
+            }
+            if (list.isEmpty() && photoUrl.isNotBlank()) {
+                list.add(photoUrl)
+            }
+            return list
+        }
+}
+
+data class BusinessLeadClick(
+    val id: Long = 0,
+    val businessId: String = "",
+    val businessName: String = "",
+    val ownerName: String = "",
+    val category: String = "",
+    val contactNumber: String = "",
+    val clickType: String = "", // "CALL" or "WHATSAPP"
+    val timestamp: Long = System.currentTimeMillis(),
+    val monthYear: String = "" // "yyyy-MM"
 )
 
 data class Comment(

@@ -207,5 +207,23 @@ data class BusinessListingEntity(
     val address: String = "अर्जुनवाड",
     val photoUrl: String = "",
     val isVerified: Boolean = true,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val globalOrder: Int = 0,
+    val categoryOrder: Int = 0,
+    val photosJson: String = "[]",
+    val callClicks: Int = 0,
+    val whatsappClicks: Int = 0
+)
+
+@Entity(tableName = "business_lead_clicks")
+data class BusinessLeadClickEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val businessId: String,
+    val businessName: String,
+    val ownerName: String = "",
+    val category: String = "",
+    val contactNumber: String = "",
+    val clickType: String, // "CALL" or "WHATSAPP"
+    val timestamp: Long = System.currentTimeMillis(),
+    val monthYear: String = "" // "yyyy-MM"
 )

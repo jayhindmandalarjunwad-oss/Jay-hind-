@@ -3559,9 +3559,22 @@ class MandalRepository(context: Context) {
         contactNumber: String,
         whatsappNumber: String,
         address: String,
-        photoUrl: String
+        photoUrl: String,
+        photosJson: String = "[]"
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val bizId = "biz_" + UUID.randomUUID().toString().take(8)
+        val existingAll = businessDirectoryDao.getAllBusinessesDirect()
+        val nextGlobalOrder = (existingAll.maxOfOrNull { it.globalOrder } ?: -1) + 1
+        val existingCat = businessDirectoryDao.getBusinessesByCategoryDirect(category.trim().ifBlank { "इतर" })
+        val nextCatOrder = (existingCat.maxOfOrNull { it.categoryOrder } ?: -1) + 1
+
+        val finalCoverPhoto = if (photoUrl.isNotBlank()) photoUrl.trim() else {
+            try {
+                val array = org.json.JSONArray(photosJson)
+                if (array.length() > 0) array.getString(0) else ""
+            } catch (e: Exception) { "" }
+        }
+
         val entity = BusinessListingEntity(
             id = bizId,
             businessName = businessName.trim(),
@@ -3571,9 +3584,12 @@ class MandalRepository(context: Context) {
             contactNumber = contactNumber.trim(),
             whatsappNumber = whatsappNumber.trim().ifBlank { contactNumber.trim() },
             address = address.trim().ifBlank { "अर्जुनवाड" },
-            photoUrl = photoUrl.trim(),
+            photoUrl = finalCoverPhoto,
             isVerified = true,
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            globalOrder = nextGlobalOrder,
+            categoryOrder = nextCatOrder,
+            photosJson = photosJson.trim().ifBlank { "[]" }
         )
         businessDirectoryDao.insertBusiness(entity)
         try {
@@ -3593,8 +3609,20 @@ class MandalRepository(context: Context) {
         contactNumber: String,
         whatsappNumber: String,
         address: String,
-        photoUrl: String
+        photoUrl: String,
+        photosJson: String = "[]"
     ): Result<Unit> = withContext(Dispatchers.IO) {
+        val existing = businessDirectoryDao.getAllBusinessesDirect().firstOrNull { it.id == id }
+        val gOrder = existing?.globalOrder ?: 0
+        val cOrder = existing?.categoryOrder ?: 0
+
+        val finalCoverPhoto = if (photoUrl.isNotBlank()) photoUrl.trim() else {
+            try {
+                val array = org.json.JSONArray(photosJson)
+                if (array.length() > 0) array.getString(0) else existing?.photoUrl ?: ""
+            } catch (e: Exception) { existing?.photoUrl ?: "" }
+        }
+
         val entity = BusinessListingEntity(
             id = id,
             businessName = businessName.trim(),
@@ -3604,9 +3632,12 @@ class MandalRepository(context: Context) {
             contactNumber = contactNumber.trim(),
             whatsappNumber = whatsappNumber.trim().ifBlank { contactNumber.trim() },
             address = address.trim().ifBlank { "अर्जुनवाड" },
-            photoUrl = photoUrl.trim(),
+            photoUrl = finalCoverPhoto,
             isVerified = true,
-            timestamp = System.currentTimeMillis()
+            timestamp = existing?.timestamp ?: System.currentTimeMillis(),
+            globalOrder = gOrder,
+            categoryOrder = cOrder,
+            photosJson = photosJson.trim().ifBlank { existing?.photosJson ?: "[]" }
         )
         businessDirectoryDao.insertBusiness(entity)
         try {
@@ -3617,6 +3648,72 @@ class MandalRepository(context: Context) {
         Result.success(Unit)
     }
 
+    /**
+     * Swaps order between two businesses:
+     * - If in "सर्व" (All) mode -> Swaps globalOrder
+     * - If in specific category -> Swaps categoryOrder and syncs globalOrder
+     */
+    suspend fun swapBusinessPositions(
+        bizA: BusinessListing,
+        bizB: BusinessListing,
+        isCategoryMode: Boolean
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val allList = businessDirectoryDao.getAllBusinessesDirect().toMutableList()
+            val entityA = allList.firstOrNull { it.id == bizA.id } ?: return@withContext Result.failure(Exception("व्यवसाय अ सापडला नाही"))
+            val entityB = allList.firstOrNull { it.id == bizB.id } ?: return@withContext Result.failure(Exception("व्यवसाय ब सापडला नाही"))
+
+            val updatedA: BusinessListingEntity
+            val updatedB: BusinessListingEntity
+
+            if (isCategoryMode) {
+                val tempCatOrder = entityA.categoryOrder
+                val orderB = entityB.categoryOrder
+                // If they have identical order, provide distinct sequential orders
+                val newAOrder = if (tempCatOrder == orderB) orderB else orderB
+                val newBOrder = if (tempCatOrder == orderB) orderB + 1 else tempCatOrder
+
+                // Also slightly adjust globalOrder so global view respects the category preference
+                val tempGlobal = entityA.globalOrder
+                val newGlobalA = entityB.globalOrder
+                val newGlobalB = tempGlobal
+
+                updatedA = entityA.copy(categoryOrder = newAOrder, globalOrder = newGlobalA)
+                updatedB = entityB.copy(categoryOrder = newBOrder, globalOrder = newGlobalB)
+            } else {
+                val tempGlobalOrder = entityA.globalOrder
+                val orderB = entityB.globalOrder
+                val newAOrder = if (tempGlobalOrder == orderB) orderB else orderB
+                val newBOrder = if (tempGlobalOrder == orderB) orderB + 1 else tempGlobalOrder
+
+                updatedA = entityA.copy(globalOrder = newAOrder)
+                updatedB = entityB.copy(globalOrder = newBOrder)
+            }
+
+            businessDirectoryDao.insertBusiness(updatedA)
+            businessDirectoryDao.insertBusiness(updatedB)
+
+            // Sync to Firestore in background
+            try {
+                firestore.collection("business_directory").document(updatedA.id).update(
+                    "globalOrder", updatedA.globalOrder,
+                    "categoryOrder", updatedA.categoryOrder
+                )
+                firestore.collection("business_directory").document(updatedB.id).update(
+                    "globalOrder", updatedB.globalOrder,
+                    "categoryOrder", updatedB.categoryOrder
+                )
+            } catch (e: Exception) {
+                Log.w("FirebaseSync", "Remote order sync note: ${e.message}")
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error swapping business positions: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun deleteBusiness(id: String): Result<Unit> = withContext(Dispatchers.IO) {
         businessDirectoryDao.deleteBusiness(id)
         try {
@@ -3625,6 +3722,79 @@ class MandalRepository(context: Context) {
             Log.e("FirebaseSync", "Error deleting business on firestore: ${e.message}")
         }
         Result.success(Unit)
+    }
+
+    /**
+     * Records a Call or WhatsApp lead click for a business.
+     * Updates local Room counters, logs a detailed click event, and syncs with Firestore.
+     */
+    suspend fun recordLeadClick(business: BusinessListing, clickType: String) = withContext(Dispatchers.IO) {
+        try {
+            val normalizedType = clickType.uppercase()
+            if (normalizedType == "CALL") {
+                businessDirectoryDao.incrementCallClicks(business.id)
+            } else {
+                businessDirectoryDao.incrementWhatsAppClicks(business.id)
+            }
+
+            val currentMonthYear = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+            val clickEvent = BusinessLeadClickEntity(
+                businessId = business.id,
+                businessName = business.businessName,
+                ownerName = business.ownerName,
+                category = business.category,
+                contactNumber = if (normalizedType == "CALL") business.contactNumber else business.whatsappNumber.ifBlank { business.contactNumber },
+                clickType = normalizedType,
+                timestamp = System.currentTimeMillis(),
+                monthYear = currentMonthYear
+            )
+            businessDirectoryDao.insertLeadClick(clickEvent)
+
+            // Remote sync to Firestore
+            try {
+                val fieldToIncrement = if (normalizedType == "CALL") "callClicks" else "whatsappClicks"
+                firestore.collection("business_directory").document(business.id).update(
+                    fieldToIncrement, com.google.firebase.firestore.FieldValue.increment(1)
+                )
+                firestore.collection("business_lead_clicks").add(
+                    mapOf(
+                        "businessId" to business.id,
+                        "businessName" to business.businessName,
+                        "ownerName" to business.ownerName,
+                        "category" to business.category,
+                        "contactNumber" to clickEvent.contactNumber,
+                        "clickType" to normalizedType,
+                        "timestamp" to clickEvent.timestamp,
+                        "monthYear" to currentMonthYear
+                    )
+                )
+            } catch (e: Exception) {
+                Log.w("FirebaseSync", "Remote lead click sync note: ${e.message}")
+            }
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error recording lead click: ${e.message}", e)
+        }
+    }
+
+    fun getAllLeadClicks(): Flow<List<BusinessLeadClick>> {
+        return businessDirectoryDao.getAllLeadClicks().map { list -> list.map { it.toDomain() } }
+    }
+
+    suspend fun getLeadClicksForMonth(monthYear: String): List<BusinessLeadClick> = withContext(Dispatchers.IO) {
+        if (monthYear.isBlank() || monthYear == "ALL") {
+            businessDirectoryDao.getAllLeadClicksDirect().map { it.toDomain() }
+        } else {
+            businessDirectoryDao.getLeadClicksForMonth(monthYear).map { it.toDomain() }
+        }
+    }
+
+    suspend fun getAvailableReportMonths(): List<String> = withContext(Dispatchers.IO) {
+        val months = businessDirectoryDao.getAvailableMonths().toMutableList()
+        val currentMonthYear = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+        if (!months.contains(currentMonthYear)) {
+            months.add(0, currentMonthYear)
+        }
+        months
     }
 
     suspend fun saveFcmToken(token: String) = withContext(Dispatchers.IO) {
@@ -4303,7 +4473,12 @@ fun BusinessListingEntity.toDomain() = BusinessListing(
     address = address,
     photoUrl = photoUrl,
     isVerified = isVerified,
-    timestamp = timestamp
+    timestamp = timestamp,
+    globalOrder = globalOrder,
+    categoryOrder = categoryOrder,
+    photosJson = photosJson,
+    callClicks = callClicks,
+    whatsappClicks = whatsappClicks
 )
 
 fun BusinessListingEntity.toMap(): Map<String, Any?> = mapOf(
@@ -4317,7 +4492,12 @@ fun BusinessListingEntity.toMap(): Map<String, Any?> = mapOf(
     "address" to address,
     "photoUrl" to photoUrl,
     "isVerified" to isVerified,
-    "timestamp" to timestamp
+    "timestamp" to timestamp,
+    "globalOrder" to globalOrder,
+    "categoryOrder" to categoryOrder,
+    "photosJson" to photosJson,
+    "callClicks" to callClicks,
+    "whatsappClicks" to whatsappClicks
 )
 
 fun DocumentSnapshot.toBusinessListingEntity(): BusinessListingEntity? {
@@ -4334,6 +4514,23 @@ fun DocumentSnapshot.toBusinessListingEntity(): BusinessListingEntity? {
         address = getString("address") ?: "अर्जुनवाड",
         photoUrl = getString("photoUrl") ?: "",
         isVerified = getBoolean("isVerified") ?: true,
-        timestamp = getLong("timestamp") ?: System.currentTimeMillis()
+        timestamp = getLong("timestamp") ?: System.currentTimeMillis(),
+        globalOrder = getLong("globalOrder")?.toInt() ?: 0,
+        categoryOrder = getLong("categoryOrder")?.toInt() ?: 0,
+        photosJson = getString("photosJson") ?: "[]",
+        callClicks = getLong("callClicks")?.toInt() ?: 0,
+        whatsappClicks = getLong("whatsappClicks")?.toInt() ?: 0
     )
 }
+
+fun BusinessLeadClickEntity.toDomain() = BusinessLeadClick(
+    id = id,
+    businessId = businessId,
+    businessName = businessName,
+    ownerName = ownerName,
+    category = category,
+    contactNumber = contactNumber,
+    clickType = clickType,
+    timestamp = timestamp,
+    monthYear = monthYear
+)
