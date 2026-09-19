@@ -512,9 +512,40 @@ fun BusinessDirectoryScreen(
 
     // Business Photo Gallery Slider Dialog
     if (photoGalleryBusiness != null) {
+        val isUserAdmin = currentUser?.isAnyAdmin == true
         BusinessPhotoGalleryDialog(
             business = photoGalleryBusiness!!,
-            onDismiss = { photoGalleryBusiness = null }
+            isAdmin = isUserAdmin,
+            onDismiss = { photoGalleryBusiness = null },
+            onDeletePhoto = { photoToDelete ->
+                val currentBiz = photoGalleryBusiness ?: return@BusinessPhotoGalleryDialog
+                val currentPhotos = currentBiz.photosList.toMutableList()
+                currentPhotos.remove(photoToDelete)
+                val newCover = currentPhotos.firstOrNull() ?: ""
+                val newJson = org.json.JSONArray(currentPhotos).toString()
+                viewModel.updateBusiness(
+                    id = currentBiz.id,
+                    businessName = currentBiz.businessName,
+                    ownerName = currentBiz.ownerName,
+                    category = currentBiz.category,
+                    description = currentBiz.description,
+                    contactNumber = currentBiz.contactNumber,
+                    whatsappNumber = currentBiz.whatsappNumber,
+                    address = currentBiz.address,
+                    photoUrl = newCover,
+                    photosJson = newJson
+                ) {
+                    if (currentPhotos.isEmpty()) {
+                        photoGalleryBusiness = null
+                    } else {
+                        photoGalleryBusiness = currentBiz.copy(
+                            photoUrl = newCover,
+                            photosJson = newJson
+                        )
+                    }
+                    viewModel.showSnackbar("फोटो यशस्वीरित्या डिलीट केला!")
+                }
+            }
         )
     }
 
@@ -1119,14 +1150,17 @@ private fun BusinessThumbnailImage(
 @Composable
 private fun BusinessPhotoGalleryDialog(
     business: BusinessListing,
-    onDismiss: () -> Unit
+    isAdmin: Boolean = false,
+    onDismiss: () -> Unit,
+    onDeletePhoto: ((photoUrl: String) -> Unit)? = null
 ) {
-    val photos = remember(business) { business.photosList }
+    val photos = remember(business.photosJson, business.photoUrl) { business.photosList }
     if (photos.isEmpty()) {
         onDismiss()
         return
     }
 
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState(pageCount = { photos.size })
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -1180,6 +1214,24 @@ private fun BusinessPhotoGalleryDialog(
                             color = Color.White,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
+                    }
+
+                    // Admin Delete Specific Photo Button
+                    if ((isAdmin || onDeletePhoto != null) && photos.isNotEmpty()) {
+                        IconButton(
+                            onClick = { showDeleteConfirm = true },
+                            modifier = Modifier
+                                .padding(end = 6.dp)
+                                .size(36.dp)
+                                .background(Color(0xFFDC2626), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "हा फोटो डिलीट करा",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
 
                     IconButton(
@@ -1366,6 +1418,52 @@ private fun BusinessPhotoGalleryDialog(
                         }
                     }
                 }
+            }
+
+            // Confirm Delete Dialog for Current Photo
+            if (showDeleteConfirm && photos.isNotEmpty()) {
+                val currentPhotoIndex = pagerState.currentPage.coerceIn(0, photos.lastIndex)
+                AlertDialog(
+                    onDismissRequest = { showDeleteConfirm = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteForever,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "हा फोटो डिलीट करायचा का?",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+                    },
+                    text = {
+                        Text(
+                            text = "फोटो क्र. ${currentPhotoIndex + 1} या व्यवसायाच्या गॅलरीतून कायमस्वरूपी काढून टाकला जाईल. आपण खात्री केली आहे का?",
+                            fontSize = 13.5.sp
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showDeleteConfirm = false
+                                val photoToDelete = photos[currentPhotoIndex]
+                                onDeletePhoto?.invoke(photoToDelete)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                        ) {
+                            Text("होय, डिलीट करा", fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteConfirm = false }) {
+                            Text("रद्द करा")
+                        }
+                    }
+                )
             }
         }
     }
@@ -1663,15 +1761,15 @@ private fun AddEditBusinessDialog(
                                                 uploadedPhotos = mutable
                                             },
                                             modifier = Modifier
-                                                .size(22.dp)
+                                                .size(24.dp)
                                                 .align(Alignment.TopEnd)
-                                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                                .background(Color(0xFFDC2626), CircleShape)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Close,
                                                 contentDescription = "काढून टाका",
                                                 tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
+                                                modifier = Modifier.size(13.dp)
                                             )
                                         }
                                     }

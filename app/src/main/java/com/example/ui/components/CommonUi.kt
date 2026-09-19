@@ -123,6 +123,8 @@ fun UniversalAsyncImage(
                 val imageRequestBuilder = coil.request.ImageRequest.Builder(context)
                     .data(finalUrl)
                     .crossfade(true)
+                    .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                     .error(com.example.R.drawable.ic_jayhind_logo)
                     .fallback(com.example.R.drawable.ic_jayhind_logo)
 
@@ -166,23 +168,25 @@ fun UniversalAsyncImage(
 
 /**
  * Converts Google Drive shareable URLs or uc?id= into direct high-speed image stream links for Coil.
- * Supports Google Drive view links, sharing links, thumbnail links and lh3.googleusercontent.com
+ * Uses Google Drive's official high-resolution CDN thumbnail endpoint (sz=w1600), ensuring 0 KB Firebase storage usage,
+ * 100% free hosting, and bypasses 403 hotlinking restrictions.
  */
-fun convertDriveUrlToDirectStreamUrl(url: String): String {
+fun convertDriveUrlToDirectStreamUrl(url: String, targetSize: Int = 1600): String {
     val trimmed = url.trim()
-    if (!trimmed.contains("drive.google.com") && !trimmed.contains("docs.google.com")) return trimmed
+    if (!trimmed.contains("drive.google.com") && !trimmed.contains("docs.google.com") && !trimmed.contains("googleusercontent.com")) return trimmed
 
     val fileId = when {
         trimmed.contains("/file/d/") -> trimmed.substringAfter("/file/d/").substringBefore("/").substringBefore("?").substringBefore("&")
         trimmed.contains("id=") -> trimmed.substringAfter("id=").substringBefore("&").substringBefore("#")
-        trimmed.contains("/open?id=") -> trimmed.substringAfter("/open?id=").substringBefore("&")
-        trimmed.contains("/uc?id=") -> trimmed.substringAfter("/uc?id=").substringBefore("&")
+        trimmed.contains("/open?id=") -> trimmed.substringAfter("/open?id=").substringBefore("&").substringBefore("#")
+        trimmed.contains("/uc?id=") -> trimmed.substringAfter("/uc?id=").substringBefore("&").substringBefore("#")
+        trimmed.contains("googleusercontent.com/d/") -> trimmed.substringAfter("/d/").substringBefore("=").substringBefore("/").substringBefore("?")
         else -> null
     }
 
     return if (!fileId.isNullOrBlank() && fileId.length >= 15) {
-        // lh3.googleusercontent.com provides direct, highly reliable high-speed CDN image streaming for Drive public images
-        "https://lh3.googleusercontent.com/d/$fileId=s1600"
+        // High-definition thumbnail endpoint (1600px width) directly from Google Drive CDN, 100% free, 0 KB Firebase storage used
+        "https://drive.google.com/thumbnail?id=$fileId&sz=w$targetSize"
     } else {
         trimmed
     }

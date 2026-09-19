@@ -1839,23 +1839,53 @@ fun AddPhotoDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (driveLinkInput.contains("drive.google.com")) {
+                    if (driveLinkInput.contains("/folders/")) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFFF3CD),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFF856404),
+                                    modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "⚠️ ही संपूर्ण Drive फोल्डरची लिंक आहे. कृपया त्या फोल्डरमधील फोटो उघडून 3-Dots वर क्लिक करून 'Copy Link' करा आणि ती लिंक येथे टाका.",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF856404),
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+                    } else if (driveLinkInput.contains("drive.google.com") || driveLinkInput.contains("googleusercontent.com")) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = Color(0xFFE8F0FE),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF1A73E8), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF1A73E8), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Google Drive हाय-डेफिनिशन लिंक तयार झाली (० KB Firebase खर्च)!",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1A73E8)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Google Drive हाय-स्पीड थेट इमेज लिंकमध्ये रूपांतरित केले!",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1A73E8)
+                                    text = "💡 खात्री करा: Drive मध्ये फोटो 'Anyone with the link can view' (पब्लिक) सेट असावा.",
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFF155724)
                                 )
                             }
                         }
@@ -1911,9 +1941,16 @@ fun AddPhotoDialog(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "प्रत्येक ओळीवर १ Google Drive शेअरिंग लिंक टाका (कमीत कमी १, जास्तीत जास्त ५० एकाच वेळी जोडता येतील).",
+                                text = "प्रत्येक ओळीवर १ Google Drive फोटो लिंक टाका (कमीत कमी १, जास्तीत जास्त ५० एकाच वेळी जोडता येतील).",
                                 fontSize = 11.sp,
                                 color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "💡 खात्री करा: सर्व फोटो Drive मध्ये 'Anyone with the link' (पब्लिक) सेट केलेले असावेत.",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFF155724),
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
@@ -1928,13 +1965,23 @@ fun AddPhotoDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    val detectedCount = remember(bulkDriveLinksText) {
-                        bulkDriveLinksText.split("\n", ",").filter { it.trim().isNotBlank() }.size
+                    val hasFolderLine = remember(bulkDriveLinksText) { bulkDriveLinksText.contains("/folders/") }
+                    if (hasFolderLine) {
+                        Text(
+                            text = "⚠️ काही लिंक्स संपूर्ण फोल्डरच्या आहेत. कृपया फोल्डरऐवजी त्यातील प्रत्येक फोटोची स्वतंत्र लिंक टाका.",
+                            fontSize = 11.sp,
+                            color = Color(0xFFDC2626),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    if (detectedCount > 0) {
+                    val validLines = remember(bulkDriveLinksText) {
+                        bulkDriveLinksText.split("\n", ",").map { it.trim() }.filter { it.isNotBlank() && !it.contains("/folders/") }
+                    }
+
+                    if (validLines.isNotEmpty()) {
                         Text(
-                            text = "📸 एकूण शोधलेल्या लिंक्स: $detectedCount फोटो",
+                            text = "📸 एकूण शोधलेल्या वैध लिंक्स: ${validLines.size} फोटो (० KB Firebase खर्च)",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = SaffronPrimary
@@ -1969,7 +2016,7 @@ fun AddPhotoDialog(
                     Text("फोटो जोडा", fontWeight = FontWeight.Bold)
                 }
             } else {
-                val lines = bulkDriveLinksText.split("\n", ",").map { it.trim() }.filter { it.isNotBlank() }
+                val lines = bulkDriveLinksText.split("\n", ",").map { it.trim() }.filter { it.isNotBlank() && !it.contains("/folders/") }
                 Button(
                     onClick = {
                         val list = lines.mapIndexed { idx, rawUrl ->
