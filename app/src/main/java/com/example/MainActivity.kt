@@ -137,6 +137,8 @@ fun MandalApp(viewModel: MandalViewModel) {
     val liveComments by viewModel.liveComments.collectAsStateWithLifecycle()
     val realtimeLiveViewerCount by viewModel.realtimeLiveViewerCount.collectAsStateWithLifecycle()
     val sessionSecurityNotice by viewModel.sessionSecurityNotice.collectAsStateWithLifecycle()
+    val appUpdateInfo by viewModel.appUpdateInfo.collectAsStateWithLifecycle()
+    val dismissedUpdateVersionCode by viewModel.dismissedUpdateVersionCode.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreatePostDialog by remember { mutableStateOf(false) }
@@ -527,6 +529,24 @@ fun MandalApp(viewModel: MandalViewModel) {
                     },
                     containerColor = SurfaceWarm,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                )
+            }
+
+            // In-App Update Notice Dialog (अधिकृत सूचना फलक शैली)
+            val shouldShowUpdateDialog = remember(appUpdateInfo, dismissedUpdateVersionCode) {
+                val isNewer = appUpdateInfo.latestVersionCode > BuildConfig.VERSION_CODE
+                val hasLink = appUpdateInfo.apkDownloadUrl.isNotBlank()
+                val notDismissed = appUpdateInfo.isForceUpdate || (dismissedUpdateVersionCode != appUpdateInfo.latestVersionCode)
+                isNewer && hasLink && notDismissed
+            }
+
+            if (shouldShowUpdateDialog && currentScreen != AppScreen.SPLASH) {
+                AppUpdateNoticeDialog(
+                    updateInfo = appUpdateInfo,
+                    mandalLogoUrl = mandalLogoUrl,
+                    onDismiss = {
+                        viewModel.dismissUpdateNotice(appUpdateInfo.latestVersionCode)
+                    }
                 )
             }
         }

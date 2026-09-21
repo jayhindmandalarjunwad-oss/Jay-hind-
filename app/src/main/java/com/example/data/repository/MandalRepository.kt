@@ -38,6 +38,9 @@ class MandalRepository(context: Context) {
     private val _mandalLogoUrl = MutableStateFlow<String?>(prefs.getString("mandal_logo_url", null))
     val mandalLogoUrl: StateFlow<String?> = _mandalLogoUrl.asStateFlow()
 
+    private val _appUpdateInfo = MutableStateFlow(AppUpdateInfo())
+    val appUpdateInfo: StateFlow<AppUpdateInfo> = _appUpdateInfo.asStateFlow()
+
     private val _sessionSecurityNotice = MutableStateFlow<String?>(null)
     val sessionSecurityNotice: StateFlow<String?> = _sessionSecurityNotice.asStateFlow()
 
@@ -712,6 +715,35 @@ class MandalRepository(context: Context) {
                     } else {
                         prefs.edit().remove("mandal_logo_url").apply()
                     }
+                }
+            }
+
+            // Real-time App Version & In-App Update Sync
+            firestore.collection("system_settings").document("app_update").addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.d("FirebaseSync", "App update snapshot error: ${e.message}")
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && snapshot.exists()) {
+                    val code = (snapshot.getLong("latestVersionCode") ?: 1L).toInt()
+                    val name = snapshot.getString("latestVersionName") ?: "1.0"
+                    val url = snapshot.getString("apkDownloadUrl") ?: ""
+                    val notes = snapshot.getString("releaseNotes") ?: ""
+                    val isForce = snapshot.getBoolean("isForceUpdate") ?: false
+                    val time = snapshot.getLong("publishedAt") ?: System.currentTimeMillis()
+                    val by = snapshot.getString("publishedBy") ?: "मुख्य ॲडमिन"
+                    val minSupported = (snapshot.getLong("minSupportedVersionCode") ?: 1L).toInt()
+
+                    _appUpdateInfo.value = AppUpdateInfo(
+                        latestVersionCode = code,
+                        latestVersionName = name,
+                        apkDownloadUrl = url,
+                        releaseNotes = notes,
+                        isForceUpdate = isForce,
+                        publishedAt = time,
+                        publishedBy = by,
+                        minSupportedVersionCode = minSupported
+                    )
                 }
             }
 
@@ -3819,6 +3851,48 @@ class MandalRepository(context: Context) {
             }
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error saving FCM token: ${e.message}")
+        }
+    }
+
+    suspend fun publishAppUpdate(
+        updateInfo: AppUpdateInfo,
+        postAnnouncement: Boolean = true
+    ) = withContext(Dispatchers.IO) {
+        try {
+            val data = hashMapOf(
+                "latestVersionCode" to updateInfo.latestVersionCode,
+                "latestVersionName" to updateInfo.latestVersionName,
+                "apkDownloadUrl" to updateInfo.apkDownloadUrl,
+                "releaseNotes" to updateInfo.releaseNotes,
+                "isForceUpdate" to updateInfo.isForceUpdate,
+                "publishedAt" to updateInfo.publishedAt,
+                "publishedBy" to updateInfo.publishedBy,
+                "minSupportedVersionCode" to updateInfo.minSupportedVersionCode
+            )
+            com.google.android.gms.tasks.Tasks.await(
+                firestore.collection("system_settings").document("app_update")
+                    .set(data, SetOptions.merge())
+            )
+            _appUpdateInfo.value = updateInfo
+
+            if (postAnnouncement) {
+                val announcementTitle = "नवीन ॲप अपडेट व्हर्जन ${updateInfo.latestVersionName} प्रसिद्ध! 🚀"
+                val announcementContent = buildString {
+                    append("जयहिंद मंडळाच्या अधिकृत ॲपचे नवीन व्हर्जन ${updateInfo.latestVersionName} उपलब्ध झाले आहे.\n\n")
+                    if (updateInfo.releaseNotes.isNotBlank()) {
+                        append("या अपडेटमधील बदल:\n${updateInfo.releaseNotes}\n\n")
+                    }
+                    append("सर्व सदस्यांनी उत्तम अनुभवासाठी ॲप आत्ताच अपडेट करून घ्यावे.")
+                }
+                createAnnouncement(
+                    title = announcementTitle,
+                    content = announcementContent,
+                    priority = if (updateInfo.isForceUpdate) "URGENT" else "HIGH"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error publishing app update: ${e.message}", e)
+            throw e
         }
     }
 }

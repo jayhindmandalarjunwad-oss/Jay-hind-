@@ -323,3 +323,14 @@ data class MemberActivityUsage(
     val lastSeen: Long = 0L
 )
 
+data class AppUpdateInfo(
+    val latestVersionCode: Int = 1,
+    val latestVersionName: String = "1.0",
+    val apkDownloadUrl: String = "",
+    val releaseNotes: String = "",
+    val isForceUpdate: Boolean = false,
+    val publishedAt: Long = System.currentTimeMillis(),
+    val publishedBy: String = "मुख्य ॲडमिन",
+    val minSupportedVersionCode: Int = 1
+)
+

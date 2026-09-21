@@ -98,6 +98,15 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     private val _requestedAdminTab = MutableStateFlow<com.example.ui.screens.AdminTab?>(null)
     val requestedAdminTab: StateFlow<com.example.ui.screens.AdminTab?> = _requestedAdminTab.asStateFlow()
 
+    // App In-App Version & Update State
+    val appUpdateInfo: StateFlow<AppUpdateInfo> = repository.appUpdateInfo
+    private val _dismissedUpdateVersionCode = MutableStateFlow(0)
+    val dismissedUpdateVersionCode: StateFlow<Int> = _dismissedUpdateVersionCode.asStateFlow()
+
+    fun dismissUpdateNotice(versionCode: Int) {
+        _dismissedUpdateVersionCode.value = versionCode
+    }
+
     fun setRequestedAdminTab(tab: com.example.ui.screens.AdminTab) {
         _requestedAdminTab.value = tab
     }
@@ -1513,6 +1522,40 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             } catch (e: Exception) {
                 showSnackbar("❌ त्रुटी: ${e.message}")
                 onComplete?.invoke(false)
+            }
+        }
+    }
+
+    // APP UPDATE & VERSION MANAGEMENT
+    fun publishAppUpdate(
+        versionName: String,
+        versionCode: Int,
+        apkDownloadUrl: String,
+        releaseNotes: String,
+        isForceUpdate: Boolean,
+        postAnnouncement: Boolean,
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                val adminName = currentUser.value?.fullName ?: "मुख्य ॲडमिन"
+                val update = AppUpdateInfo(
+                    latestVersionCode = versionCode,
+                    latestVersionName = versionName.trim(),
+                    apkDownloadUrl = apkDownloadUrl.trim(),
+                    releaseNotes = releaseNotes.trim(),
+                    isForceUpdate = isForceUpdate,
+                    publishedAt = System.currentTimeMillis(),
+                    publishedBy = adminName,
+                    minSupportedVersionCode = if (isForceUpdate) versionCode else 1
+                )
+                repository.publishAppUpdate(update, postAnnouncement)
+                showSnackbar("नवीन ॲप व्हर्जन $versionName प्रसिद्ध करण्यात आले! 🚀")
+                onSuccess()
+            } catch (e: Exception) {
+                showSnackbar("अपडेट प्रसिद्ध करताना अडचण: ${e.localizedMessage}")
+                onError(e.localizedMessage ?: "अडचण आली")
             }
         }
     }

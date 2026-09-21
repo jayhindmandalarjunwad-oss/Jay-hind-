@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 enum class AdminTab(val title: String) {
     PENDING_APPROVALS("सभासद मंजुरी"),
     LIVE_STREAM("🔴 थेट प्रक्षेपण (Live)"),
+    APP_UPDATES("🚀 ॲप व्हर्जन व अपडेट"),
     MANAGE_BANNERS("ग्रुप बॅनर"),
     EDIT_ABOUT_US("आमच्याबद्दल व सोशल"),
     MEMBERS_LIST("सर्व सभासद व ॲडमिन"),
@@ -224,6 +225,7 @@ fun AdminPanelScreen(
             when (selectedTab) {
                 AdminTab.PENDING_APPROVALS -> PendingApprovalsTab(pendingMembers, viewModel)
                 AdminTab.LIVE_STREAM -> LiveStreamAdminTab(mandalInfo, viewModel)
+                AdminTab.APP_UPDATES -> AppUpdateAdminTab(viewModel)
                 AdminTab.MANAGE_BANNERS -> ManageBannersAdminTab(banners, mandalInfo, viewModel)
                 AdminTab.EDIT_ABOUT_US -> EditAboutUsAdminTab(mandalInfo, viewModel)
                 AdminTab.MEMBERS_LIST -> AllMembersAdminTab(allMembers, viewModel)
