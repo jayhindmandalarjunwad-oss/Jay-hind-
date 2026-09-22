@@ -201,29 +201,54 @@ fun GalleryImagePicker(
     height: Dp = 140.dp,
     shape: Shape = RoundedCornerShape(12.dp),
     folder: String = "gallery",
+    enableCropping: Boolean = false,
+    cropRatio: CropAspectRatio = CropAspectRatio.FREE,
+    isCircleCrop: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isProcessing by remember { mutableStateOf(false) }
     var uploadProgress by remember { mutableIntStateOf(0) }
+    var uriToCrop by remember { mutableStateOf<Uri?>(null) }
+
+    fun proceedUpload(uri: Uri) {
+        coroutineScope.launch {
+            isProcessing = true
+            uploadProgress = 0
+            val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, folder) { prog ->
+                uploadProgress = prog
+            }
+            isProcessing = false
+            if (uploadedUrl.isNotBlank()) {
+                onImageSelected(uploadedUrl)
+            }
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            coroutineScope.launch {
-                isProcessing = true
-                uploadProgress = 0
-                val uploadedUrl = FirebaseStorageHelper.uploadImage(context, uri, folder) { prog ->
-                    uploadProgress = prog
-                }
-                isProcessing = false
-                if (uploadedUrl.isNotBlank()) {
-                    onImageSelected(uploadedUrl)
-                }
+            if (enableCropping) {
+                uriToCrop = uri
+            } else {
+                proceedUpload(uri)
             }
         }
+    }
+
+    if (uriToCrop != null) {
+        ImageCropperDialog(
+            sourceUri = uriToCrop!!,
+            initialRatio = cropRatio,
+            isCircleCrop = isCircleCrop,
+            onDismiss = { uriToCrop = null },
+            onImageCropped = { croppedUri ->
+                uriToCrop = null
+                proceedUpload(croppedUri)
+            }
+        )
     }
 
     Surface(

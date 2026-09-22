@@ -3729,8 +3729,12 @@ fun ManageLogoAdminTab(
                     selectedImageUrl = selectedLogoInput,
                     onImageSelected = { selectedLogoInput = it },
                     label = "गॅलरीतून मंडळ लोगो निवडा",
-                    helperText = "मोबाईल गॅलरीतून मानचिन्ह / लोगो अपलोड करा (Auto Compression)",
-                    height = 140.dp
+                    helperText = "मोबाईल गॅलरीतून मानचिन्ह / लोगो निवडा, झूम व क्रॉप करा",
+                    height = 140.dp,
+                    folder = "mandal_logos",
+                    enableCropping = true,
+                    cropRatio = CropAspectRatio.SQUARE,
+                    isCircleCrop = true
                 )
 
                 Text(

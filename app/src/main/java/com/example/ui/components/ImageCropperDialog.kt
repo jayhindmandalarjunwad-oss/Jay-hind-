@@ -45,7 +45,7 @@ import kotlin.math.roundToInt
 
 enum class CropAspectRatio(val label: String, val ratio: Float?) {
     FREE("मुक्त", null),
-    SQUARE("१:१ चौकोनी", 1.0f),
+    SQUARE("१:१ प्रोफाइल", 1.0f),
     LANDSCAPE_16_9("१६:९ आडवा", 16f / 9f),
     PORTRAIT_4_5("४:५ उभा", 4f / 5f)
 }
@@ -55,19 +55,22 @@ enum class CropAspectRatio(val label: String, val ratio: Float?) {
  * Supports:
  * 1. Pinch to zoom & drag to pan
  * 2. 90-degree image rotation
- * 3. Aspect ratio selection (1:1, 16:9, 4:5, Free)
- * 4. High-quality cropped bitmap export to file Uri
+ * 3. Aspect ratio selection (1:1 Square, 16:9, 4:5, Free)
+ * 4. Circular guide overlay option for profile photos
+ * 5. High-quality cropped bitmap export to file Uri
  */
 @Composable
 fun ImageCropperDialog(
     sourceUri: Uri,
+    initialRatio: CropAspectRatio = CropAspectRatio.FREE,
+    isCircleCrop: Boolean = false,
     onDismiss: () -> Unit,
     onImageCropped: (Uri) -> Unit
 ) {
     val context = LocalContext.current
     var originalBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var rotationAngle by remember { mutableFloatStateOf(0f) }
-    var selectedRatio by remember { mutableStateOf(CropAspectRatio.FREE) }
+    var selectedRatio by remember { mutableStateOf(initialRatio) }
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -283,6 +286,21 @@ fun ImageCropperDialog(
                                     size = Size(cropBoxW, cropBoxH),
                                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
                                 )
+
+                                // Optional Circular Crop Guide for Profile Avatars
+                                if (isCircleCrop && selectedRatio == CropAspectRatio.SQUARE) {
+                                    val radius = min(cropBoxW, cropBoxH) / 2f
+                                    val center = Offset(cropBoxLeft + cropBoxW / 2f, cropBoxTop + cropBoxH / 2f)
+                                    drawCircle(
+                                        color = SaffronPrimary,
+                                        radius = radius,
+                                        center = center,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = 2.dp.toPx(),
+                                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(15f, 15f), 0f)
+                                        )
+                                    )
+                                }
                             }
                         }
                     }

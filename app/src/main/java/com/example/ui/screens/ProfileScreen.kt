@@ -533,8 +533,12 @@ fun EditProfileDialog(
                     selectedImageUrl = photoUrl,
                     onImageSelected = { photoUrl = it },
                     label = "गॅलरीतून नवीन फोटो निवडा",
-                    helperText = "मोबाईल गॅलरीतून स्वतःचा फोटो अपलोड करा",
-                    height = 120.dp
+                    helperText = "मोबाईल गॅलरीतून स्वतःचा फोटो निवडा, झूम व क्रॉप करा",
+                    height = 130.dp,
+                    folder = "profiles",
+                    enableCropping = true,
+                    cropRatio = CropAspectRatio.SQUARE,
+                    isCircleCrop = true
                 )
 
                 OutlinedTextField(
