@@ -211,8 +211,10 @@ fun GalleryImagePicker(
     var isProcessing by remember { mutableStateOf(false) }
     var uploadProgress by remember { mutableIntStateOf(0) }
     var uriToCrop by remember { mutableStateOf<Uri?>(null) }
+    var localPreviewUri by remember { mutableStateOf<Uri?>(null) }
 
     fun proceedUpload(uri: Uri) {
+        localPreviewUri = uri
         coroutineScope.launch {
             isProcessing = true
             uploadProgress = 0
@@ -221,6 +223,7 @@ fun GalleryImagePicker(
             }
             isProcessing = false
             if (uploadedUrl.isNotBlank()) {
+                localPreviewUri = null
                 onImageSelected(uploadedUrl)
             }
         }
@@ -264,7 +267,43 @@ fun GalleryImagePicker(
             if (!selectedImageUrl.isNullOrBlank()) SaffronPrimary else CardBorderColor
         )
     ) {
-        if (isProcessing) {
+        val displayModel: Any? = localPreviewUri ?: selectedImageUrl
+        if (isProcessing && displayModel != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(height)
+            ) {
+                UniversalAsyncImage(
+                    model = displayModel,
+                    contentDescription = label,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.55f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            progress = { (uploadProgress / 100f).coerceIn(0f, 1f) },
+                            color = SaffronPrimary,
+                            modifier = Modifier.size(36.dp),
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (uploadProgress > 0) "फोटो कॉम्प्रेस व सेव्ह होत आहे... $uploadProgress%" else "फोटो कॉम्प्रेस होत आहे (WebP)...",
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        } else if (isProcessing) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -287,14 +326,14 @@ fun GalleryImagePicker(
                     )
                 }
             }
-        } else if (!selectedImageUrl.isNullOrBlank()) {
+        } else if (!selectedImageUrl.isNullOrBlank() || localPreviewUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(height)
             ) {
                 UniversalAsyncImage(
-                    model = selectedImageUrl,
+                    model = displayModel ?: "",
                     contentDescription = label,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

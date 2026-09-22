@@ -3,6 +3,7 @@ package com.example.ui.components
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -75,18 +77,53 @@ fun ImageCropperDialog(
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var isExporting by remember { mutableStateOf(false) }
+    var canvasSize by remember { mutableStateOf(Size.Zero) }
 
     // Load original bitmap
     LaunchedEffect(sourceUri) {
         withContext(Dispatchers.IO) {
             try {
+                var loadedBmp: Bitmap? = null
                 context.contentResolver.openInputStream(sourceUri)?.use { stream ->
                     val opts = BitmapFactory.Options().apply {
                         inPreferredConfig = Bitmap.Config.ARGB_8888
                     }
-                    val bmp = BitmapFactory.decodeStream(stream, null, opts)
-                    originalBitmap = bmp
+                    loadedBmp = BitmapFactory.decodeStream(stream, null, opts)
                 }
+
+                // Check and correct EXIF orientation if needed
+                if (loadedBmp != null) {
+                    try {
+                        context.contentResolver.openInputStream(sourceUri)?.use { exifStream ->
+                            val exif = ExifInterface(exifStream)
+                            val orientation = exif.getAttributeInt(
+                                ExifInterface.TAG_ORIENTATION,
+                                ExifInterface.ORIENTATION_NORMAL
+                            )
+                            val matrix = Matrix()
+                            when (orientation) {
+                                ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                                ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                                ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                            }
+                            if (!matrix.isIdentity) {
+                                val rotated = Bitmap.createBitmap(
+                                    loadedBmp!!, 0, 0,
+                                    loadedBmp!!.width, loadedBmp!!.height,
+                                    matrix, true
+                                )
+                                if (rotated != loadedBmp) {
+                                    loadedBmp!!.recycle()
+                                    loadedBmp = rotated
+                                }
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        // ignore exif parsing errors if not present
+                    }
+                }
+
+                originalBitmap = loadedBmp
             } catch (e: Exception) {
                 android.util.Log.e("ImageCropperDialog", "Failed to decode source bitmap: ${e.message}")
             }
@@ -140,7 +177,9 @@ fun ImageCropperDialog(
                                         rotationAngle = rotationAngle,
                                         scale = scale,
                                         offset = offset,
-                                        selectedRatio = selectedRatio
+                                        selectedRatio = selectedRatio,
+                                        canvasW = canvasSize.width,
+                                        canvasH = canvasSize.height
                                     )
                                     val tempFile = File(context.cacheDir, "cropped_${System.currentTimeMillis()}.webp")
                                     FileOutputStream(tempFile).use { out ->
@@ -197,7 +236,7 @@ fun ImageCropperDialog(
                                 .fillMaxSize()
                                 .pointerInput(Unit) {
                                     detectTransformGestures { _, pan, zoom, _ ->
-                                        scale = (scale * zoom).coerceIn(0.5f, 4.0f)
+                                        scale = (scale * zoom).coerceIn(0.5f, 5.0f)
                                         offset = Offset(offset.x + pan.x, offset.y + pan.y)
                                     }
                                 },
@@ -213,10 +252,19 @@ fun ImageCropperDialog(
                             }
 
                             Canvas(
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .onSizeChanged { intSize ->
+                                        if (intSize.width > 0 && intSize.height > 0) {
+                                            canvasSize = Size(intSize.width.toFloat(), intSize.height.toFloat())
+                                        }
+                                    }
                             ) {
                                 val canvasWidth = size.width
                                 val canvasHeight = size.height
+                                if (canvasSize.width != canvasWidth || canvasSize.height != canvasHeight) {
+                                    canvasSize = Size(canvasWidth, canvasHeight)
+                                }
 
                                 // Draw image with scale & offset
                                 val bmpWidth = imageBmp.width.toFloat()
@@ -331,7 +379,7 @@ fun ImageCropperDialog(
                                         selectedContainerColor = SaffronPrimary,
                                         selectedLabelColor = Color.White,
                                         containerColor = Color(0xFF374151),
-                                        labelColor = Color(0xFFE5E7EB)
+                                        labelColor = Color(0xFFD1D5DB)
                                     )
                                 )
                             }
@@ -378,7 +426,9 @@ private fun processAndCropBitmap(
     rotationAngle: Float,
     scale: Float,
     offset: Offset,
-    selectedRatio: CropAspectRatio
+    selectedRatio: CropAspectRatio,
+    canvasW: Float,
+    canvasH: Float
 ): Bitmap {
     // 1. Rotate if needed
     val rotated = if (rotationAngle % 360f != 0f) {
@@ -388,25 +438,55 @@ private fun processAndCropBitmap(
         src
     }
 
-    val width = rotated.width
-    val height = rotated.height
+    val bmpWidth = rotated.width.toFloat()
+    val bmpHeight = rotated.height.toFloat()
 
-    // Calculate crop rectangle based on ratio
+    val effCanvasW = if (canvasW > 0f) canvasW else 1000f
+    val effCanvasH = if (canvasH > 0f) canvasH else 1000f
+
+    // Crop Guide Box dimensions on canvas
+    val cropBoxW: Float
+    val cropBoxH: Float
     val ratio = selectedRatio.ratio
-    val targetRatio = ratio ?: (width.toFloat() / height.toFloat())
-
-    val cropW: Int
-    val cropH: Int
-    if (width.toFloat() / height.toFloat() > targetRatio) {
-        cropH = height
-        cropW = (height * targetRatio).roundToInt().coerceIn(1, width)
+    if (ratio != null) {
+        if (ratio >= 1.0f) {
+            cropBoxW = effCanvasW * 0.85f
+            cropBoxH = cropBoxW / ratio
+        } else {
+            cropBoxH = effCanvasH * 0.65f
+            cropBoxW = cropBoxH * ratio
+        }
     } else {
-        cropW = width
-        cropH = (width / targetRatio).roundToInt().coerceIn(1, height)
+        cropBoxW = effCanvasW * 0.85f
+        cropBoxH = effCanvasH * 0.65f
     }
 
-    val startX = ((width - cropW) / 2).coerceAtLeast(0)
-    val startY = ((height - cropH) / 2).coerceAtLeast(0)
+    val cropBoxLeft = (effCanvasW - cropBoxW) / 2f
+    val cropBoxTop = (effCanvasH - cropBoxH) / 2f
 
-    return Bitmap.createBitmap(rotated, startX, startY, cropW, cropH)
+    // Calculate image position on canvas
+    val baseScale = min(effCanvasW / bmpWidth, effCanvasH / bmpHeight) * 0.85f
+    val finalScale = (baseScale * scale).coerceAtLeast(0.0001f)
+
+    val drawW = bmpWidth * finalScale
+    val drawH = bmpHeight * finalScale
+
+    val drawLeft = (effCanvasW - drawW) / 2f + offset.x
+    val drawTop = (effCanvasH - drawH) / 2f + offset.y
+
+    // Map crop box corners from Canvas space back into Bitmap pixel space
+    val bmpCropLeft = ((cropBoxLeft - drawLeft) / finalScale).roundToInt().coerceIn(0, rotated.width - 1)
+    val bmpCropTop = ((cropBoxTop - drawTop) / finalScale).roundToInt().coerceIn(0, rotated.height - 1)
+    val bmpCropRight = ((cropBoxLeft + cropBoxW - drawLeft) / finalScale).roundToInt().coerceIn(bmpCropLeft + 1, rotated.width)
+    val bmpCropBottom = ((cropBoxTop + cropBoxH - drawTop) / finalScale).roundToInt().coerceIn(bmpCropTop + 1, rotated.height)
+
+    val actualCropW = (bmpCropRight - bmpCropLeft).coerceAtLeast(1)
+    val actualCropH = (bmpCropBottom - bmpCropTop).coerceAtLeast(1)
+
+    // Ensure we don't exceed source bounds
+    val finalW = actualCropW.coerceAtMost(rotated.width - bmpCropLeft)
+    val finalH = actualCropH.coerceAtMost(rotated.height - bmpCropTop)
+
+    return Bitmap.createBitmap(rotated, bmpCropLeft, bmpCropTop, finalW, finalH)
 }
+
