@@ -532,12 +532,14 @@ fun MandalApp(viewModel: MandalViewModel) {
                 )
             }
 
-            // In-App Update Notice Dialog (अधिकृत सूचना फलक शैली)
-            val shouldShowUpdateDialog = remember(appUpdateInfo, dismissedUpdateVersionCode) {
+            // In-App Update Notice Dialog (अधिकृत सूचना फलक शैली - फक्त सक्रिय असल्यास आणि ॲडमिन पॅनेलमध्ये नसताना)
+            val shouldShowUpdateDialog = remember(appUpdateInfo, dismissedUpdateVersionCode, currentScreen) {
                 val isNewer = appUpdateInfo.latestVersionCode > BuildConfig.VERSION_CODE
                 val hasLink = appUpdateInfo.apkDownloadUrl.isNotBlank()
+                val isActive = appUpdateInfo.isUpdateActive // ॲडमिनने थांबवले असल्यास (Pause) कोणालाही दिसणार नाही
                 val notDismissed = appUpdateInfo.isForceUpdate || (dismissedUpdateVersionCode != appUpdateInfo.latestVersionCode)
-                isNewer && hasLink && notDismissed
+                val notInAdmin = currentScreen != AppScreen.ADMIN_PANEL
+                isNewer && hasLink && isActive && notDismissed && notInAdmin
             }
 
             if (shouldShowUpdateDialog && currentScreen != AppScreen.SPLASH) {

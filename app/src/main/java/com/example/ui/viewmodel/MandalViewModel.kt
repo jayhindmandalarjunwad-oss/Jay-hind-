@@ -1546,9 +1546,12 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                     apkDownloadUrl = apkDownloadUrl.trim(),
                     releaseNotes = releaseNotes.trim(),
                     isForceUpdate = isForceUpdate,
+                    isUpdateActive = true,
                     publishedAt = System.currentTimeMillis(),
                     publishedBy = adminName,
-                    minSupportedVersionCode = if (isForceUpdate) versionCode else 1
+                    minSupportedVersionCode = if (isForceUpdate) versionCode else 1,
+                    stoppedAt = 0L,
+                    stoppedBy = ""
                 )
                 repository.publishAppUpdate(update, postAnnouncement)
                 showSnackbar("नवीन ॲप व्हर्जन $versionName प्रसिद्ध करण्यात आले! 🚀")
@@ -1556,6 +1559,42 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             } catch (e: Exception) {
                 showSnackbar("अपडेट प्रसिद्ध करताना अडचण: ${e.localizedMessage}")
                 onError(e.localizedMessage ?: "अडचण आली")
+            }
+        }
+    }
+
+    fun toggleAppUpdateActiveStatus(
+        isActive: Boolean,
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                val adminName = currentUser.value?.fullName ?: "मुख्य ॲडमिन"
+                repository.setAppUpdateActiveStatus(isActive, adminName)
+                val msg = if (isActive) "अपडेट मोहीम पुन्हा सुरू करण्यात आली आहे! 🟢" else "अपडेट सूचना तात्काळ थांबवण्यात आली आहे! 🔴 (सदस्यांना आता पॉपअप दिसणार नाही)"
+                showSnackbar(msg)
+                onSuccess()
+            } catch (e: Exception) {
+                showSnackbar("त्रुटी: ${e.localizedMessage}")
+                onError(e.localizedMessage ?: "त्रुटी")
+            }
+        }
+    }
+
+    fun rollbackAppUpdate(
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                val adminName = currentUser.value?.fullName ?: "मुख्य ॲडमिन"
+                repository.rollbackOrResetAppUpdate(adminName)
+                showSnackbar("सर्व्हरवरील अपडेट मोहीम यशस्वीरीत्या मागे घेण्यात (Rollback) आली आहे! 🛑")
+                onSuccess()
+            } catch (e: Exception) {
+                showSnackbar("रोलबॅक करताना अडचण: ${e.localizedMessage}")
+                onError(e.localizedMessage ?: "त्रुटी")
             }
         }
     }

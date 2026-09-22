@@ -329,8 +329,11 @@ data class AppUpdateInfo(
     val apkDownloadUrl: String = "",
     val releaseNotes: String = "",
     val isForceUpdate: Boolean = false,
+    val isUpdateActive: Boolean = true, // ॲडमिन कडून सूचना चालू किंवा तात्पुरती बंद (Kill Switch)
     val publishedAt: Long = System.currentTimeMillis(),
     val publishedBy: String = "मुख्य ॲडमिन",
-    val minSupportedVersionCode: Int = 1
+    val minSupportedVersionCode: Int = 1,
+    val stoppedAt: Long = 0L,
+    val stoppedBy: String = ""
 )
 

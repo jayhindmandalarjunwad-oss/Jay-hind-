@@ -58,7 +58,9 @@ fun AppUpdateAdminTab(
     var isForceUpdate by remember { mutableStateOf(false) }
     var postAnnouncement by remember { mutableStateOf(true) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var showRollbackConfirmDialog by remember { mutableStateOf(false) }
     var isPublishing by remember { mutableStateOf(false) }
+    var isTogglingStatus by remember { mutableStateOf(false) }
 
     val formattedPublishedDate = remember(updateInfo.publishedAt) {
         val sdf = SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale("mr", "IN"))
@@ -138,17 +140,20 @@ fun AppUpdateAdminTab(
                     }
 
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("सर्व्हरवर सक्रिय व्हर्जन:", fontSize = 11.sp, color = TextSecondary)
+                        Text("सर्व्हरवरील स्थिती:", fontSize = 11.sp, color = TextSecondary)
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = SuccessGreen.copy(alpha = 0.12f),
-                            border = androidx.compose.foundation.BorderStroke(0.6.dp, SuccessGreen.copy(alpha = 0.3f))
+                            color = if (updateInfo.isUpdateActive && updateInfo.apkDownloadUrl.isNotBlank()) SuccessGreen.copy(alpha = 0.12f) else BloodRed.copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                0.6.dp,
+                                if (updateInfo.isUpdateActive && updateInfo.apkDownloadUrl.isNotBlank()) SuccessGreen.copy(alpha = 0.3f) else BloodRed.copy(alpha = 0.3f)
+                            )
                         ) {
                             Text(
-                                text = "v${updateInfo.latestVersionName} (Code: ${updateInfo.latestVersionCode})",
+                                text = if (updateInfo.apkDownloadUrl.isBlank()) "सध्या अपडेट नाही" else if (updateInfo.isUpdateActive) "🟢 सूचना सक्रिय (Live)" else "🔴 सूचना थांबवली (Paused)",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = SuccessGreen,
+                                fontSize = 11.sp,
+                                color = if (updateInfo.isUpdateActive && updateInfo.apkDownloadUrl.isNotBlank()) SuccessGreen else BloodRed,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -156,12 +161,103 @@ fun AppUpdateAdminTab(
                 }
 
                 if (updateInfo.apkDownloadUrl.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "शेवटचे अपडेट: $formattedPublishedDate (${updateInfo.publishedBy})",
+                        text = "सक्रिय व्हर्जन: v${updateInfo.latestVersionName} (कोड: ${updateInfo.latestVersionCode}) • $formattedPublishedDate",
                         fontSize = 11.sp,
                         color = TextSecondary
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = CardBorderColor.copy(alpha = 0.4f))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 🛑 LIVE ADMIN KILL-SWITCH & CONTROLS
+                    Text(
+                        text = "⚡ ॲडमिन तातडीचे नियंत्रण (Emergency Controls):",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = TextPrimary
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Pause / Resume Toggle Button
+                        Button(
+                            onClick = {
+                                isTogglingStatus = true
+                                viewModel.toggleAppUpdateActiveStatus(
+                                    isActive = !updateInfo.isUpdateActive,
+                                    onSuccess = { isTogglingStatus = false },
+                                    onError = { isTogglingStatus = false }
+                                )
+                            },
+                            enabled = !isTogglingStatus,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (updateInfo.isUpdateActive) BloodRed else SuccessGreen
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1.2f).height(40.dp)
+                        ) {
+                            if (isTogglingStatus) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp))
+                            } else {
+                                Icon(
+                                    imageVector = if (updateInfo.isUpdateActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (updateInfo.isUpdateActive) "सूचना थांबवा (Pause)" else "सूचना पुन्हा सुरू करा",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Rollback / Cancel Update Button
+                        OutlinedButton(
+                            onClick = { showRollbackConfirmDialog = true },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = BloodRed
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, BloodRed.copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f).height(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Cancel,
+                                contentDescription = null,
+                                tint = BloodRed,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "रद्द करा (Rollback)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BloodRed
+                            )
+                        }
+                    }
+
+                    if (!updateInfo.isUpdateActive) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "ℹ️ ही सूचना ॲडमिनने थांबवली आहे. आता कोणाच्याही मोबाईलमध्ये अपडेटचा पॉपअप दिसणार नाही.",
+                            fontSize = 11.sp,
+                            color = BloodRed,
+                            lineHeight = 15.sp
+                        )
+                    }
                 }
             }
         }
@@ -494,6 +590,61 @@ fun AppUpdateAdminTab(
             dismissButton = {
                 OutlinedButton(onClick = { showConfirmDialog = false }) {
                     Text("रद्द करा")
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // Rollback Confirmation Dialog
+    if (showRollbackConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRollbackConfirmDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = BloodRed,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "अपडेट मोहीम मागे घ्यायची का? (Rollback)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = BloodRed
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "या पर्यायामुळे सध्याचे प्रसिद्ध केलेले अपडेट (v${updateInfo.latestVersionName}) पूर्णपणे रद्द होईल.\n\n" +
+                            "कोणत्याही सदस्याला अपडेटचा पॉपअप दिसणार नाही आणि पूर्वीची मोहीम बंद होईल. तुम्हाला खात्री आहे का?",
+                    fontSize = 13.sp,
+                    color = TextPrimary,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRollbackConfirmDialog = false
+                        viewModel.rollbackAppUpdate(
+                            onSuccess = {
+                                Toast.makeText(context, "अपडेट मोहीम मागे घेतली!", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                ) {
+                    Text("होय, रद्द करा (Rollback)", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showRollbackConfirmDialog = false }) {
+                    Text("मागे जा")
                 }
             },
             containerColor = Color.White,

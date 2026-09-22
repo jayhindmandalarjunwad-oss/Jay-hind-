@@ -730,9 +730,12 @@ class MandalRepository(context: Context) {
                     val url = snapshot.getString("apkDownloadUrl") ?: ""
                     val notes = snapshot.getString("releaseNotes") ?: ""
                     val isForce = snapshot.getBoolean("isForceUpdate") ?: false
+                    val isActive = snapshot.getBoolean("isUpdateActive") ?: true
                     val time = snapshot.getLong("publishedAt") ?: System.currentTimeMillis()
                     val by = snapshot.getString("publishedBy") ?: "मुख्य ॲडमिन"
                     val minSupported = (snapshot.getLong("minSupportedVersionCode") ?: 1L).toInt()
+                    val stoppedAt = snapshot.getLong("stoppedAt") ?: 0L
+                    val stoppedBy = snapshot.getString("stoppedBy") ?: ""
 
                     _appUpdateInfo.value = AppUpdateInfo(
                         latestVersionCode = code,
@@ -740,9 +743,12 @@ class MandalRepository(context: Context) {
                         apkDownloadUrl = url,
                         releaseNotes = notes,
                         isForceUpdate = isForce,
+                        isUpdateActive = isActive,
                         publishedAt = time,
                         publishedBy = by,
-                        minSupportedVersionCode = minSupported
+                        minSupportedVersionCode = minSupported,
+                        stoppedAt = stoppedAt,
+                        stoppedBy = stoppedBy
                     )
                 }
             }
@@ -3865,9 +3871,12 @@ class MandalRepository(context: Context) {
                 "apkDownloadUrl" to updateInfo.apkDownloadUrl,
                 "releaseNotes" to updateInfo.releaseNotes,
                 "isForceUpdate" to updateInfo.isForceUpdate,
+                "isUpdateActive" to updateInfo.isUpdateActive,
                 "publishedAt" to updateInfo.publishedAt,
                 "publishedBy" to updateInfo.publishedBy,
-                "minSupportedVersionCode" to updateInfo.minSupportedVersionCode
+                "minSupportedVersionCode" to updateInfo.minSupportedVersionCode,
+                "stoppedAt" to updateInfo.stoppedAt,
+                "stoppedBy" to updateInfo.stoppedBy
             )
             com.google.android.gms.tasks.Tasks.await(
                 firestore.collection("system_settings").document("app_update")
@@ -3892,6 +3901,66 @@ class MandalRepository(context: Context) {
             }
         } catch (e: Exception) {
             Log.e("MandalRepository", "Error publishing app update: ${e.message}", e)
+            throw e
+        }
+    }
+
+    suspend fun setAppUpdateActiveStatus(
+        isActive: Boolean,
+        adminName: String
+    ) = withContext(Dispatchers.IO) {
+        try {
+            val updateData = hashMapOf<String, Any>(
+                "isUpdateActive" to isActive,
+                "stoppedAt" to if (!isActive) System.currentTimeMillis() else 0L,
+                "stoppedBy" to if (!isActive) adminName else ""
+            )
+            com.google.android.gms.tasks.Tasks.await(
+                firestore.collection("system_settings").document("app_update")
+                    .set(updateData, SetOptions.merge())
+            )
+            val current = _appUpdateInfo.value
+            _appUpdateInfo.value = current.copy(
+                isUpdateActive = isActive,
+                stoppedAt = if (!isActive) System.currentTimeMillis() else 0L,
+                stoppedBy = if (!isActive) adminName else ""
+            )
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error toggling app update active status: ${e.message}", e)
+            throw e
+        }
+    }
+
+    suspend fun rollbackOrResetAppUpdate(
+        adminName: String
+    ) = withContext(Dispatchers.IO) {
+        try {
+            val resetData = hashMapOf<String, Any>(
+                "latestVersionCode" to 1,
+                "latestVersionName" to "1.0",
+                "apkDownloadUrl" to "",
+                "releaseNotes" to "",
+                "isForceUpdate" to false,
+                "isUpdateActive" to false,
+                "stoppedAt" to System.currentTimeMillis(),
+                "stoppedBy" to adminName
+            )
+            com.google.android.gms.tasks.Tasks.await(
+                firestore.collection("system_settings").document("app_update")
+                    .set(resetData, SetOptions.merge())
+            )
+            _appUpdateInfo.value = AppUpdateInfo(
+                latestVersionCode = 1,
+                latestVersionName = "1.0",
+                apkDownloadUrl = "",
+                releaseNotes = "",
+                isForceUpdate = false,
+                isUpdateActive = false,
+                stoppedAt = System.currentTimeMillis(),
+                stoppedBy = adminName
+            )
+        } catch (e: Exception) {
+            Log.e("MandalRepository", "Error rolling back app update: ${e.message}", e)
             throw e
         }
     }
