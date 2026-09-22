@@ -140,7 +140,8 @@ data class ChatMessage(
     val attachmentName: String? = null,
     val attachmentExtra: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val reactions: Map<String, String> = emptyMap() // userId -> emoji
 )
 
 data class ChatConversationSummary(

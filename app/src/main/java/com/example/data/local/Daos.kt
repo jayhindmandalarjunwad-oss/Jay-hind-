@@ -172,6 +172,12 @@ interface ChatDao {
     @Query("SELECT COUNT(*) FROM chat_messages WHERE receiverId = :userId AND isRead = 0")
     fun getUnreadChatCount(userId: String): Flow<Int>
 
+    @Query("SELECT * FROM chat_messages WHERE id = :messageId LIMIT 1")
+    suspend fun getMessageById(messageId: String): ChatMessageEntity?
+
+    @Query("UPDATE chat_messages SET reactionsJson = :reactionsJson WHERE id = :messageId")
+    suspend fun updateReactionsJson(messageId: String, reactionsJson: String)
+
     @Query("DELETE FROM chat_messages WHERE id = :messageId")
     suspend fun deleteMessage(messageId: String)
 

@@ -751,44 +751,28 @@ fun HomeScreen(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "स्थानिक व्यावसायिक डिरेक्टरी",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                ),
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = Color(0xFF0D9488)
-                            ) {
-                                Text(
-                                    text = "यलो पेजेस",
-                                    color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                        Text(
+                            text = "स्थानिक व्यावसायिक डिरेक्टरी",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            ),
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "गावातील सर्व दुकाने, कारागीर व सेवा • थेट कॉल व व्हॉट्सॲप",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = TextSecondary
                         )
                     }
-                    Button(
-                        onClick = { viewModel.openBusinessDirectory() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Text("उघडा", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Default.ArrowForwardIos,
+                        contentDescription = "पहा",
+                        tint = Color(0xFF0D9488),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }

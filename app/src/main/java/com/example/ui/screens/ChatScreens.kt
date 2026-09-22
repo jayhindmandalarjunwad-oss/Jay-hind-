@@ -1460,6 +1460,10 @@ fun ChatDetailScreen(
                             isSentByMe = isMe,
                             isGroupChat = isGroupChat,
                             isAdmin = currentUser?.isAnyAdmin == true,
+                            currentUserId = currentUser?.id,
+                            onReactionClick = { targetMsg, emoji ->
+                                viewModel.toggleChatMessageReaction(targetMsg, emoji)
+                            },
                             onImageClick = { previewImageUrl = it },
                             onVideoClick = { playingVideoMessage = it },
                             onDeleteClick = { viewModel.deleteChatMessage(it) },

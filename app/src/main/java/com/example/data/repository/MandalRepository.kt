@@ -12,6 +12,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.SetOptions
+import org.json.JSONObject
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.text.SimpleDateFormat
@@ -1717,6 +1718,50 @@ class MandalRepository(context: Context) {
             Log.e("FirebaseSync", "Error sending chat message on Firestore", e)
         }
         Result.success(Unit)
+    }
+
+    suspend fun toggleChatMessageReaction(messageId: String, userId: String, emoji: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val localMsg = chatDao.getMessageById(messageId)
+            val currentReactions = mutableMapOf<String, String>()
+            if (localMsg?.reactionsJson?.isNotBlank() == true && localMsg.reactionsJson != "{}") {
+                try {
+                    val json = JSONObject(localMsg.reactionsJson)
+                    val keys = json.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        val value = json.optString(key)
+                        if (value.isNotBlank()) {
+                            currentReactions[key] = value
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // If user already reacted with the same emoji, remove it; else set/replace it
+            if (currentReactions[userId] == emoji) {
+                currentReactions.remove(userId)
+            } else {
+                currentReactions[userId] = emoji
+            }
+
+            val newJson = JSONObject(currentReactions as Map<*, *>).toString()
+            chatDao.updateReactionsJson(messageId, newJson)
+
+            // Sync with Firestore
+            firestore.collection("chat_messages").document(messageId)
+                .update(
+                    mapOf(
+                        "reactionsJson" to newJson,
+                        "reactions" to currentReactions
+                    )
+                )
+            Log.d("FirebaseSync", "Chat reaction updated for $messageId: $newJson")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Error updating chat reaction on Firestore", e)
+            Result.failure(e)
+        }
     }
 
     suspend fun deleteChatMessage(messageId: String): Result<Unit> = withContext(Dispatchers.IO) {
@@ -4038,22 +4083,39 @@ fun CommentEntity.toDomain() = Comment(
     editedAt = editedAt
 )
 
-fun ChatMessageEntity.toDomain() = ChatMessage(
-    id = id,
-    conversationId = conversationId,
-    senderId = senderId,
-    receiverId = receiverId,
-    senderName = senderName,
-    senderPhotoUrl = senderPhotoUrl,
-    messageText = messageText,
-    imageUrl = imageUrl,
-    attachmentType = attachmentType,
-    attachmentUrl = attachmentUrl,
-    attachmentName = attachmentName,
-    attachmentExtra = attachmentExtra,
-    timestamp = timestamp,
-    isRead = isRead
-)
+fun ChatMessageEntity.toDomain(): ChatMessage {
+    val parsedReactions = mutableMapOf<String, String>()
+    if (reactionsJson.isNotBlank() && reactionsJson != "{}") {
+        try {
+            val json = JSONObject(reactionsJson)
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val emoji = json.optString(key)
+                if (emoji.isNotBlank()) {
+                    parsedReactions[key] = emoji
+                }
+            }
+        } catch (_: Exception) {}
+    }
+    return ChatMessage(
+        id = id,
+        conversationId = conversationId,
+        senderId = senderId,
+        receiverId = receiverId,
+        senderName = senderName,
+        senderPhotoUrl = senderPhotoUrl,
+        messageText = messageText,
+        imageUrl = imageUrl,
+        attachmentType = attachmentType,
+        attachmentUrl = attachmentUrl,
+        attachmentName = attachmentName,
+        attachmentExtra = attachmentExtra,
+        timestamp = timestamp,
+        isRead = isRead,
+        reactions = parsedReactions
+    )
+}
 
 fun AlbumEntity.toDomain() = Album(
     id = id,
@@ -4313,7 +4375,8 @@ fun ChatMessageEntity.toMap(): Map<String, Any?> = mapOf(
     "attachmentName" to attachmentName,
     "attachmentExtra" to attachmentExtra,
     "timestamp" to timestamp,
-    "isRead" to isRead
+    "isRead" to isRead,
+    "reactionsJson" to reactionsJson
 )
 
 fun DocumentSnapshot.toChatMessageEntity(): ChatMessageEntity? {
@@ -4332,6 +4395,19 @@ fun DocumentSnapshot.toChatMessageEntity(): ChatMessageEntity? {
             "conv_general"
         }
 
+    val reactionsStr = getString("reactionsJson") ?: run {
+        val map = get("reactions") as? Map<*, *>
+        if (map != null) {
+            val json = JSONObject()
+            for ((k, v) in map) {
+                if (k != null && v != null) {
+                    json.put(k.toString(), v.toString())
+                }
+            }
+            json.toString()
+        } else "{}"
+    }
+
     return ChatMessageEntity(
         id = id,
         conversationId = conversationId,
@@ -4346,7 +4422,8 @@ fun DocumentSnapshot.toChatMessageEntity(): ChatMessageEntity? {
         attachmentName = getString("attachmentName"),
         attachmentExtra = getString("attachmentExtra"),
         timestamp = getLong("timestamp") ?: System.currentTimeMillis(),
-        isRead = getBoolean("isRead") ?: false
+        isRead = getBoolean("isRead") ?: false,
+        reactionsJson = reactionsStr
     )
 }
 

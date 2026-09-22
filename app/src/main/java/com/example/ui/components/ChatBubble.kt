@@ -53,6 +53,8 @@ fun ChatBubble(
     onVideoClick: ((ChatMessage) -> Unit)? = null,
     onDeleteClick: ((ChatMessage) -> Unit)? = null,
     onForwardClick: ((ChatMessage) -> Unit)? = null,
+    onReactionClick: ((ChatMessage, String) -> Unit)? = null,
+    currentUserId: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -64,6 +66,9 @@ fun ChatBubble(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showContactActionDialog by remember { mutableStateOf(false) }
+    var showEmojiReactionPicker by remember { mutableStateOf(false) }
+
+    val reactionOptions = remember { listOf("👍", "❤️", "😂", "🚩", "🙏", "🔥") }
 
     val canDelete = isSentByMe || (isGroupChat && isAdmin)
 
@@ -319,7 +324,7 @@ fun ChatBubble(
                     .combinedClickable(
                         onClick = {},
                         onLongClick = {
-                            showOptionsMenu = true
+                            showEmojiReactionPicker = true
                         }
                     )
             ) {
@@ -772,6 +777,133 @@ fun ChatBubble(
                     }
                 }
             }
+        }
+
+        // Display Emoji Reactions below message bubble
+        if (message.reactions.isNotEmpty()) {
+            val reactionCounts = remember(message.reactions) {
+                message.reactions.values.groupingBy { it }.eachCount()
+            }
+            val userReaction = currentUserId?.let { message.reactions[it] }
+
+            Row(
+                modifier = Modifier
+                    .padding(top = 2.dp, start = if (isSentByMe) 0.dp else 4.dp, end = if (isSentByMe) 4.dp else 0.dp)
+                    .wrapContentWidth(),
+                horizontalArrangement = if (isSentByMe) Arrangement.End else Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                reactionCounts.forEach { (emoji, count) ->
+                    val isMyReaction = userReaction == emoji
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isMyReaction) SaffronPrimary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            0.8.dp,
+                            if (isMyReaction) SaffronPrimary else Color.Transparent
+                        ),
+                        shadowElevation = 0.5.dp,
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .clickable {
+                                onReactionClick?.invoke(message, emoji)
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = emoji, fontSize = 13.sp)
+                            if (count > 1) {
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "$count",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isMyReaction) SaffronDark else TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // WhatsApp-style Long-press Emoji Reaction Bar Popup
+        if (showEmojiReactionPicker) {
+            val currentUserReaction = currentUserId?.let { message.reactions[it] }
+
+            AlertDialog(
+                onDismissRequest = { showEmojiReactionPicker = false },
+                title = null,
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "इमोजी रिॲक्शन द्या",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(24.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            reactionOptions.forEach { emoji ->
+                                val isSelected = currentUserReaction == emoji
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isSelected) SaffronPrimary.copy(alpha = 0.25f) else Color.Transparent)
+                                        .clickable {
+                                            showEmojiReactionPicker = false
+                                            onReactionClick?.invoke(message, emoji)
+                                        }
+                                ) {
+                                    Text(
+                                        text = emoji,
+                                        fontSize = 24.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                showEmojiReactionPicker = false
+                                showOptionsMenu = true
+                            }
+                        ) {
+                            Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("अधिक पर्याय (More)")
+                        }
+                        TextButton(onClick = { showEmojiReactionPicker = false }) {
+                            Text("रद्द करा")
+                        }
+                    }
+                },
+                dismissButton = null,
+                shape = RoundedCornerShape(18.dp)
+            )
         }
 
         // Dropdown Menu for message actions (Forward, Copy, Delete)

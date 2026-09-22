@@ -418,7 +418,8 @@ fun BusinessDirectoryScreen(
                                 val targetNum = business.whatsappNumber.ifBlank { business.contactNumber }
                                 val cleanNum = targetNum.replace(Regex("[^0-9]"), "")
                                 val formatted = if (cleanNum.length == 10) "91$cleanNum" else cleanNum
-                                val url = "https://wa.me/$formatted?text=${Uri.encode("नमस्कार, मला आपल्या ${business.businessName} सेवेबद्दल चौकशी करायची आहे.")}"
+                                val msg = "नमस्कार, मी जय हिंद मंडळाचा सभासद/ग्रामस्थ असून जय हिंद मंडळ अर्जुनवाड ॲपवरून आपल्या ${business.businessName} सेवेबद्दल चौकशी करण्यासाठी संपर्क करत आहे."
+                                val url = "https://wa.me/$formatted?text=${Uri.encode(msg)}"
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                 context.startActivity(intent)
                             } catch (e: Exception) {

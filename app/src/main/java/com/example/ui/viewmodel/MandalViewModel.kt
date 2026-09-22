@@ -797,6 +797,13 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun toggleChatMessageReaction(message: ChatMessage, emoji: String) {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            repository.toggleChatMessageReaction(message.id, user.id, emoji)
+        }
+    }
+
     fun deleteChatMessage(message: ChatMessage) {
         val user = currentUser.value ?: return
         val isGroup = message.receiverId == "GROUP_MANDAL" || message.conversationId == "conv_mandal_group"
