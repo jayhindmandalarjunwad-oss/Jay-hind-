@@ -836,6 +836,14 @@ fun ChatDetailScreen(
 
     val isGroupChat = partner.id == "GROUP_MANDAL"
 
+    // Real-time chat message & reaction sync (Firestore addSnapshotListener)
+    DisposableEffect(partner.id) {
+        viewModel.startActiveChatRealtimeListener(if (isGroupChat) null else partner.id, isGroupChat)
+        onDispose {
+            viewModel.stopActiveChatRealtimeListener()
+        }
+    }
+
     var showAttachmentMenu by remember { mutableStateOf(false) }
     var showPhotoDialog by remember { mutableStateOf(false) }
     var showContactDialog by remember { mutableStateOf(false) }

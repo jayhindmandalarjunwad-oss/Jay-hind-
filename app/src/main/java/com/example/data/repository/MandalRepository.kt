@@ -11,6 +11,7 @@ import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import org.json.JSONObject
 import kotlinx.coroutines.*
@@ -1738,6 +1739,32 @@ class MandalRepository(context: Context) {
                 } catch (_: Exception) {}
             }
 
+            // Also check Firestore to ensure latest multi-user reactions are preserved
+            try {
+                val doc = Tasks.await(firestore.collection("chat_messages").document(messageId).get())
+                if (doc.exists()) {
+                    val rMap = doc.get("reactions") as? Map<*, *>
+                    if (rMap != null) {
+                        for ((k, v) in rMap) {
+                            if (k != null && v != null && v.toString().isNotBlank()) {
+                                currentReactions[k.toString()] = v.toString()
+                            }
+                        }
+                    } else {
+                        val rJson = doc.getString("reactionsJson")
+                        if (!rJson.isNullOrBlank() && rJson != "{}") {
+                            val j = JSONObject(rJson)
+                            val kIterator = j.keys()
+                            while (kIterator.hasNext()) {
+                                val k = kIterator.next()
+                                val v = j.optString(k)
+                                if (v.isNotBlank()) currentReactions[k] = v
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
             // If user already reacted with the same emoji, remove it; else set/replace it
             if (currentReactions[userId] == emoji) {
                 currentReactions.remove(userId)
@@ -1834,6 +1861,59 @@ class MandalRepository(context: Context) {
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Error updating chat read status on Firestore", e)
         }
+    }
+
+    private var activeChatListenerRegistration: ListenerRegistration? = null
+
+    fun startActiveChatRealtimeListener(targetUserId: String?, isGroup: Boolean) {
+        activeChatListenerRegistration?.remove()
+        val user = _currentUser.value ?: return
+
+        try {
+            val query = if (isGroup) {
+                firestore.collection("chat_messages")
+                    .whereEqualTo("receiverId", "GROUP_MANDAL")
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .limit(50)
+            } else if (!targetUserId.isNullOrBlank()) {
+                val convId = getConversationId(user.id, targetUserId)
+                firestore.collection("chat_messages")
+                    .whereEqualTo("conversationId", convId)
+                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .limit(50)
+            } else null
+
+            activeChatListenerRegistration = query?.addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    Log.e("FirebaseSync", "Active chat snapshot listener error: ${e.message}", e)
+                    return@addSnapshotListener
+                }
+                if (snapshots == null) return@addSnapshotListener
+
+                repositoryScope.launch {
+                    val entities = snapshots.documents.mapNotNull { it.toChatMessageEntity() }
+                    if (entities.isNotEmpty()) {
+                        chatDao.insertMessages(entities)
+                    }
+                    for (change in snapshots.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            chatDao.deleteMessage(change.document.id)
+                        }
+                    }
+                }
+            }
+            Log.d("FirebaseSync", "Active chat realtime listener started for targetUserId=$targetUserId, isGroup=$isGroup")
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Failed to start active chat realtime listener: ${e.message}", e)
+        }
+    }
+
+    fun stopActiveChatRealtimeListener() {
+        try {
+            activeChatListenerRegistration?.remove()
+            activeChatListenerRegistration = null
+            Log.d("FirebaseSync", "Active chat realtime listener stopped")
+        } catch (_: Exception) {}
     }
 
     // ON-DEMAND QUOTA-SAFE 15-MESSAGES SYNC & PAGINATION

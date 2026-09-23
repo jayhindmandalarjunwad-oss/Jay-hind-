@@ -779,7 +779,68 @@ fun ChatBubble(
             }
         }
 
-        // Display Emoji Reactions below message bubble
+        // Dropdown Menu for message actions (Forward, Copy, Delete)
+        DropdownMenu(
+            expanded = showOptionsMenu,
+            onDismissRequest = { showOptionsMenu = false }
+        ) {
+            if (onForwardClick != null) {
+                DropdownMenuItem(
+                    text = { Text("फॉरवर्ड करा (Forward)") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = SaffronPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    onClick = {
+                        showOptionsMenu = false
+                        onForwardClick.invoke(message)
+                    }
+                )
+            }
+            if (message.messageText.isNotBlank()) {
+                DropdownMenuItem(
+                    text = { Text("मजकूर कॉपी करा (Copy)") },
+                    leadingIcon = {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                    onClick = {
+                        showOptionsMenu = false
+                        clipboardManager.setText(AnnotatedString(message.messageText))
+                        Toast.makeText(context, "मेसेज कॉपी केला", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+            if (canDelete) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = if (isGroupChat && !isSentByMe && isAdmin) "ग्रुपमधून हटवा (Admin Delete)" else "मेसेज हटवा (Delete)",
+                            color = BloodRed,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = BloodRed,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    onClick = {
+                        showOptionsMenu = false
+                        showDeleteConfirmDialog = true
+                    }
+                )
+            }
+        }
+    }
+
+    // Display Emoji Reactions strictly below message bubble (Never overlaps message text!)
         if (message.reactions.isNotEmpty()) {
             val reactionCounts = remember(message.reactions) {
                 message.reactions.values.groupingBy { it }.eachCount()
@@ -905,68 +966,7 @@ fun ChatBubble(
                 shape = RoundedCornerShape(18.dp)
             )
         }
-
-        // Dropdown Menu for message actions (Forward, Copy, Delete)
-        DropdownMenu(
-            expanded = showOptionsMenu,
-            onDismissRequest = { showOptionsMenu = false }
-        ) {
-            if (onForwardClick != null) {
-                DropdownMenuItem(
-                    text = { Text("फॉरवर्ड करा (Forward)") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = SaffronPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    onClick = {
-                        showOptionsMenu = false
-                        onForwardClick.invoke(message)
-                    }
-                )
-            }
-            if (message.messageText.isNotBlank()) {
-                DropdownMenuItem(
-                    text = { Text("मजकूर कॉपी करा (Copy)") },
-                    leadingIcon = {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                    },
-                    onClick = {
-                        showOptionsMenu = false
-                        clipboardManager.setText(AnnotatedString(message.messageText))
-                        Toast.makeText(context, "मेसेज कॉपी केला", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-            if (canDelete) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = if (isGroupChat && !isSentByMe && isAdmin) "ग्रुपमधून हटवा (Admin Delete)" else "मेसेज हटवा (Delete)",
-                            color = BloodRed,
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            tint = BloodRed,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    onClick = {
-                        showOptionsMenu = false
-                        showDeleteConfirmDialog = true
-                    }
-                )
-            }
-        }
     }
-}
 }
 
 @Composable

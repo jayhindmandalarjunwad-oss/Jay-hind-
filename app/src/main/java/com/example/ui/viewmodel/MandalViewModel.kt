@@ -763,9 +763,18 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun closeChat() {
+        stopActiveChatRealtimeListener()
         _activeChatPartner.value = null
         _currentScreen.value = AppScreen.MAIN
         _currentTab.value = NavigationTab.CHAT
+    }
+
+    fun startActiveChatRealtimeListener(targetUserId: String?, isGroup: Boolean) {
+        repository.startActiveChatRealtimeListener(targetUserId, isGroup)
+    }
+
+    fun stopActiveChatRealtimeListener() {
+        repository.stopActiveChatRealtimeListener()
     }
 
     fun sendChatMessage(
