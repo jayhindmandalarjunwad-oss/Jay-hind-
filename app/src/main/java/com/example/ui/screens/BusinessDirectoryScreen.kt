@@ -51,6 +51,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import android.app.DatePickerDialog
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 private val CATEGORIES = listOf(
     "सर्व",
@@ -2010,10 +2015,41 @@ fun BusinessAnalyticsReportDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    var filterMode by remember { mutableStateOf("MONTH") } // "MONTH" or "DATE_RANGE"
     var availableMonths by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedMonth by remember { mutableStateOf("सर्व") }
+
+    // Date range picker state (Date A to Date B)
+    // Default: Last 30 days up to today
+    var fromDateMillis by remember {
+        val cal = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_MONTH, -30)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        mutableStateOf(cal.timeInMillis)
+    }
+    var toDateMillis by remember {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        mutableStateOf(cal.timeInMillis)
+    }
+
     var monthClicks by remember { mutableStateOf<List<BusinessLeadClick>>(emptyList()) }
     var isLoadingClicks by remember { mutableStateOf(false) }
+
+    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.ENGLISH) }
+    val dateRangeLabel = remember(filterMode, fromDateMillis, toDateMillis) {
+        if (filterMode == "DATE_RANGE") {
+            "${dateFormatter.format(Date(fromDateMillis))} ते ${dateFormatter.format(Date(toDateMillis))}"
+        } else null
+    }
 
     // Load available months
     LaunchedEffect(Unit) {
@@ -2022,29 +2058,55 @@ fun BusinessAnalyticsReportDialog(
         }
         availableMonths = months
         if (months.isNotEmpty()) {
-            selectedMonth = months.first()
+            selectedMonth = "सर्व"
         }
     }
 
-    // Load clicks when month changes
-    LaunchedEffect(selectedMonth) {
+    // Load clicks when filter mode, month, or custom date range changes
+    LaunchedEffect(filterMode, selectedMonth, fromDateMillis, toDateMillis) {
         isLoadingClicks = true
         monthClicks = withContext(Dispatchers.IO) {
-            if (selectedMonth == "सर्व") {
-                viewModel.getLeadClicksForMonth("")
+            if (filterMode == "DATE_RANGE") {
+                val startCal = Calendar.getInstance().apply {
+                    timeInMillis = fromDateMillis
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val endCal = Calendar.getInstance().apply {
+                    timeInMillis = toDateMillis
+                    set(Calendar.HOUR_OF_DAY, 23)
+                    set(Calendar.MINUTE, 59)
+                    set(Calendar.SECOND, 59)
+                    set(Calendar.MILLISECOND, 999)
+                }
+                viewModel.getLeadClicksForDateRange(startCal.timeInMillis, endCal.timeInMillis)
             } else {
-                viewModel.getLeadClicksForMonth(selectedMonth)
+                if (selectedMonth == "सर्व") {
+                    viewModel.getLeadClicksForMonth("")
+                } else {
+                    viewModel.getLeadClicksForMonth(selectedMonth)
+                }
             }
         }
         isLoadingClicks = false
     }
 
     // Compute aggregated statistics per business for the selected period
-    val businessStats = remember(businesses, monthClicks, selectedMonth) {
+    val isCustomRange = filterMode == "DATE_RANGE"
+    val businessStats = remember(businesses, monthClicks, selectedMonth, filterMode, fromDateMillis, toDateMillis) {
         businesses.map { b ->
             val clicksForBusiness = monthClicks.filter { it.businessId == b.id }
-            val callCount = if (selectedMonth == "सर्व" && clicksForBusiness.isEmpty()) b.callClicks else clicksForBusiness.count { it.clickType == "CALL" }
-            val waCount = if (selectedMonth == "सर्व" && clicksForBusiness.isEmpty()) b.whatsappClicks else clicksForBusiness.count { it.clickType == "WHATSAPP" }
+            val (callCount, waCount) = if (!isCustomRange && selectedMonth == "सर्व") {
+                if (clicksForBusiness.isNotEmpty()) {
+                    Pair(clicksForBusiness.count { it.clickType == "CALL" }, clicksForBusiness.count { it.clickType == "WHATSAPP" })
+                } else {
+                    Pair(b.callClicks, b.whatsappClicks)
+                }
+            } else {
+                Pair(clicksForBusiness.count { it.clickType == "CALL" }, clicksForBusiness.count { it.clickType == "WHATSAPP" })
+            }
             Triple(b, callCount, waCount)
         }.sortedByDescending { it.second + it.third }
     }
@@ -2060,7 +2122,7 @@ fun BusinessAnalyticsReportDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.96f)
-                .fillMaxHeight(0.92f),
+                .fillMaxHeight(0.94f),
             shape = RoundedCornerShape(20.dp),
             color = Color(0xFFF8FAFC)
         ) {
@@ -2110,43 +2172,211 @@ fun BusinessAnalyticsReportDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Month Selector Chips
-                Text(
-                    text = "महिना निवडा:",
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                // Filter Mode Selector Tabs
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
+                        .padding(3.dp)
                 ) {
-                    item {
-                        FilterChip(
-                            selected = selectedMonth == "सर्व",
-                            onClick = { selectedMonth = "सर्व" },
-                            label = { Text("सर्व काळ (All Time)") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF2563EB),
-                                selectedLabelColor = Color.White
+                    // Month filter mode tab
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { filterMode = "MONTH" },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (filterMode == "MONTH") Color.White else Color.Transparent,
+                        shadowElevation = if (filterMode == "MONTH") 2.dp else 0.dp
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "📅 महिना निवडा",
+                                fontSize = 12.5.sp,
+                                fontWeight = if (filterMode == "MONTH") FontWeight.Bold else FontWeight.Medium,
+                                color = if (filterMode == "MONTH") Color(0xFF1E293B) else Color(0xFF64748B)
                             )
-                        )
+                        }
                     }
 
-                    items(availableMonths) { month ->
-                        FilterChip(
-                            selected = selectedMonth == month,
-                            onClick = { selectedMonth = month },
-                            label = { Text(month) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF2563EB),
-                                selectedLabelColor = Color.White
+                    // Date range filter mode tab
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { filterMode = "DATE_RANGE" },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (filterMode == "DATE_RANGE") Color.White else Color.Transparent,
+                        shadowElevation = if (filterMode == "DATE_RANGE") 2.dp else 0.dp
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "📆 तारीख A ते B (Range)",
+                                fontSize = 12.5.sp,
+                                fontWeight = if (filterMode == "DATE_RANGE") FontWeight.Bold else FontWeight.Medium,
+                                color = if (filterMode == "DATE_RANGE") Color(0xFF1E293B) else Color(0xFF64748B)
                             )
-                        )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (filterMode == "MONTH") {
+                    // Month Selector Chips
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = selectedMonth == "सर्व",
+                                onClick = { selectedMonth = "सर्व" },
+                                label = { Text("सर्व काळ (All Time)") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF2563EB),
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+
+                        items(availableMonths) { month ->
+                            FilterChip(
+                                selected = selectedMonth == month,
+                                onClick = { selectedMonth = month },
+                                label = { Text(month) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF2563EB),
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                } else {
+                    // Date A to Date B selection card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Date A (From)
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        val cal = Calendar.getInstance().apply { timeInMillis = fromDateMillis }
+                                        DatePickerDialog(
+                                            context,
+                                            { _, y, m, d ->
+                                                val newCal = Calendar.getInstance().apply {
+                                                    set(y, m, d, 0, 0, 0)
+                                                    set(Calendar.MILLISECOND, 0)
+                                                }
+                                                fromDateMillis = newCal.timeInMillis
+                                            },
+                                            cal.get(Calendar.YEAR),
+                                            cal.get(Calendar.MONTH),
+                                            cal.get(Calendar.DAY_OF_MONTH)
+                                        ).show()
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF1F5F9),
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF94A3B8))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("तारीख A (सुरुवात)", fontSize = 10.sp, color = Color(0xFF64748B))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            tint = Color(0xFF2563EB),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = dateFormatter.format(Date(fromDateMillis)),
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = "ते",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B),
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+
+                            // Date B (To)
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        val cal = Calendar.getInstance().apply { timeInMillis = toDateMillis }
+                                        DatePickerDialog(
+                                            context,
+                                            { _, y, m, d ->
+                                                val newCal = Calendar.getInstance().apply {
+                                                    set(y, m, d, 23, 59, 59)
+                                                    set(Calendar.MILLISECOND, 999)
+                                                }
+                                                toDateMillis = newCal.timeInMillis
+                                            },
+                                            cal.get(Calendar.YEAR),
+                                            cal.get(Calendar.MONTH),
+                                            cal.get(Calendar.DAY_OF_MONTH)
+                                        ).show()
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF1F5F9),
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF94A3B8))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("तारीख B (शेवट)", fontSize = 10.sp, color = Color(0xFF64748B))
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            tint = Color(0xFF2563EB),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = dateFormatter.format(Date(toDateMillis)),
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -2227,12 +2457,26 @@ fun BusinessAnalyticsReportDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Breakdown list
-                Text(
-                    text = "व्यवसायनिहाय कामगिरी (रँकिंग)",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "व्यवसायनिहाय कामगिरी (रँकिंग)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    if (filterMode == "DATE_RANGE") {
+                        Text(
+                            text = dateRangeLabel ?: "",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2563EB)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Box(
@@ -2340,6 +2584,7 @@ fun BusinessAnalyticsReportDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // Action Buttons: Download Excel (CSV) & Share
+                val targetMonthYear = if (filterMode == "DATE_RANGE") "" else selectedMonth
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -2350,9 +2595,10 @@ fun BusinessAnalyticsReportDialog(
                                 val result = withContext(Dispatchers.IO) {
                                     BusinessAnalyticsExcelExporter.saveAndGetUri(
                                         context = context,
-                                        monthYear = selectedMonth,
+                                        monthYear = targetMonthYear,
                                         businesses = businesses,
-                                        clicks = monthClicks
+                                        clicks = monthClicks,
+                                        dateRangeLabel = dateRangeLabel
                                     )
                                 }
                                 if (result != null) {
@@ -2378,16 +2624,18 @@ fun BusinessAnalyticsReportDialog(
                                 val result = withContext(Dispatchers.IO) {
                                     BusinessAnalyticsExcelExporter.saveAndGetUri(
                                         context = context,
-                                        monthYear = selectedMonth,
+                                        monthYear = targetMonthYear,
                                         businesses = businesses,
-                                        clicks = monthClicks
+                                        clicks = monthClicks,
+                                        dateRangeLabel = dateRangeLabel
                                     )
                                 }
                                 if (result != null) {
                                     BusinessAnalyticsExcelExporter.shareCsvFile(
                                         context = context,
                                         fileUri = result.second,
-                                        monthYear = selectedMonth
+                                        monthYear = targetMonthYear,
+                                        dateRangeLabel = dateRangeLabel
                                     )
                                 } else {
                                     viewModel.showSnackbar("अहवाल तयार करताना त्रुटी आली.")

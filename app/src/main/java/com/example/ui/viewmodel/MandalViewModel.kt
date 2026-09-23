@@ -2113,6 +2113,10 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         return repository.getLeadClicksForMonth(monthYear)
     }
 
+    suspend fun getLeadClicksForDateRange(startTimestamp: Long, endTimestamp: Long): List<BusinessLeadClick> {
+        return repository.getLeadClicksForDateRange(startTimestamp, endTimestamp)
+    }
+
     fun openBusinessDirectory() {
         _currentScreen.value = AppScreen.BUSINESS_DIRECTORY
     }

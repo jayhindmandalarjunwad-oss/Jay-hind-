@@ -3864,11 +3864,15 @@ class MandalRepository(context: Context) {
     }
 
     suspend fun getLeadClicksForMonth(monthYear: String): List<BusinessLeadClick> = withContext(Dispatchers.IO) {
-        if (monthYear.isBlank() || monthYear == "ALL") {
+        if (monthYear.isBlank() || monthYear == "ALL" || monthYear == "सर्व") {
             businessDirectoryDao.getAllLeadClicksDirect().map { it.toDomain() }
         } else {
             businessDirectoryDao.getLeadClicksForMonth(monthYear).map { it.toDomain() }
         }
+    }
+
+    suspend fun getLeadClicksForDateRange(startTimestamp: Long, endTimestamp: Long): List<BusinessLeadClick> = withContext(Dispatchers.IO) {
+        businessDirectoryDao.getLeadClicksForDateRange(startTimestamp, endTimestamp).map { it.toDomain() }
     }
 
     suspend fun getAvailableReportMonths(): List<String> = withContext(Dispatchers.IO) {

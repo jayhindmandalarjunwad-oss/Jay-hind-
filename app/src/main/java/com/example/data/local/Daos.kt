@@ -415,6 +415,9 @@ interface BusinessDirectoryDao {
     @Query("SELECT * FROM business_lead_clicks WHERE monthYear = :monthYear ORDER BY timestamp DESC")
     suspend fun getLeadClicksForMonth(monthYear: String): List<BusinessLeadClickEntity>
 
+    @Query("SELECT * FROM business_lead_clicks WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp ORDER BY timestamp DESC")
+    suspend fun getLeadClicksForDateRange(startTimestamp: Long, endTimestamp: Long): List<BusinessLeadClickEntity>
+
     @Query("SELECT DISTINCT monthYear FROM business_lead_clicks WHERE monthYear != '' ORDER BY monthYear DESC")
     suspend fun getAvailableMonths(): List<String>
 
