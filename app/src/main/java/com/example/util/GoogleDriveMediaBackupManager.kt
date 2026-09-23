@@ -67,9 +67,12 @@ object GoogleDriveMediaBackupManager {
     private const val PREF_KEY_CUSTOM_SCRIPT_URL = "google_apps_script_web_app_url"
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .retryOnConnectionFailure(true)
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(45, TimeUnit.SECONDS)
         .build()
 
     private val _syncProgress = MutableStateFlow(DriveSyncProgress())
@@ -716,7 +719,14 @@ object GoogleDriveMediaBackupManager {
         if (scriptUrl.isBlank()) return@withContext null
 
         try {
-            val base64Data = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            // Compress large images before Base64 conversion to avoid huge payloads and socket timeouts
+            val uploadBytes = if (mimeType.startsWith("image/") && bytes.size > 150 * 1024) {
+                compressBytesToTinyWebp(bytes, maxDimension = 1024, quality = 80)
+            } else {
+                bytes
+            }
+
+            val base64Data = Base64.encodeToString(uploadBytes, Base64.NO_WRAP)
             val jsonPayload = JSONObject().apply {
                 put("fileData", base64Data)
                 put("filename", fileName)
@@ -769,8 +779,11 @@ object GoogleDriveMediaBackupManager {
                 }
             }
             null
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.w(TAG, "Notice: WebApp Drive upload timed out for $fileName (${e.message}), gracefully switching to backup")
+            null
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during WebApp Drive upload: ${e.message}", e)
+            Log.w(TAG, "Notice during WebApp Drive upload: ${e.message}")
             null
         }
     }
@@ -866,21 +879,37 @@ object GoogleDriveMediaBackupManager {
             Log.w(TAG, "Web App Drive upload attempt note: ${e.message}")
         }
 
-        // 3. Fallback: Compress the bytes into an ultra-compact WebP thumbnail (~12-18 KB).
-        // This avoids calling Firebase Storage (which has no bucket on project and causes HTTP 404),
-        // and shrinks huge 2-3MB Base64 images down by 99% in Firestore, saving bandwidth and preventing database bloat.
-        try {
-            if (mimeType.startsWith("image/")) {
-                val tinyBytes = compressBytesToTinyWebp(bytes)
-                if (tinyBytes.isNotEmpty()) {
-                    val base64Tiny = Base64.encodeToString(tinyBytes, Base64.NO_WRAP)
-                    val compactUrl = "data:image/webp;base64,$base64Tiny"
-                    Log.d(TAG, "Media archived: converted to compact WebP thumbnail (${tinyBytes.size / 1024} KB)")
-                    return@withContext compactUrl
-                }
+        // 3. Fallback: Upload to Firebase Cloud Storage if bucket is available and fallbackStoragePath is configured
+        if (FirebaseStorageHelper.isStorageBucketAvailable == true && fallbackStoragePath.isNotBlank()) {
+            try {
+                val uploadBytes = if (mimeType.startsWith("image/") && bytes.size > 150 * 1024) {
+                    compressBytesToTinyWebp(bytes, maxDimension = 1024, quality = 80)
+                } else bytes
+                val ref = FirebaseStorageHelper.storage.reference.child(fallbackStoragePath)
+                val metadata = StorageMetadata.Builder()
+                    .setContentType(mimeType)
+                    .setCustomMetadata("archivedBy", "JayHindMandalApp")
+                    .build()
+                ref.putBytes(uploadBytes, metadata).await()
+                val firebaseUrl = ref.downloadUrl.await().toString()
+                Log.d(TAG, "Archived media uploaded to Firebase Storage: $firebaseUrl")
+                return@withContext firebaseUrl
+            } catch (e: Exception) {
+                Log.w(TAG, "Firebase Storage fallback upload note: ${e.message}")
             }
+        }
+
+        // 4. Fallback: Save to local persistent storage to prevent Room/Firestore database bloat
+        try {
+            val mediaDir = File(context.filesDir, "archived_media").apply { if (!exists()) mkdirs() }
+            val localFile = File(mediaDir, fileName)
+            val uploadBytes = if (mimeType.startsWith("image/") && bytes.size > 150 * 1024) {
+                compressBytesToTinyWebp(bytes, maxDimension = 800, quality = 75)
+            } else bytes
+            localFile.writeBytes(uploadBytes)
+            return@withContext Uri.fromFile(localFile).toString()
         } catch (e: Exception) {
-            Log.w(TAG, "Compact WebP generation note: ${e.message}")
+            Log.w(TAG, "Local file fallback note: ${e.message}")
         }
 
         null

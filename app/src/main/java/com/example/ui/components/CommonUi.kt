@@ -40,7 +40,9 @@ import coil.compose.AsyncImage
 import com.example.ui.theme.*
 import com.example.util.FirebaseStorageHelper
 import com.example.util.MediaUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -94,8 +96,16 @@ fun UniversalAsyncImage(
                     (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("content://") && !trimmed.startsWith("file://") && trimmed.length > 80)
 
             if (isBase64) {
-                val targetDim = if (targetDimensionPx > 0) targetDimensionPx else 1024
-                val bitmap = remember(trimmed, targetDim) { MediaUtils.base64ToBitmap(trimmed, targetDim) }
+                val targetDim = if (targetDimensionPx > 0) targetDimensionPx else 600
+                val cached = remember(trimmed, targetDim) { MediaUtils.getCachedBitmap(trimmed, targetDim) }
+                val bitmapState = produceState<Bitmap?>(initialValue = cached, trimmed, targetDim) {
+                    if (value == null) {
+                        value = withContext(Dispatchers.IO) {
+                            MediaUtils.base64ToBitmap(trimmed, targetDim)
+                        }
+                    }
+                }
+                val bitmap = bitmapState.value
                 if (bitmap != null) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
@@ -108,14 +118,19 @@ fun UniversalAsyncImage(
                 } else if (placeholder != null) {
                     placeholder()
                 } else {
-                    Image(
-                        painter = painterResource(id = com.example.R.drawable.ic_jayhind_logo),
-                        contentDescription = contentDescription,
-                        contentScale = contentScale,
-                        alignment = alignment,
-                        alpha = alpha,
-                        modifier = modifier
-                    )
+                    Box(
+                        modifier = modifier.background(Color(0xFFEEEEEE)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = com.example.R.drawable.ic_jayhind_logo),
+                            contentDescription = contentDescription,
+                            contentScale = contentScale,
+                            alignment = alignment,
+                            alpha = 0.6f,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
             } else {
                 val context = LocalContext.current

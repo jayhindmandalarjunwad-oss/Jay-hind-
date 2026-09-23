@@ -574,6 +574,7 @@ fun PostImagesGallery(
                     model = images[0],
                     contentDescription = "Post photo",
                     contentScale = ContentScale.Crop,
+                    targetDimensionPx = 720,
                     modifier = Modifier.fillMaxWidth().height(260.dp)
                 )
 
@@ -615,6 +616,7 @@ fun PostImagesGallery(
                             model = img,
                             contentDescription = "Post photo",
                             contentScale = ContentScale.Crop,
+                            targetDimensionPx = 450,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -637,6 +639,7 @@ fun PostImagesGallery(
                         model = images[0],
                         contentDescription = "Post photo 1",
                         contentScale = ContentScale.Crop,
+                        targetDimensionPx = 600,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -659,6 +662,7 @@ fun PostImagesGallery(
                                 model = img,
                                 contentDescription = "Post photo ${i + 1}",
                                 contentScale = ContentScale.Crop,
+                                targetDimensionPx = 350,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -691,6 +695,7 @@ fun PostImagesGallery(
                                 model = img,
                                 contentDescription = "Post photo ${i + 1}",
                                 contentScale = ContentScale.Crop,
+                                targetDimensionPx = 350,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -713,6 +718,7 @@ fun PostImagesGallery(
                             model = images[2],
                             contentDescription = "Post photo 3",
                             contentScale = ContentScale.Crop,
+                            targetDimensionPx = 350,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -727,6 +733,7 @@ fun PostImagesGallery(
                             model = images[3],
                             contentDescription = "Post photo 4",
                             contentScale = ContentScale.Crop,
+                            targetDimensionPx = 350,
                             modifier = Modifier.fillMaxSize()
                         )
 

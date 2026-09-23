@@ -567,6 +567,7 @@ fun CreatePostDialog(
                             if (isSponsored) sponsorCtaText.ifBlank { null } else null
                         )
                     },
+                    enabled = !isProcessingImage,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)

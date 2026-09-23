@@ -569,6 +569,14 @@ object MediaUtils {
      * - Downsampling (inSampleSize) to prevent loading massive 48MP photos into RAM for small avatars
      * - OutOfMemoryError recovery so the app never terminates abruptly
      */
+    fun getCachedBitmap(data: String?, maxDimension: Int = 0): Bitmap? {
+        if (data.isNullOrBlank()) return null
+        val cacheKey = "${data.trim().hashCode()}_$maxDimension"
+        return synchronized(bitmapMemoryCache) {
+            bitmapMemoryCache.get(cacheKey)
+        }
+    }
+
     fun base64ToBitmap(data: String?, maxDimension: Int = 0): Bitmap? {
         if (data.isNullOrBlank()) return null
         return try {
