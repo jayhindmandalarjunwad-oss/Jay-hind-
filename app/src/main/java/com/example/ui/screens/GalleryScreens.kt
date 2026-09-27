@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -2118,8 +2119,22 @@ fun AddVideoDialog(
     var title by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(defaultCategory) }
-    var videoUrl by remember { mutableStateOf("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4") }
-    var thumbUrl by remember { mutableStateOf("https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80") }
+    var videoUrl by remember { mutableStateOf("") }
+    var thumbUrl by remember { mutableStateOf("") }
+    var isCustomThumbSelected by remember { mutableStateOf(false) }
+
+    // Auto-detect YouTube Video ID and its official high-quality thumbnail
+    val detectedYtId = remember(videoUrl) { com.example.util.MediaUtils.extractYouTubeVideoId(videoUrl) }
+    val detectedYtThumb = remember(detectedYtId) {
+        if (!detectedYtId.isNullOrBlank()) "https://img.youtube.com/vi/$detectedYtId/hqdefault.jpg" else null
+    }
+
+    // When YouTube URL is pasted/changed and admin hasn't picked a custom image, auto-assign the YouTube thumbnail
+    LaunchedEffect(detectedYtThumb) {
+        if (detectedYtThumb != null && !isCustomThumbSelected) {
+            thumbUrl = detectedYtThumb
+        }
+    }
 
     val categories = listOf("गणेशोत्सव", "शिवजयंती", "क्रीडा स्पर्धा", "सामाजिक उपक्रम", "आरोग्य शिबिर", "इतर")
 
@@ -2136,14 +2151,14 @@ fun AddVideoDialog(
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())
+                modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("व्हिडिओ फाईलचे नाव / शीर्षक *") },
                     placeholder = { Text("उदा. मिरवणूक सोहळा व ढोल पथक") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("video_title_input")
                 )
 
                 Text("वर्गवारी (Category):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
@@ -2166,37 +2181,123 @@ fun AddVideoDialog(
                     label = { Text("वर्गवारी / उत्सव मॅन्युअली टाईप करा") },
                     placeholder = { Text("उदा. गणेश उत्सव, विसर्जन मिरवणूक") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("video_category_input")
                 )
 
                 OutlinedTextField(
                     value = desc,
                     onValueChange = { desc = it },
                     label = { Text("माहिती / वर्णन") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = videoUrl,
-                    onValueChange = { videoUrl = it },
-                    label = { Text("व्हिडिओ लिंक / URL *") },
-                    placeholder = { Text("उदा. YouTube किंवा MP4 व्हिडिओ लिंक") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("video_desc_input")
                 )
 
-                Text("व्हिडिओ थंबनेल फोटो (गॅलरीतून निवडा):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = videoUrl,
+                    onValueChange = { 
+                        videoUrl = it
+                        // If admin clears or enters a new video URL, allow re-detecting
+                        if (it.isBlank()) {
+                            isCustomThumbSelected = false
+                            thumbUrl = ""
+                        }
+                    },
+                    label = { Text("व्हिडिओ लिंक / YouTube URL *") },
+                    placeholder = { Text("उदा. YouTube किंवा MP4 व्हिडिओ लिंक पेस्ट करा") },
+                    modifier = Modifier.fillMaxWidth().testTag("video_url_input"),
+                    trailingIcon = {
+                        if (detectedYtId != null) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "YouTube Detected",
+                                tint = Color(0xFF2E7D32)
+                            )
+                        }
+                    }
+                )
+
+                // 🌟 Admin-only Live Preview & Confirmation Badge
+                if (detectedYtThumb != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE8F5E9),
+                        border = BorderStroke(1.dp, Color(0xFF81C784)),
+                        modifier = Modifier.fillMaxWidth().testTag("admin_youtube_badge")
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2E7D32),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "✅ YouTube चा मूळ थंबनेल आपोआप निवडला गेला आहे.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1B5E20)
+                                )
+                            }
+                            if (isCustomThumbSelected) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "सध्या गॅलरीतील कस्टम फोटो निवडला आहे",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF388E3C)
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            thumbUrl = detectedYtThumb
+                                            isCustomThumbSelected = false
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            "मूळ YouTube थंबनेल वापरा",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1B5E20)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text("व्हिडिओ थंबनेल फोटो (थंबनेल प्रिव्ह्यू किंवा गॅलरीतून निवडा):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 GalleryImagePicker(
-                    selectedImageUrl = thumbUrl,
-                    onImageSelected = { thumbUrl = it },
-                    label = "गॅलरीतून थंबनेल निवडा",
-                    helperText = "व्हिडिओचे कव्हर छायाचित्र निवडा",
-                    height = 110.dp
+                    selectedImageUrl = thumbUrl.ifBlank { detectedYtThumb ?: "" },
+                    onImageSelected = {
+                        thumbUrl = it
+                        isCustomThumbSelected = true
+                    },
+                    label = if (detectedYtThumb != null) "गॅलरीतून वेगळा फोटो निवडा (ऐच्छिक)" else "गॅलरीतून थंबनेल निवडा",
+                    helperText = if (detectedYtThumb != null && !isCustomThumbSelected) "YouTube चा थंबनेल सेट आहे. हवा असल्यास गॅलरीतून बदलू शकता." else "व्हिडिओचे कव्हर छायाचित्र निवडा",
+                    height = 120.dp
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = { if (title.isNotBlank() && videoUrl.isNotBlank()) onAdd(title, desc, category, videoUrl, thumbUrl) },
-                colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                onClick = {
+                    if (title.isNotBlank() && videoUrl.isNotBlank()) {
+                        val finalThumb = when {
+                            thumbUrl.isNotBlank() -> thumbUrl
+                            detectedYtThumb != null -> detectedYtThumb
+                            else -> "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80"
+                        }
+                        onAdd(title, desc, category, videoUrl, finalThumb)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
+                modifier = Modifier.testTag("submit_add_video")
             ) {
                 Text("व्हिडिओ जोडा", fontWeight = FontWeight.Bold)
             }
@@ -2219,6 +2320,12 @@ fun EditVideoDialog(
     var category by remember { mutableStateOf(video.category) }
     var thumbUrl by remember { mutableStateOf(video.thumbnailUrl) }
 
+    // Check if video is from YouTube
+    val detectedYtId = remember(video.videoUrl) { com.example.util.MediaUtils.extractYouTubeVideoId(video.videoUrl) }
+    val detectedYtThumb = remember(detectedYtId) {
+        if (!detectedYtId.isNullOrBlank()) "https://img.youtube.com/vi/$detectedYtId/hqdefault.jpg" else null
+    }
+
     val categories = listOf("गणेशोत्सव", "शिवजयंती", "क्रीडा स्पर्धा", "सामाजिक उपक्रम", "आरोग्य शिबिर", "इतर")
 
     AlertDialog(
@@ -2233,13 +2340,13 @@ fun EditVideoDialog(
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = androidx.compose.ui.Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())
+                modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("व्हिडिओ फाईलचे नाव / शीर्षक *") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("edit_video_title_input")
                 )
 
                 Text("वर्गवारी (Category):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
@@ -2262,30 +2369,81 @@ fun EditVideoDialog(
                     label = { Text("वर्गवारी / उत्सव मॅन्युअली टाईप करा") },
                     placeholder = { Text("उदा. गणेश उत्सव, विसर्जन मिरवणूक") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("edit_video_category_input")
                 )
 
                 OutlinedTextField(
                     value = desc,
                     onValueChange = { desc = it },
                     label = { Text("माहिती / वर्णन") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("edit_video_desc_input")
                 )
+
+                // 🌟 Admin-only YouTube Status & Quick Restore in Edit Dialog
+                if (detectedYtThumb != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE8F5E9),
+                        border = BorderStroke(1.dp, Color(0xFF81C784)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2E7D32),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    if (thumbUrl == detectedYtThumb) "✅ YouTube चा मूळ थंबनेल सेट आहे" else "YouTube मूळ थंबनेल उपलब्ध आहे",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1B5E20)
+                                )
+                            }
+                            if (thumbUrl != detectedYtThumb) {
+                                TextButton(
+                                    onClick = { thumbUrl = detectedYtThumb },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        "YouTube थंबनेल लावा",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1B5E20)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
 
                 Text("व्हिडिओ थंबनेल फोटो (गॅलरीतून निवडा):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 GalleryImagePicker(
-                    selectedImageUrl = thumbUrl,
+                    selectedImageUrl = thumbUrl.ifBlank { detectedYtThumb ?: "" },
                     onImageSelected = { thumbUrl = it },
                     label = "गॅलरीतून थंबनेल निवडा",
-                    helperText = "व्हिडिओचे कव्हर छायाचित्र निवडा",
-                    height = 110.dp
+                    helperText = "व्हिडिओचे कव्हर छायाचित्र निवडा किंवा बदला",
+                    height = 120.dp
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = { if (title.isNotBlank()) onSave(title, desc, category, thumbUrl) },
-                colors = ButtonDefaults.buttonColors(containerColor = BloodRed)
+                onClick = {
+                    if (title.isNotBlank()) {
+                        val finalThumb = if (thumbUrl.isNotBlank()) thumbUrl else (detectedYtThumb ?: video.thumbnailUrl)
+                        onSave(title, desc, category, finalThumb)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BloodRed),
+                modifier = Modifier.testTag("submit_edit_video")
             ) {
                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
