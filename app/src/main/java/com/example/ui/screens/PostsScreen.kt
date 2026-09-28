@@ -239,6 +239,21 @@ fun PostsScreen(
                             postToEdit = null
                         }
                     }
+                },
+                onPollCreated = { question, options, expiresAt, content ->
+                    postToEdit?.let { target ->
+                        viewModel.updatePost(
+                            postId = target.id,
+                            content = content,
+                            imageUrl = null,
+                            videoUrl = null,
+                            pollQuestion = question,
+                            pollOptions = options,
+                            pollExpiresAt = expiresAt
+                        ) {
+                            postToEdit = null
+                        }
+                    }
                 }
             )
         }

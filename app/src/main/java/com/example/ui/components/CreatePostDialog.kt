@@ -72,11 +72,17 @@ fun CreatePostDialog(
     var sponsorContactNumber by remember { mutableStateOf(initialPost?.sponsorContactNumber ?: "") }
     var sponsorCtaText by remember { mutableStateOf(initialPost?.sponsorCtaText ?: "संपर्क साधा / ऑर्डर द्या") }
 
-    // Decision Poll State (Admins only, for new posts)
-    val canCreatePoll = currentUser?.isAnyAdmin == true && !isEdit
-    var isPoll by remember { mutableStateOf(false) }
-    var pollQuestion by remember { mutableStateOf("") }
-    var pollOptions by remember { mutableStateOf(listOf("", "")) }
+    // Decision Poll State (Admins only)
+    val hasInitialPoll = initialPost?.pollData != null
+    val canCreatePoll = currentUser?.isAnyAdmin == true
+    var isPoll by remember { mutableStateOf(hasInitialPoll) }
+    var pollQuestion by remember { mutableStateOf(initialPost?.pollData?.question ?: "") }
+    var pollOptions by remember {
+        mutableStateOf(
+            if (hasInitialPoll) initialPost!!.pollData!!.options.map { it.text }
+            else listOf("", "")
+        )
+    }
     var selectedDurationIndex by remember { mutableStateOf(2) } // 0: 24h, 1: 48h, 2: 72h, 3: 7d, 4: No expiry
 
     val context = LocalContext.current
@@ -228,25 +234,58 @@ fun CreatePostDialog(
 
                 // Author Info
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    MemberAvatar(
-                        photoUrl = currentUser?.profilePhotoUrl ?: "",
-                        name = currentUser?.fullName ?: "सभासद",
-                        size = 40
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = currentUser?.fullName ?: "सभासद",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = TextPrimary
+                    if (isPoll) {
+                        Surface(
+                            shape = CircleShape,
+                            color = SaffronPrimary.copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, SaffronPrimary),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.HowToVote,
+                                    contentDescription = "मंडळ निर्णय कौल",
+                                    tint = SaffronPrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "🚩 मंडळाचा अधिकृत निर्णय कौल (Mandal Decision Poll)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF4F46E5),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    } else {
+                        MemberAvatar(
+                            photoUrl = currentUser?.profilePhotoUrl ?: "",
+                            name = currentUser?.fullName ?: "सभासद",
+                            size = 40
                         )
-                        Text(
-                            text = if (isSponsored) "✨ प्रायोजित जाहिरात (Sponsored Post)" else "सार्वजनिक (मंडळ सभासद)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isSponsored) Color(0xFF0D9488) else TextSecondary,
-                            fontWeight = if (isSponsored) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 11.sp
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = currentUser?.fullName ?: "सभासद",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = if (isSponsored) "✨ प्रायोजित जाहिरात (Sponsored Post)" else "सार्वजनिक (मंडळ सभासद)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isSponsored) Color(0xFF0D9488) else TextSecondary,
+                                fontWeight = if (isSponsored) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
 
@@ -364,7 +403,7 @@ fun CreatePostDialog(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = "📊 मतदान पोल तयार करा (Voting Poll)",
+                                            text = if (isEdit && hasInitialPoll) "📊 मतदान पोल संपादित करा (Edit Poll)" else "📊 मतदान पोल तयार करा (Voting Poll)",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.5.sp,
                                             color = TextPrimary

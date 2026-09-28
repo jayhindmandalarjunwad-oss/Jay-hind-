@@ -92,6 +92,24 @@ interface PostDao {
         sponsorContactNumber: String? = null,
         sponsorCtaText: String? = null
     )
+
+    @Query("UPDATE posts SET content = :content, imageUrlsJson = :imageUrls, videoUrl = :videoUrl, isSponsored = :isSponsored, sponsorBusinessName = :sponsorBusinessName, sponsorContactNumber = :sponsorContactNumber, sponsorCtaText = :sponsorCtaText, authorName = :authorName, authorPhotoUrl = :authorPhotoUrl, authorRole = :authorRole, pollQuestion = :pollQuestion, pollOptionsJson = :pollOptionsJson, pollExpiresAt = :pollExpiresAt WHERE id = :postId")
+    suspend fun updatePostWithPoll(
+        postId: String,
+        content: String,
+        imageUrls: String,
+        videoUrl: String?,
+        isSponsored: Boolean = false,
+        sponsorBusinessName: String? = null,
+        sponsorContactNumber: String? = null,
+        sponsorCtaText: String? = null,
+        authorName: String,
+        authorPhotoUrl: String,
+        authorRole: String,
+        pollQuestion: String?,
+        pollOptionsJson: String?,
+        pollExpiresAt: Long?
+    )
 }
 
 @Dao

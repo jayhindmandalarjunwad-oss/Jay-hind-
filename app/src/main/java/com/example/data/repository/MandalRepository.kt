@@ -1386,12 +1386,16 @@ class MandalRepository(context: Context) {
         val finalPollQuestion = if (formattedPollOptionsJson != null) pollQuestion?.trim()?.ifBlank { null } else null
         val finalPollVotesJson = if (finalPollQuestion != null) "{}" else null
 
+        val mandalInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+        val mandalDisplayName = mandalInfo.mandalName.ifBlank { "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड" }
+        val mandalLogoUrl = mandalInfo.logoUrl
+
         val newPost = PostEntity(
             id = "post_" + UUID.randomUUID().toString().take(8),
-            authorId = user.id,
-            authorName = user.fullName,
-            authorPhotoUrl = user.profilePhotoUrl,
-            authorRole = if (user.isAdmin) "ADMIN" else "",
+            authorId = if (finalPollQuestion != null) "mandal_official" else user.id,
+            authorName = if (finalPollQuestion != null) mandalDisplayName else user.fullName,
+            authorPhotoUrl = if (finalPollQuestion != null) mandalLogoUrl else user.profilePhotoUrl,
+            authorRole = if (finalPollQuestion != null) "MANDAL_POLL" else if (user.isAdmin) "ADMIN" else "",
             content = content.trim(),
             imageUrlsJson = imageUrl ?: "",
             videoUrl = videoUrl,
@@ -1411,7 +1415,7 @@ class MandalRepository(context: Context) {
         postDao.insertPost(newPost)
 
         val notifId = "notif_" + UUID.randomUUID().toString().take(8)
-        val notifTitle = if (finalPollQuestion != null) "📊 नवीन मतदान कौल: ${user.fullName}" else "🚩 नवीन पोस्ट: ${user.fullName}"
+        val notifTitle = if (finalPollQuestion != null) "📊 नवीन मतदान कौल: $mandalDisplayName" else "🚩 नवीन पोस्ट: ${user.fullName}"
         val notifMsg = if (finalPollQuestion != null) {
             "मंडळाच्या निर्णयासाठी मत नोंदवा: $finalPollQuestion"
         } else if (content.isNotBlank()) {
@@ -1541,36 +1545,96 @@ class MandalRepository(context: Context) {
         isSponsored: Boolean = false,
         sponsorBusinessName: String? = null,
         sponsorContactNumber: String? = null,
-        sponsorCtaText: String? = null
+        sponsorCtaText: String? = null,
+        pollQuestion: String? = null,
+        pollOptions: List<String> = emptyList(),
+        pollExpiresAt: Long? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val cleanContent = content.trim()
         val cleanImage = imageUrl ?: ""
         val cleanBizName = sponsorBusinessName?.trim()?.ifBlank { null }
         val cleanContact = sponsorContactNumber?.trim()?.ifBlank { null }
         val cleanCta = sponsorCtaText?.trim()?.ifBlank { null }
-        postDao.updatePostContent(
-            postId = postId,
-            content = cleanContent,
-            imageUrls = cleanImage,
-            videoUrl = videoUrl,
-            isSponsored = isSponsored,
-            sponsorBusinessName = cleanBizName,
-            sponsorContactNumber = cleanContact,
-            sponsorCtaText = cleanCta
-        )
-        try {
-            val updateMap = mutableMapOf<String, Any?>(
-                "content" to cleanContent,
-                "imageUrlsJson" to cleanImage,
-                "videoUrl" to videoUrl,
-                "isSponsored" to isSponsored,
-                "sponsorBusinessName" to cleanBizName,
-                "sponsorContactNumber" to cleanContact,
-                "sponsorCtaText" to cleanCta
+
+        val hasPoll = !pollQuestion.isNullOrBlank() && pollOptions.size >= 2
+        if (hasPoll) {
+            val mandalInfo = mandalInfoDao.getMandalInfoDirect() ?: SeedData.defaultMandalInfo
+            val mandalDisplayName = mandalInfo.mandalName.ifBlank { "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड" }
+            val mandalLogoUrl = mandalInfo.logoUrl
+
+            val arr = org.json.JSONArray()
+            pollOptions.filter { it.isNotBlank() }.forEachIndexed { idx, optText ->
+                val obj = org.json.JSONObject()
+                obj.put("id", "opt_${idx + 1}")
+                obj.put("text", optText.trim())
+                arr.put(obj)
+            }
+            val formattedPollOptionsJson = arr.toString()
+            val cleanPollQuestion = pollQuestion?.trim() ?: ""
+
+            postDao.updatePostWithPoll(
+                postId = postId,
+                content = cleanContent,
+                imageUrls = cleanImage,
+                videoUrl = videoUrl,
+                isSponsored = isSponsored,
+                sponsorBusinessName = cleanBizName,
+                sponsorContactNumber = cleanContact,
+                sponsorCtaText = cleanCta,
+                authorName = mandalDisplayName,
+                authorPhotoUrl = mandalLogoUrl,
+                authorRole = "MANDAL_POLL",
+                pollQuestion = cleanPollQuestion,
+                pollOptionsJson = formattedPollOptionsJson,
+                pollExpiresAt = pollExpiresAt
             )
-            firestore.collection("posts").document(postId).set(updateMap, SetOptions.merge())
-        } catch (e: Exception) {
-            Log.e("FirebaseSync", "Error updating post on Firestore", e)
+            try {
+                val updateMap = mutableMapOf<String, Any?>(
+                    "content" to cleanContent,
+                    "imageUrlsJson" to cleanImage,
+                    "videoUrl" to videoUrl,
+                    "isSponsored" to isSponsored,
+                    "sponsorBusinessName" to cleanBizName,
+                    "sponsorContactNumber" to cleanContact,
+                    "sponsorCtaText" to cleanCta,
+                    "authorName" to mandalDisplayName,
+                    "authorPhotoUrl" to mandalLogoUrl,
+                    "authorRole" to "MANDAL_POLL",
+                    "pollQuestion" to cleanPollQuestion,
+                    "pollOptionsJson" to formattedPollOptionsJson
+                )
+                if (pollExpiresAt != null) {
+                    updateMap["pollExpiresAt"] = pollExpiresAt
+                }
+                firestore.collection("posts").document(postId).set(updateMap, SetOptions.merge())
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error updating poll post on Firestore", e)
+            }
+        } else {
+            postDao.updatePostContent(
+                postId = postId,
+                content = cleanContent,
+                imageUrls = cleanImage,
+                videoUrl = videoUrl,
+                isSponsored = isSponsored,
+                sponsorBusinessName = cleanBizName,
+                sponsorContactNumber = cleanContact,
+                sponsorCtaText = cleanCta
+            )
+            try {
+                val updateMap = mutableMapOf<String, Any?>(
+                    "content" to cleanContent,
+                    "imageUrlsJson" to cleanImage,
+                    "videoUrl" to videoUrl,
+                    "isSponsored" to isSponsored,
+                    "sponsorBusinessName" to cleanBizName,
+                    "sponsorContactNumber" to cleanContact,
+                    "sponsorCtaText" to cleanCta
+                )
+                firestore.collection("posts").document(postId).set(updateMap, SetOptions.merge())
+            } catch (e: Exception) {
+                Log.e("FirebaseSync", "Error updating post on Firestore", e)
+            }
         }
         Result.success(Unit)
     }

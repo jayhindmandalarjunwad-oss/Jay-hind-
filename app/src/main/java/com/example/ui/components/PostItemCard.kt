@@ -56,11 +56,6 @@ fun PostItemCard(
     val isLiked = currentUser?.let { post.isLikedBy(it.id) } == true
     val canEdit = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
     val canDelete = currentUser != null && (currentUser.isAnyAdmin || currentUser.id == post.authorId)
-    val isOfficialPost = remember(post.authorRole) {
-        post.authorRole.contains("ADMIN", ignoreCase = true) ||
-            post.authorRole.contains("अध्यक्ष", ignoreCase = true) ||
-            post.authorRole.contains("कार्यकारणी", ignoreCase = true)
-    }
 
     var showMenu by remember { mutableStateOf(false) }
 
@@ -74,28 +69,8 @@ fun PostItemCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Official Mandal Announcement Ribbon
-            if (isOfficialPost && !post.isSponsored) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(SaffronPrimary, GoldenTertiary)
-                            )
-                        )
-                        .padding(horizontal = 14.dp, vertical = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "📢 मंडळाची अधिकृत घोषणा (Official Announcement)",
-                            color = Color.White,
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            } else if (post.isSponsored) {
+            // Sponsored Post Banner
+            if (post.isSponsored) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -142,7 +117,7 @@ fun PostItemCard(
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (!post.isSponsored && onAuthorClick != null) {
+                            if (!post.isSponsored && post.pollData == null && onAuthorClick != null) {
                                 Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable {
@@ -205,8 +180,59 @@ fun PostItemCard(
                                 fontWeight = FontWeight.Normal
                             )
                         }
+                    } else if (post.pollData != null) {
+                        // MANDAL DECISION POLL: Displays Mandal Name & Emblem
+                        val mandalDisplayName = if (post.authorName.contains("मंडळ")) {
+                            post.authorName
+                        } else {
+                            "जय हिंद कला, क्रीडा व सांस्कृतिक मंडळ, अर्जुनवाड"
+                        }
+                        if (post.authorPhotoUrl.isNotBlank()) {
+                            MemberAvatar(
+                                photoUrl = post.authorPhotoUrl,
+                                name = mandalDisplayName,
+                                size = 44
+                            )
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = SaffronPrimary.copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, SaffronPrimary),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.HowToVote,
+                                        contentDescription = "मंडळ निर्णय कौल",
+                                        tint = SaffronPrimary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = mandalDisplayName,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.5.sp
+                                ),
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "🚩 मंडळाचा अधिकृत निर्णय कौल • ${formatTimestampToEnglish(post.timestamp)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF4F46E5),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     } else {
-                        // STANDARD POST AUTHOR AVATAR & NAME
+                        // STANDARD POST: Regular member or admin post (displays author name & avatar without announcement ribbon)
                         MemberAvatar(
                             photoUrl = post.authorPhotoUrl,
                             name = post.authorName,
@@ -229,7 +255,7 @@ fun PostItemCard(
                             Text(
                                 text = formatTimestampToEnglish(post.timestamp),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF64748B), // Clear muted slate grey for English date/time
+                                color = Color(0xFF64748B),
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Normal
                             )
@@ -929,7 +955,7 @@ fun PollDisplaySection(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "मंडळाचा निर्णय पोल",
+                        text = "🚩 जय हिंद मंडळ निर्णय कौल",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF4338CA)

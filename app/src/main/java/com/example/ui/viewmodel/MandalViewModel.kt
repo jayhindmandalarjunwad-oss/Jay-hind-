@@ -708,6 +708,9 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         sponsorBusinessName: String? = null,
         sponsorContactNumber: String? = null,
         sponsorCtaText: String? = null,
+        pollQuestion: String? = null,
+        pollOptions: List<String> = emptyList(),
+        pollExpiresAt: Long? = null,
         onDone: () -> Unit
     ) {
         val user = currentUser.value
@@ -715,7 +718,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             showSnackbar("आपले खाते ब्लॉक असल्याने आपण पोस्ट एडिट करू शकत नाही. ⚠️")
             return
         }
-        if (content.isBlank() && imageUrl == null) {
+        val isPoll = !pollQuestion.isNullOrBlank() && pollOptions.size >= 2
+        if (content.isBlank() && imageUrl == null && !isPoll) {
             showSnackbar("पोस्टसाठी काही मजकूर किंवा फोटो निवडा.")
             return
         }
@@ -728,10 +732,18 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 isSponsored = isSponsored,
                 sponsorBusinessName = sponsorBusinessName,
                 sponsorContactNumber = sponsorContactNumber,
-                sponsorCtaText = sponsorCtaText
+                sponsorCtaText = sponsorCtaText,
+                pollQuestion = pollQuestion,
+                pollOptions = pollOptions,
+                pollExpiresAt = pollExpiresAt
             )
             res.onSuccess {
-                showSnackbar("पोस्ट यशस्वीरित्या अपडेट झाली! ✏️")
+                val successMsg = if (isPoll) {
+                    "मतदान पोल यशस्वीरित्या अपडेट झाला! 📊"
+                } else {
+                    "पोस्ट यशस्वीरित्या अपडेट झाली! ✏️"
+                }
+                showSnackbar(successMsg)
                 onDone()
             }.onFailure {
                 showSnackbar(it.message ?: "पोस्ट अपडेट करताना त्रुटी आली.")
