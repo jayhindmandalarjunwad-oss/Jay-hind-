@@ -28,7 +28,9 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         setupCrashGuard()
-        sanitizeFcmTopicQueue()
+        // Register universal app lifecycle manager to handle quota-safe foreground/background transitions
+        registerActivityLifecycleCallbacks(com.example.util.MandalAppLifecycleManager)
+
         try {
             com.example.util.SystemNotificationHelper.initNotificationChannels(this)
             if (FirebaseApp.getApps(this).isEmpty()) {
@@ -45,9 +47,17 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
                 Log.d("MandalApp", "Firebase default app already initialized")
             }
 
-            try {
-                com.google.firebase.messaging.FirebaseMessaging.getInstance().isAutoInitEnabled = false
-            } catch (_: Exception) {}
+            // On emulators or testing environments, gracefully deactivate FCM auto-init and clean any pending sync queue
+            if (isEmulatorEnvironment()) {
+                try {
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().isAutoInitEnabled = false
+                    val fcmPrefs = getSharedPreferences("com.google.android.gms.appid", android.content.Context.MODE_PRIVATE)
+                    fcmPrefs.edit().clear().apply()
+                    val fcmMsgPrefs = getSharedPreferences("com.google.firebase.messaging", android.content.Context.MODE_PRIVATE)
+                    fcmMsgPrefs.edit().clear().apply()
+                    Log.d("MandalApp", "Emulator environment detected: FCM auto-init disabled to prevent registration errors.")
+                } catch (_: Exception) {}
+            }
 
             // Schedule native background sync job & daily database backup
             com.example.util.MandalSyncJobService.scheduleJob(this)
@@ -58,13 +68,23 @@ class MandalApplication : Application(), coil.ImageLoaderFactory {
         }
     }
 
-    private fun sanitizeFcmTopicQueue() {
-        try {
-            getSharedPreferences("com.google.android.gms.appid", android.content.Context.MODE_PRIVATE)
-                .edit().clear().apply()
-            getSharedPreferences("com.google.firebase.messaging", android.content.Context.MODE_PRIVATE)
-                .edit().clear().apply()
-        } catch (_: Exception) {}
+    private fun isEmulatorEnvironment(): Boolean {
+        val fp = android.os.Build.FINGERPRINT ?: ""
+        val model = android.os.Build.MODEL ?: ""
+        val product = android.os.Build.PRODUCT ?: ""
+        val brand = android.os.Build.BRAND ?: ""
+        val hardware = android.os.Build.HARDWARE ?: ""
+        return fp.startsWith("generic")
+                || fp.startsWith("unknown")
+                || model.contains("google_sdk")
+                || model.contains("Emulator")
+                || model.contains("Android SDK built for")
+                || hardware.contains("goldfish")
+                || hardware.contains("ranchu")
+                || product.contains("sdk")
+                || product.contains("google_sdk")
+                || product.contains("emulator")
+                || brand.startsWith("generic")
     }
 
     private fun setupCrashGuard() {

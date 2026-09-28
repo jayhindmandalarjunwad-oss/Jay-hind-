@@ -47,27 +47,28 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleIntent(intent)
 
-        // Initialize background sync & real-time notification service
+        // Stop persistent background listener service in favor of zero-read Google FCM push engine
         try {
-            com.example.util.MandalNotificationService.startService(this)
+            com.example.util.MandalNotificationService.stopService(this)
             com.example.util.MandalSyncJobService.scheduleJob(this)
 
             // Daily birthday check and notification dispatch
             viewModel.checkAndDispatchBirthdayNotifications()
 
-            // In virtual/development emulator or devices without active Play Store registration,
-            // FCM topic sync / token registration will fail without a registered account.
-            // Native foreground service & MandalSyncJobService provide real-time updates seamlessly.
+            // Register and subscribe to all Google FCM Push Notification channels on real devices
             val googleApiAvailability = com.google.android.gms.common.GoogleApiAvailability.getInstance()
             val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
-            if (resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
+            val isEmulator = isRunningOnEmulator()
+            if (!isEmulator && resultCode == com.google.android.gms.common.ConnectionResult.SUCCESS) {
                 lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     try {
                         val fcm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                        // Attempt token retrieval only; do not queue hard topic syncs which trigger logcat hard failure exceptions
+                        fcm.isAutoInitEnabled = true
                         fcm.token.addOnCompleteListener { task ->
                             if (task.isSuccessful && !task.result.isNullOrBlank()) {
-                                viewModel.updateFcmToken(task.result)
+                                val token = task.result
+                                viewModel.updateFcmToken(token)
+                                android.util.Log.d("MainActivity", "FCM push token registered: $token")
                                 try {
                                     fcm.subscribeToTopic("mandal_announcements")
                                     fcm.subscribeToTopic("mandal_emergency_blood")
@@ -75,11 +76,12 @@ class MainActivity : ComponentActivity() {
                                     fcm.subscribeToTopic("mandal_posts")
                                     fcm.subscribeToTopic("mandal_birthdays")
                                     fcm.subscribeToTopic("mandal_group_chat")
+                                    android.util.Log.d("MainActivity", "Subscribed to all 6 FCM notification topics successfully.")
                                 } catch (topicErr: Exception) {
                                     android.util.Log.d("MainActivity", "Topic subscribe note: ${topicErr.message}")
                                 }
                             } else {
-                                android.util.Log.d("MainActivity", "FCM token not available on current environment (using native sync)")
+                                android.util.Log.i("MainActivity", "FCM token not available: ${task.exception?.message}")
                             }
                         }
                     } catch (fcmErr: Exception) {
@@ -87,10 +89,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             } else {
-                android.util.Log.i("MainActivity", "Google Play Services note ($resultCode). Foreground service & JobScheduler handle notifications.")
+                android.util.Log.i("MainActivity", "Play Services / Emulator note (resultCode=$resultCode, isEmulator=$isEmulator). Native JobScheduler and local sync active.")
             }
         } catch (e: Exception) {
-            android.util.Log.w("MainActivity", "Background notification services note: ${e.message}")
+            android.util.Log.w("MainActivity", "Notification setup note: ${e.message}")
         }
 
         setContent {
@@ -116,6 +118,25 @@ class MainActivity : ComponentActivity() {
         if (!targetRoute.isNullOrBlank()) {
             viewModel.handleNotificationRoute(targetRoute, targetId)
         }
+    }
+
+    private fun isRunningOnEmulator(): Boolean {
+        val fp = android.os.Build.FINGERPRINT ?: ""
+        val model = android.os.Build.MODEL ?: ""
+        val product = android.os.Build.PRODUCT ?: ""
+        val brand = android.os.Build.BRAND ?: ""
+        val hardware = android.os.Build.HARDWARE ?: ""
+        return fp.startsWith("generic")
+                || fp.startsWith("unknown")
+                || model.contains("google_sdk")
+                || model.contains("Emulator")
+                || model.contains("Android SDK built for")
+                || hardware.contains("goldfish")
+                || hardware.contains("ranchu")
+                || product.contains("sdk")
+                || product.contains("google_sdk")
+                || product.contains("emulator")
+                || brand.startsWith("generic")
     }
 }
 

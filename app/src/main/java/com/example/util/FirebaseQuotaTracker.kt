@@ -131,12 +131,21 @@ object FirebaseQuotaTracker {
         _quotaUsage.value = _quotaUsage.value.copy(deletesToday = newD)
     }
 
-    fun updateListenerStatus(collectionName: String, isActive: Boolean) {
+    fun recordListenerStatus(identifier: String, isActive: Boolean) {
         val current = _listeners.value.toMutableList()
-        val index = current.indexOfFirst { it.collectionName == collectionName }
+        val index = current.indexOfFirst {
+            it.name.equals(identifier, ignoreCase = true) ||
+            it.collectionName.equals(identifier, ignoreCase = true) ||
+            it.name.startsWith(identifier.take(4)) ||
+            identifier.startsWith(it.name.take(4))
+        }
         if (index != -1) {
             current[index] = current[index].copy(isActive = isActive, lastSyncTime = System.currentTimeMillis())
             _listeners.value = current
         }
+    }
+
+    fun updateListenerStatus(collectionName: String, isActive: Boolean) {
+        recordListenerStatus(collectionName, isActive)
     }
 }

@@ -150,6 +150,7 @@ class MandalRepository(context: Context) {
     private val processedChatNotificationIds = java.util.Collections.synchronizedSet(java.util.LinkedHashSet<String>())
     private val processedNotificationIds = java.util.Collections.synchronizedSet(java.util.LinkedHashSet<String>())
     private val videoAlbumSyncTimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val activeFirestoreListeners = java.util.Collections.synchronizedList(mutableListOf<com.google.firebase.firestore.ListenerRegistration>())
 
     private var livePresenceHeartbeatJob: Job? = null
     private var currentLivePresenceSessionId: String? = null
@@ -175,13 +176,28 @@ class MandalRepository(context: Context) {
             Log.e("FirebaseSync", "FirebaseApp init error: ${e.message}")
         }
         com.example.util.FirebaseQuotaTracker.init(appContext)
-        // Start real-time Firestore synchronization immediately
-        startFirestoreSync()
+
+        // Universal Quota-Safe Lifecycle Management:
+        // Automatically connects snapshot listeners when app is in foreground.
+        // Detaches all snapshot listeners when app goes to background to achieve ZERO idle reads.
+        com.example.util.MandalAppLifecycleManager.registerListener(
+            onForeground = {
+                repositoryScope.launch(Dispatchers.IO) {
+                    updatePresence(true)
+                    startFirestoreSync()
+                }
+            },
+            onBackground = {
+                repositoryScope.launch(Dispatchers.IO) {
+                    updatePresence(false)
+                    stopFirestoreSync()
+                }
+            }
+        )
 
         repositoryScope.launch {
             seedDatabaseIfEmpty()
-            forceSyncFromFirebase()
-            // Refresh current user from database
+            // Local Room Cache first: instantly restore saved user session without remote read spike
             val savedUserId = prefs.getString("logged_user_id", null)
             if (!savedUserId.isNullOrBlank()) {
                 val savedUser = userDao.getUserById(savedUserId)
@@ -191,6 +207,22 @@ class MandalRepository(context: Context) {
                     saveUserToPrefs(domain)
                 }
             }
+        }
+    }
+
+    fun updatePresence(isOnline: Boolean) {
+        val currentId = _currentUser.value?.id ?: prefs.getString("logged_user_id", null) ?: return
+        try {
+            firestore.collection("users").document(currentId).set(
+                mapOf(
+                    "isOnline" to isOnline,
+                    "lastSeen" to System.currentTimeMillis()
+                ),
+                SetOptions.merge()
+            )
+            Log.d("Presence", "Updated presence for $currentId: isOnline=$isOnline")
+        } catch (e: Exception) {
+            Log.w("Presence", "Failed to update presence: ${e.message}")
         }
     }
 
@@ -485,11 +517,30 @@ class MandalRepository(context: Context) {
         }
     }
 
-    // REAL-TIME FIRESTORE SYNCHRONIZATION
+    // REAL-TIME FIRESTORE SYNCHRONIZATION (Lifecycle-Aware & Quota-Safe)
+    fun stopFirestoreSync() {
+        synchronized(activeFirestoreListeners) {
+            for (reg in activeFirestoreListeners) {
+                try {
+                    reg.remove()
+                } catch (_: Exception) {}
+            }
+            activeFirestoreListeners.clear()
+        }
+        com.example.util.FirebaseQuotaTracker.recordListenerStatus("ग्रुप व पर्सनल चॅट", false)
+        com.example.util.FirebaseQuotaTracker.recordListenerStatus("सोशल पोस्ट्स व लाईक्स", false)
+        com.example.util.FirebaseQuotaTracker.recordListenerStatus("मंडळ सदस्य यादी व उपस्थिती", false)
+        com.example.util.FirebaseQuotaTracker.recordListenerStatus("मंडळ सूचना व नोटिफिकेशन्स", false)
+        com.example.util.FirebaseQuotaTracker.recordListenerStatus("मंडळ माहिती व सेटिंग्स", false)
+        Log.d("FirebaseSync", "All real-time Firestore listeners detached to save quota while in background.")
+    }
+
     private fun startFirestoreSync() {
         try {
+            stopFirestoreSync()
+
             // Real-time Users Sync (Members, Registrations, Approvals)
-            firestore.collection("users").addSnapshotListener { snapshots, e ->
+            val lUsers = firestore.collection("users").addSnapshotListener { snapshots, e ->
                 if (e != null) {
                     Log.e("FirebaseSync", "Users snapshot listener error: ${e.message}", e)
                     return@addSnapshotListener
@@ -523,6 +574,8 @@ class MandalRepository(context: Context) {
                     }
                 }
             }
+            activeFirestoreListeners.add(lUsers)
+            com.example.util.FirebaseQuotaTracker.recordListenerStatus("मंडळ सदस्य यादी व उपस्थिती", true)
 
             // Real-time Posts Sync (Quota-safe: limit to 20 most recent posts)
             firestore.collection("posts")
