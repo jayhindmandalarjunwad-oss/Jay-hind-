@@ -437,6 +437,18 @@ fun MandalApp(viewModel: MandalViewModel) {
                         ) {
                             showCreatePostDialog = false
                         }
+                    },
+                    onPollCreated = { question, options, expiresAt, content ->
+                        viewModel.createPost(
+                            content = content,
+                            imageUrl = null,
+                            videoUrl = null,
+                            pollQuestion = question,
+                            pollOptions = options,
+                            pollExpiresAt = expiresAt
+                        ) {
+                            showCreatePostDialog = false
+                        }
                     }
                 )
             }

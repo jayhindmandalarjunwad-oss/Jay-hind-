@@ -180,6 +180,8 @@ fun UserPostsScreen(
                             onImageClick = { viewModel.openFullscreenPhoto(it) },
                             onMultiImageClick = { images, idx -> viewModel.openFullscreenPhotos(images, idx) },
                             onAuthorClick = null, // Already viewing this user's timeline
+                            onVotePoll = { optId -> viewModel.votePoll(post.id, optId) },
+                            onClosePoll = { viewModel.closePoll(post.id) },
                             isAuthorBirthdayToday = com.example.ui.components.isBirthdayToday(user.dateOfBirth)
                         )
                     }

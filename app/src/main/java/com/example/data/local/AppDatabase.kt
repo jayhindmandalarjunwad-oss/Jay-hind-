@@ -22,7 +22,7 @@ import androidx.room.RoomDatabase
         BusinessListingEntity::class,
         BusinessLeadClickEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -109,6 +109,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE posts ADD COLUMN pollQuestion TEXT")
+                } catch (e: Exception) {
+                    android.util.Log.w("AppDatabase", "Migration 16-17 pollQuestion note: ${e.message}")
+                }
+                try {
+                    db.execSQL("ALTER TABLE posts ADD COLUMN pollOptionsJson TEXT")
+                } catch (e: Exception) {
+                    android.util.Log.w("AppDatabase", "Migration 16-17 pollOptionsJson note: ${e.message}")
+                }
+                try {
+                    db.execSQL("ALTER TABLE posts ADD COLUMN pollVotesJson TEXT")
+                } catch (e: Exception) {
+                    android.util.Log.w("AppDatabase", "Migration 16-17 pollVotesJson note: ${e.message}")
+                }
+                try {
+                    db.execSQL("ALTER TABLE posts ADD COLUMN isPollClosed INTEGER NOT NULL DEFAULT 0")
+                } catch (e: Exception) {
+                    android.util.Log.w("AppDatabase", "Migration 16-17 isPollClosed note: ${e.message}")
+                }
+                try {
+                    db.execSQL("ALTER TABLE posts ADD COLUMN pollExpiresAt INTEGER")
+                } catch (e: Exception) {
+                    android.util.Log.w("AppDatabase", "Migration 16-17 pollExpiresAt note: ${e.message}")
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -116,7 +146,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "jayhind_mandal_db"
                 )
-                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

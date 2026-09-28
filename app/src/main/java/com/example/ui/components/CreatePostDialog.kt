@@ -51,7 +51,13 @@ fun CreatePostDialog(
         sponsorBusinessName: String?,
         sponsorContactNumber: String?,
         sponsorCtaText: String?
-    ) -> Unit
+    ) -> Unit,
+    onPollCreated: ((
+        question: String,
+        options: List<String>,
+        expiresAt: Long?,
+        content: String
+    ) -> Unit)? = null
 ) {
     val isEdit = initialPost != null
     var postText by remember { mutableStateOf(initialPost?.content ?: "") }
@@ -65,6 +71,13 @@ fun CreatePostDialog(
     var sponsorBusinessName by remember { mutableStateOf(initialPost?.sponsorBusinessName ?: "") }
     var sponsorContactNumber by remember { mutableStateOf(initialPost?.sponsorContactNumber ?: "") }
     var sponsorCtaText by remember { mutableStateOf(initialPost?.sponsorCtaText ?: "संपर्क साधा / ऑर्डर द्या") }
+
+    // Decision Poll State (Admins only, for new posts)
+    val canCreatePoll = currentUser?.isAnyAdmin == true && !isEdit
+    var isPoll by remember { mutableStateOf(false) }
+    var pollQuestion by remember { mutableStateOf("") }
+    var pollOptions by remember { mutableStateOf(listOf("", "")) }
+    var selectedDurationIndex by remember { mutableStateOf(2) } // 0: 24h, 1: 48h, 2: 72h, 3: 7d, 4: No expiry
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -279,7 +292,10 @@ fun CreatePostDialog(
                                 }
                                 Switch(
                                     checked = isSponsored,
-                                    onCheckedChange = { isSponsored = it },
+                                    onCheckedChange = { 
+                                        isSponsored = it
+                                        if (it) isPoll = false
+                                    },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color.White,
                                         checkedTrackColor = Color(0xFF0D9488)
@@ -315,6 +331,153 @@ fun CreatePostDialog(
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // Decision Poll Toggle for Admins
+                if (canCreatePoll) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isPoll) Color(0xFFEEF2FF) else SurfaceWarm,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isPoll) Color(0xFF6366F1) else CardBorderColor
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Poll,
+                                        contentDescription = null,
+                                        tint = if (isPoll) Color(0xFF4F46E5) else TextSecondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = "📊 मतदान पोल तयार करा (Voting Poll)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "मंडळातील निर्णयावर सर्व सदस्यांचे मत जाणून घ्या",
+                                            fontSize = 10.5.sp,
+                                            color = TextSecondary
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = isPoll,
+                                    onCheckedChange = { 
+                                        isPoll = it 
+                                        if (it) isSponsored = false
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF4F46E5)
+                                    )
+                                )
+                            }
+
+                            if (isPoll) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                OutlinedTextField(
+                                    value = pollQuestion,
+                                    onValueChange = { pollQuestion = it },
+                                    label = { Text("मतदानाचा प्रश्न (Poll Question)", fontSize = 12.sp) },
+                                    placeholder = { Text("उदा. महाप्रसाद कोणत्या दिवशी ठेवायचा?", fontSize = 12.sp) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "मतदानाचे पर्याय (Options):",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF374151)
+                                )
+
+                                pollOptions.forEachIndexed { index, optText ->
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedTextField(
+                                            value = optText,
+                                            onValueChange = { newVal ->
+                                                val updated = pollOptions.toMutableList()
+                                                updated[index] = newVal
+                                                pollOptions = updated
+                                            },
+                                            label = { Text("पर्याय ${index + 1}", fontSize = 11.sp) },
+                                            placeholder = { Text("उदा. शनिवार / रविवार", fontSize = 11.sp) },
+                                            modifier = Modifier.weight(1f),
+                                            singleLine = true
+                                        )
+                                        if (pollOptions.size > 2) {
+                                            IconButton(onClick = {
+                                                val updated = pollOptions.toMutableList()
+                                                updated.removeAt(index)
+                                                pollOptions = updated
+                                            }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "काढून टाका",
+                                                    tint = BloodRed,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (pollOptions.size < 5) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    TextButton(
+                                        onClick = {
+                                            pollOptions = pollOptions + ""
+                                        },
+                                        modifier = Modifier.align(Alignment.Start)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("+ आणखी पर्याय जोडा", fontSize = 12.sp, color = Color(0xFF4F46E5), fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "मतदानाची मुदत (Duration):",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF374151)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val durations = listOf("१ दिवस", "२ दिवस", "३ दिवस", "७ दिवस", "मुदत नाही")
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    itemsIndexed(durations) { dIndex, dLabel ->
+                                        FilterChip(
+                                            selected = selectedDurationIndex == dIndex,
+                                            onClick = { selectedDurationIndex = dIndex },
+                                            label = { Text(dLabel, fontSize = 11.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = Color(0xFF4F46E5),
+                                                selectedLabelColor = Color.White
+                                            )
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -554,18 +717,38 @@ fun CreatePostDialog(
                 // Post Submit Button
                 Button(
                     onClick = {
-                        val joinedImages = if (selectedImages.isNotEmpty()) {
-                            selectedImages.joinToString("|||")
-                        } else null
-                        onPostCreated(
-                            postText,
-                            joinedImages,
-                            null,
-                            isSponsored,
-                            if (isSponsored) sponsorBusinessName.ifBlank { null } else null,
-                            if (isSponsored) sponsorContactNumber.ifBlank { null } else null,
-                            if (isSponsored) sponsorCtaText.ifBlank { null } else null
-                        )
+                        if (isPoll) {
+                            val validOptions = pollOptions.map { it.trim() }.filter { it.isNotBlank() }
+                            if (pollQuestion.isBlank() || validOptions.size < 2) {
+                                android.widget.Toast.makeText(context, "कृपया मतदानाचा प्रश्न आणि किमान २ पर्याय प्रविष्ट करा.", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            val expiryMs = when (selectedDurationIndex) {
+                                0 -> System.currentTimeMillis() + 24 * 3600 * 1000L
+                                1 -> System.currentTimeMillis() + 48 * 3600 * 1000L
+                                2 -> System.currentTimeMillis() + 72 * 3600 * 1000L
+                                3 -> System.currentTimeMillis() + 7 * 24 * 3600 * 1000L
+                                else -> null
+                            }
+                            if (onPollCreated != null) {
+                                onPollCreated(pollQuestion.trim(), validOptions, expiryMs, postText)
+                            } else {
+                                onPostCreated(postText, null, null, false, null, null, null)
+                            }
+                        } else {
+                            val joinedImages = if (selectedImages.isNotEmpty()) {
+                                selectedImages.joinToString("|||")
+                            } else null
+                            onPostCreated(
+                                postText,
+                                joinedImages,
+                                null,
+                                isSponsored,
+                                if (isSponsored) sponsorBusinessName.ifBlank { null } else null,
+                                if (isSponsored) sponsorContactNumber.ifBlank { null } else null,
+                                if (isSponsored) sponsorCtaText.ifBlank { null } else null
+                            )
+                        }
                     },
                     enabled = !isProcessingImage,
                     modifier = Modifier
@@ -573,14 +756,15 @@ fun CreatePostDialog(
                         .height(48.dp)
                         .testTag("create_post_submit_button"),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSponsored) Color(0xFF0D9488) else SaffronPrimary
+                        containerColor = if (isPoll) Color(0xFF4F46E5) else if (isSponsored) Color(0xFF0D9488) else SaffronPrimary
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Icon(imageVector = if (isEdit) Icons.Default.Check else Icons.Default.Send, contentDescription = null)
+                    Icon(imageVector = if (isEdit) Icons.Default.Check else if (isPoll) Icons.Default.Poll else Icons.Default.Send, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (isEdit) "पोस्ट अपडेट करा (Update Post)"
+                        else if (isPoll) "मतदान पोल प्रसिद्ध करा (Start Poll)"
                         else if (isSponsored) "प्रायोजित जाहिरात प्रसिद्ध करा"
                         else "पोस्ट प्रसिद्ध करा (Post)",
                         fontWeight = FontWeight.Bold,

@@ -1361,12 +1361,31 @@ class MandalRepository(context: Context) {
         isSponsored: Boolean = false,
         sponsorBusinessName: String? = null,
         sponsorContactNumber: String? = null,
-        sponsorCtaText: String? = null
+        sponsorCtaText: String? = null,
+        pollQuestion: String? = null,
+        pollOptions: List<String> = emptyList(),
+        pollExpiresAt: Long? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val user = _currentUser.value ?: return@withContext Result.failure(Exception("कृपया प्रथम लॉगिन करा"))
         if (user.status == "BLOCKED") {
             return@withContext Result.failure(Exception("आपले खाते ब्लॉक असल्याने आपण नवीन पोस्ट करू शकत नाही."))
         }
+
+        // Format poll options JSON if poll question provided
+        val formattedPollOptionsJson = if (!pollQuestion.isNullOrBlank() && pollOptions.size >= 2) {
+            val arr = org.json.JSONArray()
+            pollOptions.filter { it.isNotBlank() }.forEachIndexed { idx, optText ->
+                val obj = org.json.JSONObject()
+                obj.put("id", "opt_${idx + 1}")
+                obj.put("text", optText.trim())
+                arr.put(obj)
+            }
+            arr.toString()
+        } else null
+
+        val finalPollQuestion = if (formattedPollOptionsJson != null) pollQuestion?.trim()?.ifBlank { null } else null
+        val finalPollVotesJson = if (finalPollQuestion != null) "{}" else null
+
         val newPost = PostEntity(
             id = "post_" + UUID.randomUUID().toString().take(8),
             authorId = user.id,
@@ -1382,16 +1401,30 @@ class MandalRepository(context: Context) {
             isSponsored = isSponsored,
             sponsorBusinessName = sponsorBusinessName?.trim()?.ifBlank { null },
             sponsorContactNumber = sponsorContactNumber?.trim()?.ifBlank { null },
-            sponsorCtaText = sponsorCtaText?.trim()?.ifBlank { null }
+            sponsorCtaText = sponsorCtaText?.trim()?.ifBlank { null },
+            pollQuestion = finalPollQuestion,
+            pollOptionsJson = formattedPollOptionsJson,
+            pollVotesJson = finalPollVotesJson,
+            isPollClosed = false,
+            pollExpiresAt = if (finalPollQuestion != null) pollExpiresAt else null
         )
         postDao.insertPost(newPost)
 
         val notifId = "notif_" + UUID.randomUUID().toString().take(8)
+        val notifTitle = if (finalPollQuestion != null) "📊 नवीन मतदान कौल: ${user.fullName}" else "🚩 नवीन पोस्ट: ${user.fullName}"
+        val notifMsg = if (finalPollQuestion != null) {
+            "मंडळाच्या निर्णयासाठी मत नोंदवा: $finalPollQuestion"
+        } else if (content.isNotBlank()) {
+            content.take(75).trim() + if (content.length > 75) "..." else ""
+        } else {
+            "मंडळाच्या फीडमध्ये नवीन छायाचित्र/माहिती पोस्ट केली आहे."
+        }
+
         val notif = NotificationEntity(
             id = notifId,
-            title = "🚩 नवीन पोस्ट: ${user.fullName}",
-            message = if (content.isNotBlank()) content.take(75).trim() + if (content.length > 75) "..." else "" else "मंडळाच्या फीडमध्ये नवीन छायाचित्र/माहिती पोस्ट केली आहे.",
-            type = "POST",
+            title = notifTitle,
+            message = notifMsg,
+            type = if (finalPollQuestion != null) "POLL" else "POST",
             targetRoute = "POST",
             targetId = newPost.id,
             targetExtra = user.id, // Author ID so author doesn't get self-notified
@@ -1409,13 +1442,59 @@ class MandalRepository(context: Context) {
                 topic = "mandal_posts",
                 title = notif.title,
                 message = notif.message,
-                type = "POST",
+                type = notif.type,
                 targetRoute = "POST",
                 targetId = newPost.id,
                 senderId = user.id
             )
         } catch (e: Exception) {
             Log.e("FirebaseSync", "Failed to upload post to Firestore: ${e.message}", e)
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun votePoll(postId: String, optionId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("कृपया प्रथम लॉगिन करा"))
+        if (user.status == "BLOCKED") return@withContext Result.failure(Exception("आपले खाते ब्लॉक आहे."))
+        val posts = postDao.getAllPosts().first()
+        val post = posts.find { it.id == postId } ?: return@withContext Result.failure(Exception("पोस्ट आढळली नाही"))
+        val poll = post.toDomain().pollData ?: return@withContext Result.failure(Exception("हा मतदानाचा पोल नाही"))
+        if (!poll.canVote) return@withContext Result.failure(Exception("हे मतदान बंद किंवा मुदत संपलेले आहे"))
+
+        // Update votes locally
+        val currentVotes: MutableMap<String, String> = poll.userVotes.toMutableMap()
+        currentVotes[user.id] = optionId
+        val votesJsonObj = org.json.JSONObject()
+        for ((u, opt) in currentVotes) {
+            votesJsonObj.put(u, opt)
+        }
+        val updatedVotesJson = votesJsonObj.toString()
+        val updatedEntity = post.copy(pollVotesJson = updatedVotesJson)
+        postDao.insertPost(updatedEntity)
+
+        // Sync to Firestore
+        try {
+            firestore.collection("posts").document(postId).update("pollVotesJson", updatedVotesJson)
+            com.example.util.FirebaseQuotaTracker.trackWrite(1)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Failed to update poll vote in Firestore: ${e.message}", e)
+        }
+        Result.success(Unit)
+    }
+
+    suspend fun closePoll(postId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val user = _currentUser.value ?: return@withContext Result.failure(Exception("कृपया लॉगिन करा"))
+        if (!user.isAnyAdmin) return@withContext Result.failure(Exception("केवळ ॲडमिन मतदान बंद करू शकतात"))
+        val posts = postDao.getAllPosts().first()
+        val post = posts.find { it.id == postId } ?: return@withContext Result.failure(Exception("पोस्ट आढळली नाही"))
+        val updatedEntity = post.copy(isPollClosed = true)
+        postDao.insertPost(updatedEntity)
+
+        try {
+            firestore.collection("posts").document(postId).update("isPollClosed", true)
+            com.example.util.FirebaseQuotaTracker.trackWrite(1)
+        } catch (e: Exception) {
+            Log.e("FirebaseSync", "Failed to close poll in Firestore: ${e.message}", e)
         }
         Result.success(Unit)
     }
@@ -4202,7 +4281,12 @@ fun PostEntity.toDomain() = Post(
     isSponsored = isSponsored,
     sponsorBusinessName = sponsorBusinessName,
     sponsorContactNumber = sponsorContactNumber,
-    sponsorCtaText = sponsorCtaText
+    sponsorCtaText = sponsorCtaText,
+    pollQuestion = pollQuestion,
+    pollOptionsJson = pollOptionsJson,
+    pollVotesJson = pollVotesJson,
+    isPollClosed = isPollClosed,
+    pollExpiresAt = pollExpiresAt
 )
 
 fun CommentEntity.toDomain() = Comment(
@@ -4426,7 +4510,12 @@ fun PostEntity.toMap(): Map<String, Any?> = mapOf(
     "isSponsored" to isSponsored,
     "sponsorBusinessName" to sponsorBusinessName,
     "sponsorContactNumber" to sponsorContactNumber,
-    "sponsorCtaText" to sponsorCtaText
+    "sponsorCtaText" to sponsorCtaText,
+    "pollQuestion" to pollQuestion,
+    "pollOptionsJson" to pollOptionsJson,
+    "pollVotesJson" to pollVotesJson,
+    "isPollClosed" to isPollClosed,
+    "pollExpiresAt" to pollExpiresAt
 )
 
 fun DocumentSnapshot.toPostEntity(): PostEntity? {
@@ -4460,7 +4549,12 @@ fun DocumentSnapshot.toPostEntity(): PostEntity? {
         isSponsored = getBoolean("isSponsored") ?: false,
         sponsorBusinessName = getString("sponsorBusinessName"),
         sponsorContactNumber = getString("sponsorContactNumber"),
-        sponsorCtaText = getString("sponsorCtaText")
+        sponsorCtaText = getString("sponsorCtaText"),
+        pollQuestion = getString("pollQuestion"),
+        pollOptionsJson = getString("pollOptionsJson"),
+        pollVotesJson = getString("pollVotesJson"),
+        isPollClosed = getBoolean("isPollClosed") ?: false,
+        pollExpiresAt = getLong("pollExpiresAt")
     )
 }
 

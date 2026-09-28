@@ -34,6 +34,26 @@ data class User(
     }
 }
 
+data class PollOption(
+    val id: String,
+    val text: String,
+    val voteCount: Int = 0,
+    val percentage: Float = 0f
+)
+
+data class PollData(
+    val question: String,
+    val options: List<PollOption>,
+    val userVotes: Map<String, String> = emptyMap(), // userId -> optionId
+    val totalVotes: Int = 0,
+    val isClosed: Boolean = false,
+    val expiresAt: Long? = null
+) {
+    fun userVotedOptionId(userId: String?): String? = if (userId != null) userVotes[userId] else null
+    val isExpired: Boolean get() = expiresAt != null && expiresAt > 0 && System.currentTimeMillis() > expiresAt
+    val canVote: Boolean get() = !isClosed && !isExpired
+}
+
 data class Post(
     val id: String,
     val authorId: String,
@@ -49,10 +69,77 @@ data class Post(
     val isSponsored: Boolean = false,
     val sponsorBusinessName: String? = null,
     val sponsorContactNumber: String? = null,
-    val sponsorCtaText: String? = null
+    val sponsorCtaText: String? = null,
+    val pollQuestion: String? = null,
+    val pollOptionsJson: String? = null,
+    val pollVotesJson: String? = null,
+    val isPollClosed: Boolean = false,
+    val pollExpiresAt: Long? = null
 ) {
     fun isLikedBy(userId: String): Boolean = likedUserIds.contains(userId)
     val likesCount: Int get() = likedUserIds.size
+
+    val pollData: PollData?
+        get() {
+            if (pollQuestion.isNullOrBlank()) return null
+            try {
+                val rawOptions = mutableListOf<Pair<String, String>>()
+                if (!pollOptionsJson.isNullOrBlank()) {
+                    val array = org.json.JSONArray(pollOptionsJson)
+                    for (i in 0 until array.length()) {
+                        val obj = array.optJSONObject(i)
+                        if (obj != null) {
+                            val optId = obj.optString("id", "opt_$i")
+                            val text = obj.optString("text", "")
+                            if (text.isNotBlank()) rawOptions.add(optId to text)
+                        } else {
+                            val str = array.optString(i)
+                            if (str.isNotBlank()) rawOptions.add("opt_$i" to str)
+                        }
+                    }
+                }
+                if (rawOptions.isEmpty()) return null
+
+                val votesMap = mutableMapOf<String, String>()
+                if (!pollVotesJson.isNullOrBlank()) {
+                    val obj = org.json.JSONObject(pollVotesJson)
+                    val keys = obj.keys()
+                    while (keys.hasNext()) {
+                        val uid = keys.next()
+                        val optId = obj.optString(uid)
+                        if (optId.isNotBlank()) votesMap[uid] = optId
+                    }
+                }
+
+                val optionCounts = mutableMapOf<String, Int>()
+                for ((_, optId) in votesMap) {
+                    optionCounts[optId] = (optionCounts[optId] ?: 0) + 1
+                }
+                val total = votesMap.size
+
+                val pollOptions = rawOptions.map { (optId, text) ->
+                    val cnt = optionCounts[optId] ?: 0
+                    val pct = if (total > 0) (cnt.toFloat() / total) * 100f else 0f
+                    PollOption(
+                        id = optId,
+                        text = text,
+                        voteCount = cnt,
+                        percentage = pct
+                    )
+                }
+
+                return PollData(
+                    question = pollQuestion,
+                    options = pollOptions,
+                    userVotes = votesMap,
+                    totalVotes = total,
+                    isClosed = isPollClosed,
+                    expiresAt = pollExpiresAt
+                )
+            } catch (e: Exception) {
+                return null
+            }
+        }
 }
 
 data class BusinessListing(

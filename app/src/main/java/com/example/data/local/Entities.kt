@@ -40,7 +40,12 @@ data class PostEntity(
     val isSponsored: Boolean = false,
     val sponsorBusinessName: String? = null,
     val sponsorContactNumber: String? = null,
-    val sponsorCtaText: String? = null
+    val sponsorCtaText: String? = null,
+    val pollQuestion: String? = null,
+    val pollOptionsJson: String? = null,
+    val pollVotesJson: String? = null,
+    val isPollClosed: Boolean = false,
+    val pollExpiresAt: Long? = null
 )
 
 @Entity(tableName = "comments")

@@ -498,6 +498,9 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
         sponsorBusinessName: String? = null,
         sponsorContactNumber: String? = null,
         sponsorCtaText: String? = null,
+        pollQuestion: String? = null,
+        pollOptions: List<String> = emptyList(),
+        pollExpiresAt: Long? = null,
         onDone: () -> Unit
     ) {
         val user = currentUser.value
@@ -505,7 +508,8 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
             showSnackbar("आपले खाते ब्लॉक असल्याने आपण नवीन पोस्ट करू शकत नाही. ⚠️")
             return
         }
-        if (content.isBlank() && imageUrl == null) {
+        val isPoll = !pollQuestion.isNullOrBlank() && pollOptions.size >= 2
+        if (content.isBlank() && imageUrl == null && !isPoll) {
             showSnackbar("पोस्टसाठी काही मजकूर किंवा फोटो निवडा.")
             return
         }
@@ -517,14 +521,54 @@ class MandalViewModel(application: Application) : AndroidViewModel(application) 
                 isSponsored = isSponsored,
                 sponsorBusinessName = sponsorBusinessName,
                 sponsorContactNumber = sponsorContactNumber,
-                sponsorCtaText = sponsorCtaText
+                sponsorCtaText = sponsorCtaText,
+                pollQuestion = pollQuestion,
+                pollOptions = pollOptions,
+                pollExpiresAt = pollExpiresAt
             )
             res.onSuccess {
-                val successMsg = if (isSponsored) "स्पॉन्सर पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 📢" else "पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 🚩"
+                val successMsg = if (isPoll) {
+                    "मतदान पोल यशस्वीरित्या प्रसिद्ध झाला! 📊"
+                } else if (isSponsored) {
+                    "स्पॉन्सर पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 📢"
+                } else {
+                    "पोस्ट यशस्वीरित्या प्रसिद्ध झाली! 🚩"
+                }
                 showSnackbar(successMsg)
                 onDone()
             }.onFailure {
                 showSnackbar(it.message ?: "पोस्ट करताना त्रुटी आली.")
+            }
+        }
+    }
+
+    fun votePoll(postId: String, optionId: String) {
+        val user = currentUser.value
+        if (user == null) {
+            showSnackbar("मतदानासाठी कृपया लॉगिन करा. ⚠️")
+            return
+        }
+        if (user.status == "BLOCKED") {
+            showSnackbar("आपले खाते ब्लॉक असल्याने आपण मतदान करू शकत नाही. ⚠️")
+            return
+        }
+        viewModelScope.launch {
+            val res = repository.votePoll(postId, optionId)
+            res.onSuccess {
+                showSnackbar("आपले मत यशस्वीरित्या नोंदवले गेले आहे! 🗳️")
+            }.onFailure {
+                showSnackbar(it.message ?: "मत नोंदवताना त्रुटी आली.")
+            }
+        }
+    }
+
+    fun closePoll(postId: String) {
+        viewModelScope.launch {
+            val res = repository.closePoll(postId)
+            res.onSuccess {
+                showSnackbar("मतदान पोल यशस्वीरित्या बंद करण्यात आला. 🔒")
+            }.onFailure {
+                showSnackbar(it.message ?: "पोल बंद करताना त्रुटी आली.")
             }
         }
     }

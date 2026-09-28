@@ -145,6 +145,8 @@ fun PostsScreen(
                         onLikesCountClick = {
                             postForLikers = post
                         },
+                        onVotePoll = { optId -> viewModel.votePoll(post.id, optId) },
+                        onClosePoll = { viewModel.closePoll(post.id) },
                         isAuthorBirthdayToday = todayBirthdayAuthorIds.contains(post.authorId)
                     )
                 }

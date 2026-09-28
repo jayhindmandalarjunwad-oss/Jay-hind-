@@ -4,8 +4,10 @@ import android.content.Intent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -44,6 +46,8 @@ fun PostItemCard(
     onMultiImageClick: (List<String>, Int) -> Unit = { _, _ -> },
     onAuthorClick: ((authorId: String, authorName: String, authorPhoto: String) -> Unit)? = null,
     onLikesCountClick: (() -> Unit)? = null,
+    onVotePoll: ((optionId: String) -> Unit)? = null,
+    onClosePoll: (() -> Unit)? = null,
     isAuthorBirthdayToday: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -397,6 +401,17 @@ fun PostItemCard(
                         }
                     }
                 }
+            }
+
+            // Decision Poll Display (Real-time Mandal Polling)
+            post.pollData?.let { poll ->
+                Spacer(modifier = Modifier.height(10.dp))
+                PollDisplaySection(
+                    poll = poll,
+                    currentUser = currentUser,
+                    onVote = { optId -> onVotePoll?.invoke(optId) },
+                    onClosePoll = { onClosePoll?.invoke() }
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -869,4 +884,261 @@ fun LikersBottomSheet(
         }
     }
 }
+
+@Composable
+fun PollDisplaySection(
+    poll: com.example.data.model.PollData,
+    currentUser: User?,
+    onVote: (optionId: String) -> Unit,
+    onClosePoll: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val userVotedOptionId = currentUser?.let { poll.userVotedOptionId(it.id) }
+    val hasVoted = userVotedOptionId != null
+    val showResults = hasVoted || poll.isClosed || poll.isExpired
+    val canVoteNow = poll.canVote && currentUser != null
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFFF8FAFC),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Header: Poll badge and status
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(Color(0xFFEEF2FF), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Poll,
+                            contentDescription = "Poll",
+                            tint = Color(0xFF4F46E5),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "मंडळाचा निर्णय पोल",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF4338CA)
+                    )
+                }
+
+                // Status Chip
+                val statusBg = if (poll.isClosed) Color(0xFFFEE2E2) else if (poll.isExpired) Color(0xFFFEF3C7) else Color(0xFFDCFCE7)
+                val statusText = if (poll.isClosed) "🔴 मतदान बंद" else if (poll.isExpired) "⏳ मुदत संपली" else "🟢 मतदान चालू"
+                val statusColor = if (poll.isClosed) Color(0xFFDC2626) else if (poll.isExpired) Color(0xFFD97706) else Color(0xFF16A34A)
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = statusBg
+                ) {
+                    Text(
+                        text = statusText,
+                        color = statusColor,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Poll Question
+            Text(
+                text = poll.question,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp
+                ),
+                color = Color(0xFF0F172A)
+            )
+
+            // Expiry note if available
+            if (poll.expiresAt != null && !poll.isClosed && !poll.isExpired) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "⏱️ अंतिम मुदत: ${formatTimestampToEnglish(poll.expiresAt)}",
+                    fontSize = 11.sp,
+                    color = Color(0xFF64748B)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Options List
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                poll.options.forEach { option ->
+                    val isMyVote = userVotedOptionId == option.id
+                    val isHighest = poll.totalVotes > 0 && option.voteCount == poll.options.maxOf { it.voteCount } && option.voteCount > 0
+
+                    if (!showResults && canVoteNow) {
+                        // Interactive Voting Option Button
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onVote(option.id)
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White,
+                            border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFCBD5E1))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .border(2.dp, Color(0xFF64748B), CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = option.text,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1E293B)
+                                )
+                            }
+                        }
+                    } else {
+                        // Results View with Animated Progress Bar
+                        val animatedPercent by animateFloatAsState(
+                            targetValue = option.percentage / 100f,
+                            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+                            label = "poll_fill_${option.id}"
+                        )
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White,
+                            border = androidx.compose.foundation.BorderStroke(
+                                if (isMyVote) 1.5.dp else 1.dp,
+                                if (isMyVote) Color(0xFF4F46E5) else Color(0xFFE2E8F0)
+                            )
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                // Progress Bar fill
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(animatedPercent)
+                                        .matchParentSize()
+                                        .background(
+                                            if (isMyVote) Color(0xFFE0E7FF)
+                                            else if (isHighest) Color(0xFFFEF3C7)
+                                            else Color(0xFFF1F5F9)
+                                        )
+                                )
+
+                                // Foreground Text & Details
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        if (isMyVote) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "Your vote",
+                                                tint = Color(0xFF4F46E5),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                        }
+                                        Text(
+                                            text = option.text,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isMyVote || isHighest) FontWeight.Bold else FontWeight.Medium,
+                                            color = Color(0xFF1E293B)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = "${option.percentage.toInt()}%",
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isMyVote) Color(0xFF4338CA) else Color(0xFF0F172A)
+                                        )
+                                        Text(
+                                            text = "${option.voteCount} मते",
+                                            fontSize = 10.5.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Footer: Total votes and Admin close button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "👥 एकूण मतदान: ${poll.totalVotes} सभासद",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF64748B)
+                )
+
+                if (currentUser?.isAnyAdmin == true && !poll.isClosed) {
+                    TextButton(
+                        onClick = onClosePoll,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = BloodRed,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "मतदान बंद करा",
+                            fontSize = 11.sp,
+                            color = BloodRed,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 
