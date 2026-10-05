@@ -591,6 +591,44 @@ class MandalRepository(context: Context) {
                     val posts = snapshots.documents.mapNotNull { it.toPostEntity() }
                     if (posts.isNotEmpty()) {
                         postDao.insertPosts(posts)
+
+                        // Auto-heal any posts that contain local file:// paths if the file exists on this device
+                        for (p in posts) {
+                            if (p.imageUrlsJson.contains("file://")) {
+                                val urls = parsePostImageUrls(p.imageUrlsJson)
+                                val healedUrls = mutableListOf<String>()
+                                var didHeal = false
+                                for (u in urls) {
+                                    if (u.startsWith("file://")) {
+                                        val f = java.io.File(u.removePrefix("file://"))
+                                        if (f.exists() && f.length() > 0L) {
+                                            try {
+                                                val bytes = f.readBytes()
+                                                val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                                                healedUrls.add("data:image/webp;base64,$b64")
+                                                didHeal = true
+                                            } catch (_: Exception) {}
+                                        }
+                                    } else {
+                                        healedUrls.add(u)
+                                    }
+                                }
+                                if (didHeal && healedUrls.isNotEmpty()) {
+                                    val joined = healedUrls.joinToString("|||")
+                                    postDao.updatePost(p.copy(imageUrlsJson = joined))
+                                    try {
+                                        firestore.collection("posts").document(p.id)
+                                            .update(
+                                                mapOf(
+                                                    "imageUrl" to healedUrls.first(),
+                                                    "imageUrlsJson" to joined,
+                                                    "imageUrls" to healedUrls
+                                                )
+                                            )
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                        }
                     }
                     for (change in snapshots.documentChanges) {
                         if (change.type == DocumentChange.Type.REMOVED) {
@@ -4319,15 +4357,60 @@ fun UserEntity.toDomain(): User {
 }
 
 fun parsePostImageUrls(raw: String): List<String> {
-    if (raw.isBlank()) return emptyList()
-    if (raw.contains("|||")) {
-        return raw.split("|||").map { it.trim() }.filter { it.isNotBlank() }
-    }
     val trimmed = raw.trim()
-    if (trimmed.startsWith("data:") || trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("content://") || trimmed.startsWith("file://")) {
-        return listOf(trimmed)
+    if (trimmed.isBlank() || trimmed == "[]" || trimmed == "null") return emptyList()
+
+    // 1. JSON Array format
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        try {
+            val arr = org.json.JSONArray(trimmed)
+            val list = mutableListOf<String>()
+            for (i in 0 until arr.length()) {
+                val s = arr.optString(i)?.trim() ?: ""
+                if (s.isNotBlank() && s != "null") list.add(s)
+            }
+            if (list.isNotEmpty()) return sanitizePostUrls(list)
+        } catch (_: Throwable) {}
     }
-    return trimmed.split(",").map { it.trim() }.filter { it.isNotBlank() }
+
+    // 2. Standard multi-photo delimiter |||
+    if (trimmed.contains("|||")) {
+        val list = trimmed.split("|||").map { it.trim() }.filter { it.isNotBlank() && it != "null" }
+        return sanitizePostUrls(list)
+    }
+
+    // 3. Base64 encoded image
+    if (trimmed.startsWith("data:")) {
+        if (trimmed.indexOf("data:image", 1) > 0) {
+            val parts = trimmed.split("(?=data:image)".toRegex()).map { it.trim().trimEnd(',', '|') }.filter { it.isNotBlank() }
+            if (parts.isNotEmpty()) return sanitizePostUrls(parts)
+        }
+        return sanitizePostUrls(listOf(trimmed))
+    }
+
+    // 4. Comma separated list of URLs
+    if (trimmed.contains(",")) {
+        val parts = trimmed.split(",").map { it.trim() }.filter { it.isNotBlank() && it != "null" }
+        if (parts.size > 1) {
+            return sanitizePostUrls(parts)
+        }
+    }
+
+    return sanitizePostUrls(listOf(trimmed))
+}
+
+private fun sanitizePostUrls(urls: List<String>): List<String> {
+    return urls.filter { url ->
+        val u = url.trim()
+        if (u.isBlank() || u == "null") return@filter false
+        if (u.startsWith("file://")) {
+            val path = u.removePrefix("file://")
+            val f = java.io.File(path)
+            f.exists() && f.length() > 0L
+        } else {
+            true
+        }
+    }
 }
 
 fun PostEntity.toDomain() = Post(
@@ -4587,7 +4670,7 @@ fun DocumentSnapshot.toPostEntity(): PostEntity? {
     val authorId = getString("authorId") ?: return null
     val rawImage = getString("imageUrlsJson")?.takeIf { it.isNotBlank() }
         ?: getString("imageUrl")?.takeIf { it.isNotBlank() }
-        ?: (get("imageUrls") as? List<*>)?.filterNotNull()?.joinToString(",")
+        ?: (get("imageUrls") as? List<*>)?.filterNotNull()?.joinToString("|||")
         ?: ""
     val rawTs = get("timestamp")
     var postTs = when (rawTs) {

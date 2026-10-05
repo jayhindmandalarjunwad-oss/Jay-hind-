@@ -87,6 +87,17 @@ fun UniversalAsyncImage(
         }
         is String -> {
             val trimmed = model.trim()
+            if (trimmed.startsWith("file://")) {
+                val path = trimmed.removePrefix("file://")
+                val f = java.io.File(path)
+                if (!f.exists() || f.length() == 0L) {
+                    if (placeholder != null) {
+                        placeholder()
+                    }
+                    return
+                }
+            }
+
             val isBase64 = trimmed.startsWith("data:") ||
                     trimmed.contains("base64,") ||
                     trimmed.startsWith("/9j/") ||
@@ -96,7 +107,7 @@ fun UniversalAsyncImage(
                     (!trimmed.startsWith("http://") && !trimmed.startsWith("https://") && !trimmed.startsWith("content://") && !trimmed.startsWith("file://") && trimmed.length > 80)
 
             if (isBase64) {
-                val targetDim = if (targetDimensionPx > 0) targetDimensionPx else 600
+                val targetDim = if (targetDimensionPx > 0) targetDimensionPx else 720
                 val cached = remember(trimmed, targetDim) { MediaUtils.getCachedBitmap(trimmed, targetDim) }
                 val bitmapState = produceState<Bitmap?>(initialValue = cached, trimmed, targetDim) {
                     if (value == null) {
@@ -119,16 +130,13 @@ fun UniversalAsyncImage(
                     placeholder()
                 } else {
                     Box(
-                        modifier = modifier.background(Color(0xFFEEEEEE)),
+                        modifier = modifier.background(Color(0xFFF3F4F6)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = com.example.R.drawable.ic_jayhind_logo),
-                            contentDescription = contentDescription,
-                            contentScale = contentScale,
-                            alignment = alignment,
-                            alpha = 0.6f,
-                            modifier = Modifier.size(36.dp)
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            strokeWidth = 2.dp
                         )
                     }
                 }
@@ -201,7 +209,7 @@ fun convertDriveUrlToDirectStreamUrl(url: String, targetSize: Int = 1600): Strin
 
     return if (!fileId.isNullOrBlank() && fileId.length >= 15) {
         // High-definition thumbnail endpoint (1600px width) directly from Google Drive CDN, 100% free, 0 KB Firebase storage used
-        "https://drive.google.com/thumbnail?id=$fileId&sz=w$targetSize"
+        "https://lh3.googleusercontent.com/d/$fileId=w$targetSize"
     } else {
         trimmed
     }

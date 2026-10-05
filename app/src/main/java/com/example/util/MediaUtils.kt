@@ -586,11 +586,16 @@ object MediaUtils {
                 bitmapMemoryCache.get(cacheKey)?.let { return it }
             }
 
-            val base64Clean = if (trimmed.contains("base64,")) {
+            var base64Clean = if (trimmed.contains("base64,")) {
                 trimmed.substringAfter("base64,").trim()
             } else {
                 trimmed
-            }.replace("\n", "").replace("\r", "").replace(" ", "")
+            }.replace("\n", "").replace("\r", "").replace(" ", "").trimEnd(',', '|', '"', '\'')
+
+            val remainder = base64Clean.length % 4
+            if (remainder != 0) {
+                base64Clean += "=".repeat(4 - remainder)
+            }
 
             var decodedBytes: ByteArray? = try {
                 Base64.decode(base64Clean, Base64.DEFAULT)

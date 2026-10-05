@@ -899,7 +899,7 @@ object GoogleDriveMediaBackupManager {
             }
         }
 
-        // 4. Fallback: Save to local persistent storage to prevent Room/Firestore database bloat
+        // 4. Fallback: Save to local persistent storage AND return ultra-compact WebP Base64 (~15-25 KB) so other devices can display it over cloud
         try {
             val mediaDir = File(context.filesDir, "archived_media").apply { if (!exists()) mkdirs() }
             val localFile = File(mediaDir, fileName)
@@ -907,7 +907,12 @@ object GoogleDriveMediaBackupManager {
                 compressBytesToTinyWebp(bytes, maxDimension = 800, quality = 75)
             } else bytes
             localFile.writeBytes(uploadBytes)
-            return@withContext Uri.fromFile(localFile).toString()
+
+            if (mimeType.startsWith("image/")) {
+                val tinyBytes = compressBytesToTinyWebp(uploadBytes, maxDimension = 720, quality = 65)
+                val b64 = Base64.encodeToString(tinyBytes, Base64.NO_WRAP)
+                return@withContext "data:image/webp;base64,$b64"
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Local file fallback note: ${e.message}")
         }
@@ -919,7 +924,7 @@ object GoogleDriveMediaBackupManager {
         val trimmed = raw.trim()
         if (trimmed.isBlank() || trimmed == "[]" || trimmed == "null") return emptyList()
         val list = mutableListOf<String>()
-        if (trimmed.startsWith("[")) {
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
             try {
                 val arr = JSONArray(trimmed)
                 for (i in 0 until arr.length()) {
@@ -929,9 +934,19 @@ object GoogleDriveMediaBackupManager {
                 if (list.isNotEmpty()) return list
             } catch (_: Exception) {}
         }
+        if (trimmed.contains("|||")) {
+            return trimmed.split("|||").map { it.trim() }.filter { it.isNotBlank() && it != "null" }
+        }
+        if (trimmed.startsWith("data:")) {
+            if (trimmed.indexOf("data:image", 1) > 0) {
+                val splitData = trimmed.split("(?=data:image)".toRegex()).map { it.trim().trimEnd(',', '|') }.filter { it.isNotBlank() }
+                if (splitData.isNotEmpty()) return splitData
+            }
+            return listOf(trimmed)
+        }
         if (trimmed.contains(",")) {
-            trimmed.split(",").map { it.trim() }.filter { it.isNotBlank() && it != "null" }.forEach { list.add(it) }
-            if (list.isNotEmpty()) return list
+            val parts = trimmed.split(",").map { it.trim() }.filter { it.isNotBlank() && it != "null" }
+            if (parts.isNotEmpty()) return parts
         }
         list.add(trimmed)
         return list
@@ -1067,7 +1082,7 @@ object GoogleDriveMediaBackupManager {
                                     .update(
                                         mapOf(
                                             "imageUrl" to primaryUrl,
-                                            "imageUrlsJson" to finalImages.joinToString(","),
+                                            "imageUrlsJson" to finalImages.joinToString("|||"),
                                             "imageUrls" to finalImages
                                         )
                                     ).await()
@@ -1078,7 +1093,7 @@ object GoogleDriveMediaBackupManager {
                             try {
                                 val existingPost = db.postDao().getPostById(postId)
                                 if (existingPost != null) {
-                                    db.postDao().updatePost(existingPost.copy(imageUrlsJson = finalImages.joinToString(",")))
+                                    db.postDao().updatePost(existingPost.copy(imageUrlsJson = finalImages.joinToString("|||")))
                                 }
                             } catch (_: Exception) {}
                         }
@@ -1124,13 +1139,13 @@ object GoogleDriveMediaBackupManager {
 
                     if (postUpdated && finalImages.isNotEmpty()) {
                         val primaryUrl = finalImages.first()
-                        db.postDao().updatePost(post.copy(imageUrlsJson = finalImages.joinToString(",")))
+                        db.postDao().updatePost(post.copy(imageUrlsJson = finalImages.joinToString("|||")))
                         try {
                             FirebaseFirestore.getInstance().collection("posts").document(post.id)
                                 .update(
                                     mapOf(
                                         "imageUrl" to primaryUrl,
-                                        "imageUrlsJson" to finalImages.joinToString(","),
+                                        "imageUrlsJson" to finalImages.joinToString("|||"),
                                         "imageUrls" to finalImages
                                     )
                                 )
